@@ -176,23 +176,51 @@ routerAdd(
 
       if (!apiResponse || apiResponse.statusCode !== 200) {
         const errStatus = apiResponse ? apiResponse.statusCode : 500
+        const rawBody = apiResponse && apiResponse.raw ? String(apiResponse.raw).slice(0, 300) : ''
         console.error(
           '[' +
             new Date().toISOString() +
             '] DataJud retornou HTTP ' +
             errStatus +
             ' para o processo ' +
-            rawNumeroProcesso,
+            rawNumeroProcesso +
+            ': ' +
+            rawBody,
         )
         resultados.push({
           numero_processo: rawNumeroProcesso,
           status: 'erro_http',
           statusCode: errStatus,
+          mensagem: 'DataJud retornou status HTTP ' + errStatus,
         })
         continue
       }
 
-      const responseData = apiResponse.json || {}
+      let parsedJson = null
+      if (apiResponse.json && typeof apiResponse.json === 'object') {
+        parsedJson = apiResponse.json
+      } else if (apiResponse.raw && typeof apiResponse.raw === 'string') {
+        try {
+          parsedJson = JSON.parse(apiResponse.raw)
+        } catch (jsonErr) {
+          console.error(
+            '[' +
+              new Date().toISOString() +
+              '] Resposta da API DataJud para ' +
+              rawNumeroProcesso +
+              ' não é JSON válido: ' +
+              String(apiResponse.raw).slice(0, 200),
+          )
+          resultados.push({
+            numero_processo: rawNumeroProcesso,
+            status: 'erro_resposta_invalida',
+            mensagem: 'Resposta da API DataJud em formato inválido.',
+          })
+          continue
+        }
+      }
+
+      const responseData = parsedJson || {}
       const hitsObj = responseData.hits || {}
       const hitsList = hitsObj.hits || []
 

@@ -105,15 +105,22 @@ export const MovimentacoesDatajudView: React.FC = () => {
         if (res.status === 'tribunal_nao_mapeado') {
           toast.warning(`Tribunal não mapeado (J.TR: ${res.jtr})`, {
             description:
-              'Processo registrado na lista de pendências para mapeamento manual conforme Res. CNJ 65/2008.',
+              'Processo registrado na lista de pendências para mapeamento manual conforme Resolução CNJ 65/2008.',
           })
         } else {
-          toast.error(`Falha ao consultar DataJud: ${res.error || 'Erro desconhecido'}`)
+          const mensagemErro = res.error || 'Não foi possível consultar o DataJud no momento.'
+          toast.error(mensagemErro, {
+            description: res.detalhes ? `Detalhes: ${res.detalhes}` : undefined,
+          })
         }
         await loadData()
       }
     } catch (err: any) {
-      toast.error(`Erro na requisição: ${err.message}`)
+      console.error(
+        `[${new Date().toISOString()}] [MovimentacoesDatajudView] Erro inesperado ao consultar processo:`,
+        err,
+      )
+      toast.error(`Erro na requisição: ${err?.message || 'Falha de comunicação.'}`)
     } finally {
       setSyncingSingle(null)
     }
@@ -135,10 +142,15 @@ export const MovimentacoesDatajudView: React.FC = () => {
         }
         await loadData()
       } else {
-        toast.error(`Erro no lote DataJud: ${res.error}`)
+        const mensagemErro = res.error || 'Não foi possível sincronizar o lote no momento.'
+        toast.error(mensagemErro)
       }
     } catch (err: any) {
-      toast.error(`Erro ao executar lote: ${err.message}`)
+      console.error(
+        `[${new Date().toISOString()}] [MovimentacoesDatajudView] Erro inesperado no lote DataJud:`,
+        err,
+      )
+      toast.error(`Erro ao executar lote: ${err?.message || 'Falha de comunicação.'}`)
     } finally {
       setSyncingLote(false)
     }

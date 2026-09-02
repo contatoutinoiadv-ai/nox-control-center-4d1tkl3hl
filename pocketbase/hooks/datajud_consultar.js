@@ -167,6 +167,7 @@ routerAdd(
 
     if (!apiResponse || apiResponse.statusCode !== 200) {
       const errStatus = apiResponse ? apiResponse.statusCode : 500
+      const rawBody = apiResponse && apiResponse.raw ? String(apiResponse.raw).slice(0, 500) : ''
       console.error(
         '[' +
           new Date().toISOString() +
@@ -175,16 +176,39 @@ routerAdd(
           ', HTTP ' +
           errStatus +
           '): ' +
-          (apiResponse ? apiResponse.raw : ''),
+          rawBody,
       )
-      return e.json(errStatus, {
+      return e.json(errStatus >= 100 && errStatus < 600 ? errStatus : 502, {
         ok: false,
         error: 'DataJud retornou status HTTP ' + errStatus,
-        raw: apiResponse ? apiResponse.raw : null,
+        detalhes: rawBody || null,
       })
     }
 
-    const responseData = apiResponse.json || {}
+    let parsedJson = null
+    if (apiResponse.json && typeof apiResponse.json === 'object') {
+      parsedJson = apiResponse.json
+    } else if (apiResponse.raw && typeof apiResponse.raw === 'string') {
+      try {
+        parsedJson = JSON.parse(apiResponse.raw)
+      } catch (parseErr) {
+        console.error(
+          '[' +
+            new Date().toISOString() +
+            '] Resposta da API DataJud (' +
+            alias +
+            ') não é um JSON válido: ' +
+            String(apiResponse.raw).slice(0, 300),
+        )
+        return e.json(502, {
+          ok: false,
+          error: 'A API do DataJud retornou uma resposta em formato inválido no momento.',
+          detalhes: String(apiResponse.raw).slice(0, 300),
+        })
+      }
+    }
+
+    const responseData = parsedJson || {}
     const hitsObj = responseData.hits || {}
     const hitsList = hitsObj.hits || []
 

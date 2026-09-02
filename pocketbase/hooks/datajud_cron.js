@@ -131,7 +131,26 @@ cronAdd('datajud_diario', '0 6 * * *', () => {
       continue
     }
 
-    const responseData = apiResponse.json || {}
+    let parsedJson = null
+    if (apiResponse.json && typeof apiResponse.json === 'object') {
+      parsedJson = apiResponse.json
+    } else if (apiResponse.raw && typeof apiResponse.raw === 'string') {
+      try {
+        parsedJson = JSON.parse(apiResponse.raw)
+      } catch (cronJsonErr) {
+        console.error(
+          '[' +
+            new Date().toISOString() +
+            '] [CRON DATAJUD DIÁRIO] Resposta não-JSON no processo ' +
+            rawNumeroProcesso +
+            ': ' +
+            String(apiResponse.raw).slice(0, 200),
+        )
+        continue
+      }
+    }
+
+    const responseData = parsedJson || {}
     const hitsObj = responseData.hits || {}
     const hitsList = hitsObj.hits || []
 
@@ -421,7 +440,26 @@ cronAdd('datajud_semanal', '0 3 * * 0', () => {
       continue
     }
 
-    const responseData = apiResponse.json || {}
+    let parsedJson = null
+    if (apiResponse.json && typeof apiResponse.json === 'object') {
+      parsedJson = apiResponse.json
+    } else if (apiResponse.raw && typeof apiResponse.raw === 'string') {
+      try {
+        parsedJson = JSON.parse(apiResponse.raw)
+      } catch (cronJsonErr) {
+        console.error(
+          '[' +
+            new Date().toISOString() +
+            '] [CRON DATAJUD SEMANAL] Resposta não-JSON no processo ' +
+            rawNumeroProcesso +
+            ': ' +
+            String(apiResponse.raw).slice(0, 200),
+        )
+        continue
+      }
+    }
+
+    const responseData = parsedJson || {}
     const hitsObj = responseData.hits || {}
     const hitsList = hitsObj.hits || []
 
