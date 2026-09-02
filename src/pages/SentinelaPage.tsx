@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Activity,
   Radio,
@@ -49,17 +50,52 @@ import {
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 
+export type SentinelaSubArea =
+  | 'pulso'
+  | 'comunicacoes'
+  | 'triagem'
+  | 'sala_situacao'
+  | 'prazos'
+  | 'processos'
+  | 'automacoes'
+  | 'saude'
+
 export const SentinelaHub: React.FC = () => {
-  const [activeSubTab, setActiveSubTab] = useState<
-    | 'pulso'
-    | 'comunicacoes'
-    | 'triagem'
-    | 'sala_situacao'
-    | 'prazos'
-    | 'processos'
-    | 'automacoes'
-    | 'saude'
-  >('pulso')
+  const navigate = useNavigate()
+  const { subarea } = useParams<{ subarea?: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const resolveSubArea = (): SentinelaSubArea => {
+    const raw = (
+      subarea ||
+      searchParams.get('tab') ||
+      searchParams.get('area') ||
+      'pulso'
+    ).toLowerCase()
+    if (raw === 'sala-situacao' || raw === 'sala_situacao' || raw === 'sala' || raw === 'crise')
+      return 'sala_situacao'
+    if (raw === 'saude-gemeo' || raw === 'saude' || raw === 'gemeo') return 'saude'
+    if (raw === 'dossie' || raw === 'processo' || raw === 'processos') return 'processos'
+    if (raw === 'comunicacao' || raw === 'comunicacoes' || raw === 'djen') return 'comunicacoes'
+    if (raw === 'prazo' || raw === 'prazos' || raw === 'memorial') return 'prazos'
+    if (raw === 'automacao' || raw === 'automacoes' || raw === 'regras') return 'automacoes'
+    if (raw === 'triagem') return 'triagem'
+    if (raw === 'pulso') return 'pulso'
+    return 'pulso'
+  }
+
+  const [activeSubTab, setActiveSubTabState] = useState<SentinelaSubArea>(resolveSubArea)
+
+  // Sync state with URL params
+  useEffect(() => {
+    const nextArea = resolveSubArea()
+    setActiveSubTabState(nextArea)
+  }, [subarea, searchParams])
+
+  const handleSubTabChange = (areaId: SentinelaSubArea) => {
+    setActiveSubTabState(areaId)
+    navigate(`/sentinela/${areaId}`, { replace: true })
+  }
 
   const [communications, setCommunications] = useState<SentinelaCommunication[]>(
     dataStore.getCommunications(),
@@ -74,6 +110,22 @@ export const SentinelaHub: React.FC = () => {
   const [incidents, setIncidents] = useState<IncidentCrisisRoom[]>(dataStore.getIncidents())
   const [automations, setAutomations] = useState(dataStore.getAutomations())
   const [apiHealth, setApiHealth] = useState(dataStore.getApiHealth())
+
+  // Central dataStore real-time subscription
+  useEffect(() => {
+    const unsub = dataStore.subscribe(() => {
+      setCommunications(dataStore.getCommunications())
+      setBriefing(dataStore.getDailyBriefing())
+      setRecoveredTime(dataStore.getRecoveredTimeMetric())
+      setTwin(dataStore.getOperationalTwin())
+      setGaps(dataStore.getGaps())
+      setMemory(dataStore.getDecisionMemory())
+      setIncidents(dataStore.getIncidents())
+      setAutomations(dataStore.getAutomations())
+      setApiHealth(dataStore.getApiHealth())
+    })
+    return unsub
+  }, [])
 
   // Selected Item for Detail Modal
   const [selectedComm, setSelectedComm] = useState<SentinelaCommunication | null>(null)
@@ -582,7 +634,7 @@ export const SentinelaHub: React.FC = () => {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveSubTab(tab.id as any)}
+                onClick={() => handleSubTabChange(tab.id as SentinelaSubArea)}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                   isActive
                     ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-950 font-bold'
@@ -680,9 +732,21 @@ export const SentinelaHub: React.FC = () => {
                 {briefing.explainableRecommendations.map((rec, i) => (
                   <div
                     key={i}
-                    className="p-2 rounded bg-purple-950/20 border border-purple-900/40 text-xs text-slate-200"
+                    onClick={() => {
+                      if (rec.targetRoute) {
+                        navigate(rec.targetRoute)
+                      }
+                    }}
+                    className={`p-2 rounded bg-purple-950/20 border border-purple-900/40 text-xs text-slate-200 ${
+                      rec.targetRoute
+                        ? 'cursor-pointer hover:border-purple-600 hover:bg-purple-950/40 transition-all'
+                        : ''
+                    }`}
                   >
-                    <div className="font-bold text-purple-300">{rec.title}</div>
+                    <div className="font-bold text-purple-300 flex items-center justify-between">
+                      <span>{rec.title}</span>
+                      {rec.targetRoute && <ChevronRight className="w-3 h-3 text-purple-400" />}
+                    </div>
                     <div className="text-[10px] text-slate-400 mt-1">{rec.reason}</div>
                   </div>
                 ))}

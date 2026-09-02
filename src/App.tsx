@@ -1,5 +1,5 @@
 /* Main App Component - Handles routing, query client and other providers */
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { HashRouter, Routes, Route } from 'react-router-dom'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -18,7 +18,7 @@ import CentralPrazosPage from './pages/CentralPrazosPage'
 import NotFound from './pages/NotFound'
 
 const App = () => (
-  <BrowserRouter>
+  <HashRouter>
     <TooltipProvider>
       <Toaster />
       <Sonner position="top-right" richColors theme="dark" />
@@ -26,6 +26,7 @@ const App = () => (
         <Route element={<Layout />}>
           <Route path="/" element={<Index />} />
           <Route path="/sentinela" element={<SentinelaPage />} />
+          <Route path="/sentinela/:subarea" element={<SentinelaPage />} />
           <Route path="/central-prazos" element={<CentralPrazosPage />} />
           <Route path="/radar" element={<RadarPage />} />
           <Route path="/processos" element={<ProcessesPage />} />
@@ -39,7 +40,7 @@ const App = () => (
         <Route path="*" element={<NotFound />} />
       </Routes>
     </TooltipProvider>
-  </BrowserRouter>
+  </HashRouter>
 )
 
 export default App
