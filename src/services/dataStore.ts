@@ -1933,35 +1933,260 @@ export class NoxDataStore {
   }
 
   public addCommunications(newComms: SentinelaCommunication[]): number {
+    return this.addDjenCommunications(newComms)
+  }
+
+  /**
+   * Persiste publicações vindas da busca direta da ComunicaAPI/DJEN no Sentinela.
+   * Converte cada SentinelaCommunication em NoxRecord de forma deduplicada e
+   * atualiza this.records e this.communications, gravando em localStorage e notificando subscribers.
+   */
+  public addDjenCommunications(newComms: SentinelaCommunication[]): number {
     if (!Array.isArray(newComms) || newComms.length === 0) return 0
-    const existingIds = new Set(
+
+    // 1. Merge deduplicado na coleção de comunicações
+    const existingCommKeys = new Set(
       this.communications.map((c) => c.externalId || c.id).filter(Boolean),
     )
-    let addedCount = 0
-    const toAdd: SentinelaCommunication[] = []
+    let addedCommsCount = 0
+    const commsToAdd: SentinelaCommunication[] = []
 
     for (const comm of newComms) {
       const key = comm.externalId || comm.id
-      if (key && !existingIds.has(key)) {
-        existingIds.add(key)
-        toAdd.push(comm)
-        addedCount++
+      if (key && !existingCommKeys.has(key)) {
+        existingCommKeys.add(key)
+        commsToAdd.push(comm)
+        addedCommsCount++
       }
     }
 
-    if (toAdd.length > 0) {
-      this.communications = [...toAdd, ...this.communications]
+    if (commsToAdd.length > 0) {
+      this.communications = [...commsToAdd, ...this.communications]
+      try {
+        localStorage.setItem(STORAGE_KEYS.COMMUNICATIONS, JSON.stringify(this.communications))
+      } catch {
+        /* ignore */
+      }
+    }
+
+    // 2. Merge deduplicado na coleção de NoxRecord para a ProcessesPage
+    const existingRecProcessNumbers = new Set(
+      this.records.map((r) => r.numeroProcesso).filter(Boolean),
+    )
+    const existingRecCodes = new Set(this.records.map((r) => r.recordCode).filter(Boolean))
+    const existingRecIds = new Set(this.records.map((r) => r.id).filter(Boolean))
+
+    const newRecordsToAdd: NoxRecord[] = []
+    let modifiedExistingRecords = false
+    const nowIso = new Date().toISOString()
+    const defaultLawyer = this.getLawyerProfile().nome || 'Higor Utinoi de Oliveira'
+
+    newComms.forEach((comm, idx) => {
+      const processNum = comm.numeroProcesso || `PROC-DJEN-${Date.now()}-${idx}`
+      const recCode = comm.externalId ? `DJEN-${comm.externalId}` : `DJEN-${Date.now()}-${idx + 1}`
+      const recId = `rec-djen-${comm.id || comm.externalId || `${Date.now()}-${idx}`}`
+
+      // Buscar se já existe por numeroProcesso, recordCode ou id
+      const existingRec = this.records.find(
+        (r) =>
+          (processNum && r.numeroProcesso === processNum) ||
+          (comm.externalId && (r.recordCode === recCode || r.recordCode === comm.externalId)) ||
+          r.id === recId,
+      )
+
+      if (existingRec) {
+        // Atualiza notas e histórico sem duplicar processo
+        const noteMarker = comm.externalId || comm.id || 'DJEN'
+        const hasNoteAlready = existingRec.notes.some((n) => n.text.includes(noteMarker))
+        if (!hasNoteAlready && comm.teorResumido) {
+          existingRec.notes.unshift({
+            id: `note_djen_${Date.now()}_${idx}`,
+            author: 'Sentinela DJEN',
+            text: `[${comm.tipoComunicacao || 'PUBLICAÇÃO'}] ${comm.teorResumido} (Ref: ${noteMarker})`,
+            createdAt: comm.dataDisponibilizacao || nowIso,
+          })
+          existingRec.history.unshift({
+            id: `h_djen_${Date.now()}_${idx}`,
+            timestamp: nowIso,
+            actor: 'Sentinela DJEN / ComunicaAPI',
+            action: `Nova publicação vinculada: ${comm.tipoComunicacao || 'Ato Judicial'}`,
+            details: comm.teorResumido,
+          })
+          existingRec.updatedAt = nowIso
+          modifiedExistingRecords = true
+        }
+      } else if (
+        !existingRecProcessNumbers.has(processNum) &&
+        !existingRecCodes.has(recCode) &&
+        !existingRecIds.has(recId)
+      ) {
+        // Mapeamento correto de SentinelaCommunication -> NoxRecord
+        const urgency = comm.urgencyLevel || 'media'
+        const severity: NoxRecord['severity'] =
+          urgency === 'critica'
+            ? 'critico'
+            : urgency === 'alta'
+              ? 'alto'
+              : urgency === 'media'
+                ? 'medio'
+                : 'informativo'
+
+        const status: NoxRecord['status'] =
+          comm.status === 'REVISAO_HUMANA'
+            ? 'em_revisao'
+            : comm.status === 'CONCLUIDA'
+              ? 'resolvido'
+              : comm.status === 'VALIDADA' || comm.status === 'ANALISADA'
+                ? 'processado'
+                : 'novo'
+
+        const priority: NoxRecord['priority'] =
+          urgency === 'critica'
+            ? 'urgente'
+            : urgency === 'alta'
+              ? 'alta'
+              : urgency === 'media'
+                ? 'media'
+                : 'baixa'
+
+        const alertType: NoxRecord['alertType'] =
+          comm.tipoComunicacao === 'CITACAO' || urgency === 'critica'
+            ? 'operacional'
+            : 'operacional'
+
+        const alertTitle = comm.tipoComunicacao
+          ? `${comm.tipoComunicacao} — ${comm.tribunal || 'DJEN'}`
+          : `Publicação DJEN — ${comm.tribunal || 'Tribunal'}`
+
+        const alertDescription =
+          comm.teorResumido ||
+          comm.teorCompleto ||
+          `Publicação capturada via Sentinela NOX ComunicaAPI (${comm.tribunal || 'DJEN'}).`
+
+        const newRecord: NoxRecord = {
+          id: recId,
+          recordCode: recCode,
+          numeroProcesso: processNum,
+          tribunal: comm.tribunal || 'DJEN',
+          orgaoJulgador: comm.orgaoJulgador || 'Vara Judicial',
+          classeJudicial: comm.classeJudicial || 'Procedimento Comum Cível',
+          assunto: comm.tipoComunicacao
+            ? `Publicação DJEN (${comm.tipoComunicacao})`
+            : 'Publicação DJEN',
+          partes: comm.destinatario || 'Partes conforme publicação DJEN',
+          dataDistribuicao:
+            comm.dataDisponibilizacao || comm.dataPublicacao || nowIso.split('T')[0],
+          valorCausa: null,
+          status,
+          severity,
+          alertType,
+          alertTitle,
+          alertDescription,
+          priority,
+          responsible: comm.assignedTo || defaultLawyer,
+          tags: [
+            comm.tribunal || 'DJEN',
+            comm.tipoComunicacao || 'Intimação',
+            'Sentinela DJEN',
+          ].filter(Boolean),
+          notes: [
+            {
+              id: `note_init_djen_${Date.now()}_${idx}`,
+              author: 'Sentinela NOX',
+              text: `Capturado via ComunicaAPI DJEN/CNJ em ${comm.dataDisponibilizacao || nowIso.split('T')[0]}: ${comm.teorResumido}`,
+              createdAt: nowIso,
+            },
+          ],
+          history: [
+            {
+              id: `h_init_djen_${Date.now()}_${idx}`,
+              timestamp: nowIso,
+              actor: 'Sentinela DJEN / ComunicaAPI',
+              action: 'Processo sincronizado a partir da pesquisa no Sentinela DJEN',
+              details: `Origem: ${comm.source} (ID Externo: ${comm.externalId || 'N/A'})`,
+            },
+          ],
+          rawSourceRow: {
+            id_origem: comm.externalId || `DJEN-${idx}`,
+            num_processo_cnj: processNum,
+            tribunal_sigla: comm.tribunal || 'DJEN',
+            vara_gabinete: comm.orgaoJulgador || '',
+            classe_processo: comm.classeJudicial || '',
+            assunto_cnj: comm.tipoComunicacao || 'Publicação DJEN',
+            polo_ativo_nome: comm.destinatario || '',
+            polo_passivo_nome: '',
+            dt_distribuicao: comm.dataDisponibilizacao || nowIso.split('T')[0],
+            payload_raw: comm.teorCompleto || comm.teorResumido || '',
+          },
+          normalizedData: {
+            processoFormatado: processNum,
+            tribunalPadrao: `${comm.tribunal || 'DJEN'} (Diário de Justiça Eletrônico Nacional)`,
+            uf:
+              comm.comarca ||
+              (comm.tribunal && comm.tribunal.length <= 4
+                ? comm.tribunal.replace(/^TJ|^TRT|^TRF/, '')
+                : 'BR') ||
+              'BR',
+            poloAtivo: comm.destinatario || 'Parte Indicada',
+            poloPassivo: 'Conforme autos',
+            assuntoPrincipal:
+              comm.classeJudicial || comm.tipoComunicacao || 'Comunicação Processual',
+            instancia: '1º Grau',
+            grauRiscoEstimado:
+              severity === 'critico' || severity === 'alto'
+                ? 'alto'
+                : severity === 'medio'
+                  ? 'moderado'
+                  : 'baixo',
+          },
+          validationErrors: [],
+          sourceBatchId: 'sentinela_djen_api_live',
+          sourceRowIndex: idx,
+          clientId: comm.clientId,
+          clientCode: comm.clientCode,
+          createdAt: comm.createdAt || nowIso,
+          updatedAt: nowIso,
+        }
+
+        existingRecProcessNumbers.add(processNum)
+        existingRecCodes.add(recCode)
+        existingRecIds.add(recId)
+        newRecordsToAdd.push(newRecord)
+      }
+    })
+
+    if (newRecordsToAdd.length > 0) {
+      this.records = [...newRecordsToAdd, ...this.records]
+    }
+
+    if (newRecordsToAdd.length > 0 || modifiedExistingRecords || commsToAdd.length > 0) {
+      this.saveRecords()
       this.saveCommunications()
+
       this.logAction(
-        'COMUNICACOES_DJEN_IMPORTADAS_API',
+        'DJEN_PROCESSOS_SINCRONIZADOS',
         'sistema',
-        this.getLawyerProfile().nome || 'Operador NOX',
+        defaultLawyer,
         `LOTE_DJEN_${Date.now()}`,
-        { totalAdicionadas: addedCount },
+        {
+          totalComunicaoes: newComms.length,
+          novasComunicacoesAdicionadas: addedCommsCount,
+          novosProcessosCriados: newRecordsToAdd.length,
+          processosExistentesAtualizados: modifiedExistingRecords,
+        },
       )
     }
 
-    return addedCount
+    return newRecordsToAdd.length || addedCommsCount
+  }
+
+  /**
+   * Converte comunicações do Sentinela DJEN em NoxRecord e sincroniza com a coleção de records
+   * garantindo que a tela de Processos (ProcessesPage) liste os processos capturados.
+   * (Alias / helper mantido para compatibilidade).
+   */
+  public syncCommunicationsToRecords(comms: SentinelaCommunication[]): void {
+    this.addDjenCommunications(comms)
   }
 
   public advanceCommunicationStatus(

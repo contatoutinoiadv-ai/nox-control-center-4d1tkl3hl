@@ -279,6 +279,7 @@ export const SentinelaHub: React.FC = () => {
       setDjenTotalApiCount(
         typeof result.totalCount === 'number' ? result.totalCount : safeItems.length,
       )
+      dataStore.addDjenCommunications(safeItems)
       setDjenCommunicationsFromApi(safeItems, targetPage > 1)
       setDjenLocalPage(1)
 
@@ -352,6 +353,7 @@ export const SentinelaHub: React.FC = () => {
       setDjenTotalApiCount(
         typeof result.totalCount === 'number' ? result.totalCount : safeItems.length,
       )
+      dataStore.addDjenCommunications(safeItems)
       setDjenCommunicationsFromApi(safeItems, true)
       toast.success(`+${safeItems.length} publicações adicionadas do DJEN/CNJ.`)
     } catch (err: any) {
@@ -367,9 +369,9 @@ export const SentinelaHub: React.FC = () => {
   // E sincroniza com dataStore (que persiste em localStorage/PocketBase e converte para NoxRecords para ProcessesPage)
   const setDjenCommunicationsFromApi = (newItems: SentinelaCommunication[], append = false) => {
     const safeList = Array.isArray(newItems) ? newItems.filter(Boolean) : []
-    
-    // Persiste no dataStore (gerando records sincronizados para a tela de Processos)
-    dataStore.addCommunications(safeList)
+
+    // Persiste no dataStore de forma consolidada e converte em NoxRecords para alimentar a ProcessesPage
+    dataStore.addDjenCommunications(safeList)
 
     if (!append) {
       setCommunications(safeList)
