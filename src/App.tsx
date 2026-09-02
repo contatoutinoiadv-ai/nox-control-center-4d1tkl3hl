@@ -16,12 +16,42 @@ import LexTempusPage from './pages/LexTempusPage'
 import AuditPage from './pages/AuditPage'
 import SettingsPage from './pages/SettingsPage'
 import SentinelaPage from './pages/SentinelaPage'
+import UsuariosPage from './pages/UsuariosPage'
+import { AccessDeniedView } from './components/AccessDeniedView'
+import { authUsersService } from './services/authUsersService'
 import CentralPrazosPage from './pages/CentralPrazosPage'
 import CompromissosPage from './pages/CompromissosPage'
 import ClientesPage from './pages/ClientesPage'
 import ProducaoPage from './pages/ProducaoPage'
 import IntakePublicPage from './pages/IntakePublicPage'
 import NotFound from './pages/NotFound'
+
+// Componente de Guarda de Rota com Dupla Camada (Front-end + Back-end)
+const ProtectedModuleRoute: React.FC<{
+  moduleKey: string
+  moduleName: string
+  requiredAdmin?: boolean
+  children: React.ReactNode
+}> = ({ moduleKey, moduleName, requiredAdmin, children }) => {
+  const cachedMe = authUsersService.getCachedMe()
+  const isAdmin = cachedMe?.isAdmin || cachedMe?.role === 'admin'
+
+  if (requiredAdmin) {
+    if (!isAdmin) {
+      return (
+        <AccessDeniedView
+          moduleName={moduleName}
+          moduleKey={moduleKey}
+          requiredRole="Administrador (admin)"
+        />
+      )
+    }
+  } else if (!authUsersService.hasModuleAccess(moduleKey)) {
+    return <AccessDeniedView moduleName={moduleName} moduleKey={moduleKey} />
+  }
+
+  return <>{children}</>
+}
 
 // Component to seamlessly handle legacy hash URLs (e.g. /#/intake or /#/processos)
 const HashToPathSync = () => {
@@ -74,52 +104,139 @@ const App = () => (
               <Route
                 path="/sentinela"
                 element={
-                  <ErrorBoundary moduleName="Sentinela NOX / DJEN">
-                    <SentinelaPage />
-                  </ErrorBoundary>
+                  <ProtectedModuleRoute moduleKey="sentinela" moduleName="Sentinela NOX / DJEN">
+                    <ErrorBoundary moduleName="Sentinela NOX / DJEN">
+                      <SentinelaPage />
+                    </ErrorBoundary>
+                  </ProtectedModuleRoute>
                 }
               />
               <Route
                 path="/sentinela/:subarea"
                 element={
-                  <ErrorBoundary moduleName="Sentinela NOX / DJEN">
-                    <SentinelaPage />
-                  </ErrorBoundary>
+                  <ProtectedModuleRoute moduleKey="sentinela" moduleName="Sentinela NOX / DJEN">
+                    <ErrorBoundary moduleName="Sentinela NOX / DJEN">
+                      <SentinelaPage />
+                    </ErrorBoundary>
+                  </ProtectedModuleRoute>
                 }
               />
               <Route
                 path="/clientes"
                 element={
-                  <ErrorBoundary moduleName="Clientes (Controladoria Jurídica)">
-                    <ClientesPage />
-                  </ErrorBoundary>
+                  <ProtectedModuleRoute moduleKey="clientes" moduleName="Clientes & Intake">
+                    <ErrorBoundary moduleName="Clientes (Controladoria Jurídica)">
+                      <ClientesPage />
+                    </ErrorBoundary>
+                  </ProtectedModuleRoute>
                 }
               />
               <Route
                 path="/central-prazos"
                 element={
-                  <ErrorBoundary moduleName="Central de Prazos">
-                    <CentralPrazosPage />
-                  </ErrorBoundary>
+                  <ProtectedModuleRoute moduleKey="central_prazos" moduleName="Central de Prazos">
+                    <ErrorBoundary moduleName="Central de Prazos">
+                      <CentralPrazosPage />
+                    </ErrorBoundary>
+                  </ProtectedModuleRoute>
                 }
               />
               <Route
                 path="/compromissos"
                 element={
-                  <ErrorBoundary moduleName="Compromissos">
-                    <CompromissosPage />
+                  <ProtectedModuleRoute moduleKey="compromissos" moduleName="Compromissos">
+                    <ErrorBoundary moduleName="Compromissos">
+                      <CompromissosPage />
+                    </ErrorBoundary>
+                  </ProtectedModuleRoute>
+                }
+              />
+              <Route
+                path="/radar"
+                element={
+                  <ProtectedModuleRoute moduleKey="radar" moduleName="Radar de Alertas">
+                    <RadarPage />
+                  </ProtectedModuleRoute>
+                }
+              />
+              <Route
+                path="/producao"
+                element={
+                  <ProtectedModuleRoute moduleKey="producao" moduleName="Produção de Peças">
+                    <ProducaoPage />
+                  </ProtectedModuleRoute>
+                }
+              />
+              <Route
+                path="/processos"
+                element={
+                  <ProtectedModuleRoute moduleKey="processos" moduleName="Processos">
+                    <ProcessesPage />
+                  </ProtectedModuleRoute>
+                }
+              />
+              <Route
+                path="/importacoes"
+                element={
+                  <ProtectedModuleRoute moduleKey="importacoes" moduleName="Importações CSV">
+                    <ImportsPage />
+                  </ProtectedModuleRoute>
+                }
+              />
+              <Route
+                path="/revisao"
+                element={
+                  <ProtectedModuleRoute moduleKey="revisao" moduleName="Revisão Operacional">
+                    <ReviewPage />
+                  </ProtectedModuleRoute>
+                }
+              />
+              <Route
+                path="/exportacoes"
+                element={
+                  <ProtectedModuleRoute moduleKey="exportacoes" moduleName="Exportações">
+                    <ExportsPage />
+                  </ProtectedModuleRoute>
+                }
+              />
+              <Route
+                path="/lex-tempus"
+                element={
+                  <ProtectedModuleRoute moduleKey="lex_tempus" moduleName="LEX TEMPUS">
+                    <LexTempusPage />
+                  </ProtectedModuleRoute>
+                }
+              />
+              <Route
+                path="/auditoria"
+                element={
+                  <ProtectedModuleRoute moduleKey="auditoria" moduleName="Trilha de Auditoria">
+                    <AuditPage />
+                  </ProtectedModuleRoute>
+                }
+              />
+              <Route
+                path="/configuracoes"
+                element={
+                  <ProtectedModuleRoute moduleKey="configuracoes" moduleName="Configurações">
+                    <SettingsPage />
+                  </ProtectedModuleRoute>
+                }
+              />
+              <Route
+                path="/usuarios"
+                element={
+                  <ErrorBoundary moduleName="Usuários e Permissões">
+                    <ProtectedModuleRoute
+                      moduleKey="usuarios"
+                      moduleName="Usuários e Permissões"
+                      requiredAdmin
+                    >
+                      <UsuariosPage />
+                    </ProtectedModuleRoute>
                   </ErrorBoundary>
                 }
               />
-              <Route path="/radar" element={<RadarPage />} />
-              <Route path="/producao" element={<ProducaoPage />} />
-              <Route path="/processos" element={<ProcessesPage />} />
-              <Route path="/importacoes" element={<ImportsPage />} />
-              <Route path="/revisao" element={<ReviewPage />} />
-              <Route path="/exportacoes" element={<ExportsPage />} />
-              <Route path="/lex-tempus" element={<LexTempusPage />} />
-              <Route path="/auditoria" element={<AuditPage />} />
-              <Route path="/configuracoes" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

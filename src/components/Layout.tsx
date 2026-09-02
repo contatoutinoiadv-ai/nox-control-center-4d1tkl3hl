@@ -26,7 +26,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { CommandPalette } from './CommandPalette'
 import { dataStore } from '@/services/dataStore'
-import { NoxSystemStats } from '@/types/nox'
+import { authUsersService } from '@/services/authUsersService'
+import { NoxSystemStats, AuthMeResponse } from '@/types/nox'
 import { toast } from 'sonner'
 
 export const Layout: React.FC = () => {
@@ -34,6 +35,9 @@ export const Layout: React.FC = () => {
   const [statsClientsCount, setStatsClientsCount] = useState<number>(dataStore.getClients().length)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [userProfile, setUserProfile] = useState<AuthMeResponse | null>(
+    authUsersService.getCachedMe(),
+  )
   const location = useLocation()
 
   useEffect(() => {
@@ -41,7 +45,15 @@ export const Layout: React.FC = () => {
       setStats(dataStore.getStats())
       setStatsClientsCount(dataStore.getClients().length)
     })
-    return unsub
+    const unsubAuth = authUsersService.subscribe(() => {
+      setUserProfile(authUsersService.getCachedMe())
+    })
+    // Inicializa auth profile
+    authUsersService.fetchMe().then((me) => setUserProfile(me))
+    return () => {
+      unsub()
+      unsubAuth()
+    }
   }, [])
 
   // Global hotkey Ctrl+K / Cmd+K
@@ -56,9 +68,10 @@ export const Layout: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  const navLinks = [
-    { name: 'Central NOX', path: '/', icon: Activity, badge: null },
+  const allNavLinks = [
+    { moduleKey: 'central_nox', name: 'Central NOX', path: '/', icon: Activity, badge: null },
     {
+      moduleKey: 'sentinela',
       name: 'Sentinela NOX',
       path: '/sentinela',
       icon: Sparkles,
@@ -67,6 +80,7 @@ export const Layout: React.FC = () => {
       isSentinela: true,
     },
     {
+      moduleKey: 'clientes',
       name: 'Clientes',
       path: '/clientes',
       icon: Users,
@@ -74,6 +88,7 @@ export const Layout: React.FC = () => {
       badgeColor: 'bg-emerald-950 text-emerald-400 border-emerald-800',
     },
     {
+      moduleKey: 'producao',
       name: 'Produção',
       path: '/producao',
       icon: Layers,
@@ -82,6 +97,7 @@ export const Layout: React.FC = () => {
       badgeColor: 'bg-purple-950 text-purple-400 border-purple-800',
     },
     {
+      moduleKey: 'central_prazos',
       name: 'Central de Prazos',
       path: '/central-prazos',
       icon: Clock,
@@ -89,6 +105,7 @@ export const Layout: React.FC = () => {
       badgeVariant: 'cyan',
     },
     {
+      moduleKey: 'compromissos',
       name: 'Compromissos',
       path: '/compromissos',
       icon: CalendarCheck,
@@ -96,14 +113,22 @@ export const Layout: React.FC = () => {
       badgeVariant: 'aurora',
     },
     {
+      moduleKey: 'radar',
       name: 'Radar de Alertas',
       path: '/radar',
       icon: Radio,
       badge: stats.criticalAlerts > 0 ? stats.criticalAlerts : null,
       badgeVariant: 'destructive',
     },
-    { name: 'Processos', path: '/processos', icon: Database, badge: stats.totalMonitored },
     {
+      moduleKey: 'processos',
+      name: 'Processos',
+      path: '/processos',
+      icon: Database,
+      badge: stats.totalMonitored,
+    },
+    {
+      moduleKey: 'importacoes',
       name: 'Importações',
       path: '/importacoes',
       icon: UploadCloud,
@@ -111,16 +136,59 @@ export const Layout: React.FC = () => {
       badgeVariant: 'warning',
     },
     {
+      moduleKey: 'revisao',
       name: 'Revisão Operacional',
       path: '/revisao',
       icon: CheckSquare,
       badge: stats.inReviewRecords + stats.newRecords,
     },
-    { name: 'Exportações', path: '/exportacoes', icon: Download, badge: null },
-    { name: 'LEX TEMPUS', path: '/lex-tempus', icon: Clock, badge: 'Em Breve', isFuture: true },
-    { name: 'Auditoria', path: '/auditoria', icon: ShieldAlert, badge: null },
-    { name: 'Configurações', path: '/configuracoes', icon: Settings, badge: null },
+    {
+      moduleKey: 'exportacoes',
+      name: 'Exportações',
+      path: '/exportacoes',
+      icon: Download,
+      badge: null,
+    },
+    {
+      moduleKey: 'lex_tempus',
+      name: 'LEX TEMPUS',
+      path: '/lex-tempus',
+      icon: Clock,
+      badge: 'Em Breve',
+      isFuture: true,
+    },
+    {
+      moduleKey: 'auditoria',
+      name: 'Auditoria',
+      path: '/auditoria',
+      icon: ShieldAlert,
+      badge: null,
+    },
+    {
+      moduleKey: 'configuracoes',
+      name: 'Configurações',
+      path: '/configuracoes',
+      icon: Settings,
+      badge: null,
+    },
+    {
+      moduleKey: 'usuarios',
+      name: 'Usuários',
+      path: '/usuarios',
+      icon: Users,
+      badge: 'Admin',
+      badgeVariant: 'cyan',
+      adminOnly: true,
+    },
   ]
+
+  // Filtra itens do menu conforme a role e permissões do usuário logado
+  const navLinks = allNavLinks.filter((link) => {
+    if (!userProfile) return true // durante loading
+    if (userProfile.isAdmin || userProfile.role === 'admin') return true
+    if (link.adminOnly) return false // Módulo 'Usuários' só visível para admin
+    return userProfile.allowedModules.includes(link.moduleKey)
+  })
 
   const handleSyncSentinela = () => {
     toast.success('Sincronização passiva com Sentinela NOX verificada.', {
@@ -264,11 +332,25 @@ export const Layout: React.FC = () => {
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-cyan-400 text-xs">
-                HU
+                {userProfile?.user.name ? userProfile.user.name.slice(0, 2).toUpperCase() : 'HU'}
               </div>
               <div className="truncate">
-                <div className="text-xs font-medium text-slate-200 truncate">Higor Utinoi</div>
-                <div className="text-[10px] font-mono text-slate-400 truncate">OAB/MS 15.400</div>
+                <div className="text-xs font-medium text-slate-200 truncate">
+                  {userProfile?.user.name || 'Higor Utinoi'}
+                </div>
+                <div className="text-[10px] font-mono text-slate-400 truncate flex items-center gap-1">
+                  <span
+                    className={
+                      userProfile?.role === 'admin'
+                        ? 'text-cyan-400 font-semibold'
+                        : 'text-purple-400'
+                    }
+                  >
+                    {userProfile?.role === 'admin' ? 'Admin' : 'Operador'}
+                  </span>
+                  <span>•</span>
+                  <span>{userProfile?.user.email || 'OAB/MS 15.400'}</span>
+                </div>
               </div>
             </div>
             <Lock className="w-3.5 h-3.5 text-slate-400" />

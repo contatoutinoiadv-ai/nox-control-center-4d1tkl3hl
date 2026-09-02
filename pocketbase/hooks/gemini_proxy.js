@@ -6,6 +6,46 @@ routerAdd(
     // GEMINI_API_KEY vem exclusivamente de $os.getenv('GEMINI_API_KEY') e nunca é exposta ao frontend.
     // REGRA DE OURO LEX TEMPUS: A IA NUNCA FAZ A CONTA DO PRAZO. Apenas interpreta o ato gerador e sugere a regra do CPC/CLT/CPP.
     try {
+      const auth = e.auth
+      if (!auth) {
+        return e.json(401, { ok: false, error: 'Não autenticado' })
+      }
+
+      // Validação de dupla camada de acesso ao módulo (role admin ou permissão no módulo sentinela/lex_tempus/revisao)
+      const userRole = auth.getString('role') || 'operador'
+      const isAtivo = auth.getBool('ativo')
+
+      if (!isAtivo) {
+        return e.json(403, {
+          ok: false,
+          error: 'Usuário inativo. Acesso negado aos recursos do backend.',
+        })
+      }
+
+      if (userRole !== 'admin') {
+        let hasAccess = false
+        try {
+          const perms = $app.findRecordsByFilter(
+            'user_module_permissions',
+            `user_id = "${auth.id}" && (modulo = "sentinela" || modulo = "lex_tempus" || modulo = "revisao" || modulo = "central_prazos") && pode_acessar = true`,
+            '',
+            1,
+            0,
+          )
+          if (perms && perms.length > 0) {
+            hasAccess = true
+          }
+        } catch (_) {}
+
+        if (!hasAccess) {
+          return e.json(403, {
+            ok: false,
+            error:
+              'Acesso negado: seu perfil não possui permissão para acessar a API de inteligência e triagem (Gemini Proxy).',
+          })
+        }
+      }
+
       const info = e.requestInfo()
       const body = info.body || {}
       const texto = typeof body.texto === 'string' ? body.texto : ''

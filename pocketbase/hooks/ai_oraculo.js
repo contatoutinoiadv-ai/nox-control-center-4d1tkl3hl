@@ -5,6 +5,46 @@ routerAdd(
     // Endpoint seguro para consultas e triagens jurídicas com IA (Google Gemini via Skip AI Gateway)
     // Nenhuma chave é exposta ao cliente.
     try {
+      const auth = e.auth
+      if (!auth) {
+        return e.json(401, { ok: false, error: 'Não autenticado' })
+      }
+
+      // Validação de dupla camada de acesso ao módulo (role admin ou permissão no módulo sentinela/lex_tempus)
+      const userRole = auth.getString('role') || 'operador'
+      const isAtivo = auth.getBool('ativo')
+
+      if (!isAtivo) {
+        return e.json(403, {
+          ok: false,
+          error: 'Usuário inativo. Acesso negado aos recursos do backend.',
+        })
+      }
+
+      if (userRole !== 'admin') {
+        let hasAccess = false
+        try {
+          const perms = $app.findRecordsByFilter(
+            'user_module_permissions',
+            `user_id = "${auth.id}" && (modulo = "sentinela" || modulo = "lex_tempus" || modulo = "central_prazos") && pode_acessar = true`,
+            '',
+            1,
+            0,
+          )
+          if (perms && perms.length > 0) {
+            hasAccess = true
+          }
+        } catch (_) {}
+
+        if (!hasAccess) {
+          return e.json(403, {
+            ok: false,
+            error:
+              'Acesso negado: seu perfil não possui permissão para utilizar o Oráculo/Sentinela.',
+          })
+        }
+      }
+
       const info = e.requestInfo()
       const body = info.body || {}
       const modo = String(body.modo || 'oraculo')

@@ -294,6 +294,55 @@ export interface LexTempusResultV1 {
   motivoTravamentoSugerido?: string
 }
 
+export type UserRole = 'admin' | 'operador'
+
+export type SystemModuleKey =
+  | 'central_nox'
+  | 'sentinela'
+  | 'clientes'
+  | 'producao'
+  | 'central_prazos'
+  | 'compromissos'
+  | 'radar'
+  | 'processos'
+  | 'importacoes'
+  | 'revisao'
+  | 'exportacoes'
+  | 'lex_tempus'
+  | 'auditoria'
+  | 'configuracoes'
+  | 'usuarios'
+
+export interface UserModulePermission {
+  modulo: SystemModuleKey | string
+  pode_acessar: boolean
+}
+
+export interface NoxUser {
+  id: string
+  email: string
+  name: string
+  role: UserRole
+  ativo: boolean
+  created?: string
+  updated?: string
+  permissions?: UserModulePermission[]
+}
+
+export interface AuthMeResponse {
+  ok: boolean
+  user: {
+    id: string
+    email: string
+    name: string
+    role: UserRole
+    ativo: boolean
+  }
+  role: UserRole
+  allowedModules: string[]
+  isAdmin: boolean
+}
+
 export interface LawyerProfile {
   nome: string
   oab: string

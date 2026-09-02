@@ -14,18 +14,20 @@ migrate(
     }
 
     // Initial audit log
-    const auditCol = app.findCollectionByNameOrId('audit_logs')
-    const initLog = new Record(auditCol)
-    initLog.set('action', 'SISTEMA_INICIALIZADO')
-    initLog.set('category', 'sistema')
-    initLog.set('actor', 'NOX System Engine')
-    initLog.set('target_id', 'SYS-001')
-    initLog.set('details', {
-      message: 'NOX Control Center inicializado com sucesso no ambiente operacional.',
-      version: '1.0.0',
-      compliance: 'Sentinela-Isolation-Level-1',
-    })
-    app.save(initLog)
+    try {
+      const auditCol = app.findCollectionByNameOrId('audit_logs')
+      const initLog = new Record(auditCol)
+      initLog.set('action', 'SISTEMA_INICIALIZADO')
+      initLog.set('category', 'sistema')
+      initLog.set('actor', 'NOX System Engine')
+      initLog.set('target_id', 'SYS-001')
+      initLog.set('details', {
+        message: 'NOX Control Center inicializado com sucesso no ambiente operacional.',
+        version: '1.0.0',
+        compliance: 'Sentinela-Isolation-Level-1',
+      })
+      app.save(initLog)
+    } catch (_) {}
   },
   (app) => {
     try {

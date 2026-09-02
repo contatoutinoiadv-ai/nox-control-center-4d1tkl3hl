@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-02T07:17:26.368Z",
+  "generatedAt": "2026-09-02T07:38:32.557Z",
   "collections": [
     {
       "name": "users",
@@ -37,6 +37,19 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "role",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["admin", "operador"]
+        },
+        {
+          "name": "ativo",
+          "type": "bool",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -1233,6 +1246,56 @@
         "CREATE INDEX idx_prod_estagio ON production_items (estagio)",
         "CREATE INDEX idx_prod_processo ON production_items (numero_processo)",
         "CREATE INDEX idx_prod_nivel ON production_items (nivel)"
+      ]
+    },
+    {
+      "name": "user_module_permissions",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\" && @request.auth.role = \"admin\"",
+        "update": "@request.auth.id != \"\" && @request.auth.role = \"admin\"",
+        "delete": "@request.auth.id != \"\" && @request.auth.role = \"admin\""
+      },
+      "fields": [
+        {
+          "name": "user_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "modulo",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "pode_acessar",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_user_mod_perm ON user_module_permissions (user_id, modulo)",
+        "CREATE INDEX idx_user_perm_user ON user_module_permissions (user_id)"
       ]
     }
   ]
