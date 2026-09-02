@@ -2229,6 +2229,11 @@ export class NoxDataStore {
     commId: string,
     customMemorial: DeadlineMemorial,
     actor?: string,
+    options?: {
+      sugestaoIaAceita?: boolean
+      aiInterpretation?: any
+      justificativa?: string
+    },
   ): { task: SentinelaTask; event: AgendaEvent } | null {
     const comm = this.communications.find((c) => c.id === commId)
     if (!comm) return null
@@ -2333,6 +2338,21 @@ export class NoxDataStore {
       taskId,
       eventId,
     })
+
+    // Log de auditoria da homologação humana específico do LEX TEMPUS (categoria lex_tempus)
+    this.logAction('LEX_TEMPUS_HOMOLOGACAO_HUMANA', 'lex_tempus', actualActor, comm.id, {
+      processo: comm.numeroProcesso,
+      veredicto: 'ACEITO',
+      sugestaoIaAceita: options?.sugestaoIaAceita ?? true,
+      atoGeradorIA: options?.aiInterpretation?.atoGerador || customMemorial.generatingAct,
+      regraSugeridaIA: options?.aiInterpretation?.tipoPrazoSugerido || customMemorial.legalRuleName,
+      regraFinalAplicada: customMemorial.legalRuleName,
+      vencimentoFinal: customMemorial.finalDeadlineDate,
+      prazoInterno: customMemorial.internalDeadlineDate,
+      justificativa:
+        options?.justificativa || 'Prazo homologado e distribuído na esteira de produção e agenda.',
+    })
+
     return { task: newTask, event: newEvent }
   }
 

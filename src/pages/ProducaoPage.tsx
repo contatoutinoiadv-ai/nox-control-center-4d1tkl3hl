@@ -1221,9 +1221,29 @@ export const ProducaoPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-mono uppercase text-slate-400 block mb-1">
-                      Motivo de Travamento (Por que está parado?):
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[10px] font-mono uppercase text-slate-400">
+                        Motivo de Travamento (Por que está parado?):
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const suggested = `Interpretação de prazo requer revisão humana pelo LEX TEMPUS IA (amostra ambígua ou divergência de preset).`
+                          setSelectedItem((prev) =>
+                            prev ? { ...prev, motivoTravamento: suggested } : null,
+                          )
+                          dataStore.updateProductionItem(
+                            selectedItem.id,
+                            { motivoTravamento: suggested },
+                            'LEX TEMPUS IA',
+                          )
+                          toast.info('Motivo de travamento preenchido a partir do LEX TEMPUS.')
+                        }}
+                        className="text-[10px] font-mono text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                      >
+                        <Sparkles className="w-3 h-3" /> Sugerir via LEX TEMPUS IA
+                      </button>
+                    </div>
                     <Input
                       value={selectedItem.motivoTravamento || ''}
                       onChange={(e) => {
@@ -1240,7 +1260,7 @@ export const ProducaoPage: React.FC = () => {
                         )
                         toast.success('Motivo de travamento atualizado.')
                       }}
-                      placeholder="Ex: Aguardando documento complementar do cliente / Fechamento de tese..."
+                      placeholder="Ex: Aguardando documento complementar / Interpretação de prazo incerta pelo LEX TEMPUS..."
                       className="h-8 text-xs bg-slate-950 border-slate-700 text-slate-200"
                     />
                   </div>

@@ -21,6 +21,7 @@ import {
   PRAZO_NAO_DETERMINAVEL_AUTOMATICAMENTE,
 } from '@/types/sentinela'
 import { calculateLegalDeadline, LEGAL_RULES_PRESETS } from '@/services/deadlineEngine'
+import { interpretPublicationWithAi } from '@/services/lexTempusService'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -51,6 +52,13 @@ export const DeadlineCalculatorView: React.FC<DeadlineCalculatorViewProps> = ({
   const [selectedPresetId, setSelectedPresetId] = useState(
     initialMemorial?.legalRuleName ? 'CPC_APELACAO_15D' : 'CPC_APELACAO_15D',
   )
+  const [isInterpretingWithAi, setIsInterpretingWithAi] = useState(false)
+  const [aiAnalysisResult, setAiAnalysisResult] = useState<{
+    atoGerador?: string
+    tipoPrazoSugerido?: string
+    nivelConfianca?: string
+    pontosDeAtencao?: string
+  } | null>(null)
 
   // Simulator state (isolated "what-if" scenario)
   const [simInitialDate, setSimInitialDate] = useState(initialDate)
@@ -107,6 +115,48 @@ export const DeadlineCalculatorView: React.FC<DeadlineCalculatorViewProps> = ({
       toast.success('Cálculo de Prazo homologado e distribuído!', {
         description: `Vencimento fatal fixado para ${officialMemorial.finalDeadlineDate}.`,
       })
+    }
+  }
+
+  const handleInterpretWithAi = async () => {
+    if (!originText || originText.trim().length < 5) {
+      toast.error('Insira o texto da publicação para interpretação pela IA.')
+      return
+    }
+    setIsInterpretingWithAi(true)
+    try {
+      const res = await interpretPublicationWithAi({
+        conteudoPublicacao: originText,
+        tribunal,
+      })
+
+      setAiAnalysisResult({
+        atoGerador: res.atoGerador,
+        tipoPrazoSugerido: res.tipoPrazoSugerido,
+        nivelConfianca: res.nivelConfiancaInterpretacao,
+        pontosDeAtencao: res.pontosDeAtencao,
+      })
+
+      if (res.tipoPrazoSugerido && res.tipoPrazoSugerido !== 'OUTRO_OU_INCONCLUSIVO') {
+        const found = LEGAL_RULES_PRESETS.find((p) => p.id === res.tipoPrazoSugerido)
+        if (found) {
+          setSelectedPresetId(found.id)
+        }
+      }
+
+      if (res.nivelConfiancaInterpretacao === 'baixa') {
+        toast.warning('Interpretação IA com confiança BAIXA.', {
+          description: 'Ato ambíguo detectado. Revise manualmente antes de homologar.',
+        })
+      } else {
+        toast.success(`IA sugeriu: ${res.tipoPrazoNome}`, {
+          description: `Ato gerador: ${res.atoGerador}. O motor determinístico recalculou as datas.`,
+        })
+      }
+    } catch (err: any) {
+      toast.error('Falha na interpretação: ' + (err?.message || 'Erro desconhecido'))
+    } finally {
+      setIsInterpretingWithAi(false)
     }
   }
 
@@ -207,15 +257,57 @@ export const DeadlineCalculatorView: React.FC<DeadlineCalculatorViewProps> = ({
               </div>
             </div>
 
-            {/* Origin Text Quote */}
-            <div className="mt-4 p-3 rounded-lg bg-slate-950/70 border border-slate-800/80 text-xs text-slate-300">
-              <div className="text-[10px] font-mono text-slate-400 uppercase font-semibold mb-1 flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-cyan-400" />
-                Texto Original da Intimação / Publicação:
+            {/* Origin Text Quote & AI Assistant Trigger */}
+            <div className="mt-4 p-3.5 rounded-lg bg-slate-950/80 border border-slate-800/80 text-xs text-slate-300 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="text-[10px] font-mono text-slate-400 uppercase font-semibold flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-cyan-400" />
+                  Texto da Publicação:
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleInterpretWithAi}
+                  disabled={isInterpretingWithAi}
+                  className="h-7 text-[11px] font-mono border-purple-800 text-purple-300 hover:bg-purple-950/60 flex items-center gap-1"
+                >
+                  <Sparkles className="w-3 h-3 text-purple-400" />
+                  {isInterpretingWithAi ? 'Interpretando IA...' : 'Interpretar com LEX TEMPUS IA'}
+                </Button>
               </div>
-              <blockquote className="italic text-slate-200 border-l-2 border-cyan-500 pl-2">
+
+              <blockquote className="italic text-slate-200 border-l-2 border-cyan-500 pl-2.5 leading-relaxed">
                 &quot;{officialMemorial.originText}&quot;
               </blockquote>
+
+              {aiAnalysisResult && (
+                <div className="p-2.5 rounded-lg bg-purple-950/40 border border-purple-800/60 text-[11px] space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono font-bold text-purple-300 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" /> Sugestão LEX TEMPUS IA:
+                    </span>
+                    <Badge
+                      className={`text-[9px] font-mono ${
+                        aiAnalysisResult.nivelConfianca === 'alta'
+                          ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
+                          : aiAnalysisResult.nivelConfianca === 'media'
+                            ? 'bg-amber-950 text-amber-300 border-amber-700'
+                            : 'bg-rose-950 text-rose-300 border-rose-700'
+                      }`}
+                    >
+                      Confiança: {aiAnalysisResult.nivelConfianca?.toUpperCase()}
+                    </Badge>
+                  </div>
+                  <div className="text-slate-200">
+                    <strong>Ato:</strong> {aiAnalysisResult.atoGerador}
+                  </div>
+                  {aiAnalysisResult.pontosDeAtencao && (
+                    <div className="text-amber-300/90 text-[10px]">
+                      <strong>Atenção:</strong> {aiAnalysisResult.pontosDeAtencao}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

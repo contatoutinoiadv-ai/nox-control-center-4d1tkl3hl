@@ -254,11 +254,32 @@ export interface LexTempusInputV1 {
   metadata?: Record<string, unknown>
 }
 
+export type LexTempusConfidenceLevel = 'alta' | 'media' | 'baixa'
+
+export interface LexTempusAiInterpretation {
+  atoGerador: string
+  tipoPrazoSugerido: string
+  tipoPrazoNome: string
+  fundamentacaoRegra: string
+  nivelConfiancaInterpretacao: LexTempusConfidenceLevel
+  pontosDeAtencao: string
+  requerRevisaoHumana: boolean
+  modeloUtilizado?: string
+  isFallback?: boolean
+}
+
 export interface LexTempusResultV1 {
   contractVersion: '1.0.0'
-  status: 'PENDING_INTEGRATION_FLAG' | 'MOCK_CALCULATED' | 'DISABLED'
-  active: false
+  status:
+    | 'CALCULATED'
+    | 'REQUIRES_HUMAN_REVIEW'
+    | 'UNCERTAIN_INTERPRETATION'
+    | 'MOCK_CALCULATED'
+    | 'DISABLED'
+  active: boolean
   disclaimer: string
+  aiInterpretation?: LexTempusAiInterpretation
+  deadlineMemorial?: import('./sentinela').DeadlineMemorial
   estimatedDeadlines: Array<{
     tipoPrazo: string
     diasUteis: number
@@ -270,6 +291,7 @@ export interface LexTempusResultV1 {
     aprovado: boolean
     observacao: string
   }>
+  motivoTravamentoSugerido?: string
 }
 
 export interface LawyerProfile {
