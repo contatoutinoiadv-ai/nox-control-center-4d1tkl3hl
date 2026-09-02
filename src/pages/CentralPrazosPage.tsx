@@ -12,11 +12,14 @@ import {
   ChevronRight,
   Flame,
   Zap,
+  Activity,
 } from 'lucide-react'
 import { dataStore } from '@/services/dataStore'
 import { DeadlineCalculatorView } from '@/components/DeadlineCalculatorView'
 import { AgendaView } from '@/components/AgendaView'
 import { TasksView } from '@/components/TasksView'
+import { MovimentacoesDatajudView } from '@/components/MovimentacoesDatajudView'
+import { datajudService, MovimentacaoProcesso } from '@/services/datajudService'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,25 +33,37 @@ import {
 import { toast } from 'sonner'
 
 export const CentralPrazosPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'prazos' | 'agenda' | 'tarefas' | 'calculadora'>(
-    'prazos',
-  )
+  const [activeTab, setActiveTab] = useState<
+    'prazos' | 'agenda' | 'tarefas' | 'calculadora' | 'movimentacoes'
+  >('prazos')
   const [tasks] = useState(dataStore.getTasks())
   const [agenda] = useState(dataStore.getAgendaEvents())
   const [communications] = useState(dataStore.getCommunications())
   const [searchQuery, setSearchQuery] = useState('')
+  const [datajudMovs, setDatajudMovs] = useState<MovimentacaoProcesso[]>([])
+
+  React.useEffect(() => {
+    datajudService.getMovimentacoes().then((movs) => {
+      setDatajudMovs(movs)
+    })
+  }, [activeTab])
 
   // Filter deadlines
   const deadlinesList = communications
     .filter((c) => c.deadlineCalculated)
-    .map((c) => ({
-      commId: c.id,
-      processo: c.numeroProcesso,
-      tribunal: c.tribunal,
-      memorial: c.deadlineCalculated!,
-      responsavel: c.assignedTo || dataStore.getLawyerProfile().nome || 'Higor Utinoi de Oliveira',
-      urgencia: c.urgencyLevel,
-    }))
+    .map((c) => {
+      const temMovimentacaoNova = datajudMovs.some((m) => m.numero_processo === c.numeroProcesso)
+      return {
+        commId: c.id,
+        processo: c.numeroProcesso,
+        tribunal: c.tribunal,
+        memorial: c.deadlineCalculated!,
+        responsavel:
+          c.assignedTo || dataStore.getLawyerProfile().nome || 'Higor Utinoi de Oliveira',
+        urgencia: c.urgencyLevel,
+        temMovimentacaoDatajud: temMovimentacaoNova,
+      }
+    })
 
   return (
     <div className="space-y-6">
@@ -101,6 +116,22 @@ export const CentralPrazosPage: React.FC = () => {
             }`}
           >
             Tarefas
+          </button>
+          <button
+            onClick={() => setActiveTab('movimentacoes')}
+            className={`px-3 py-1.5 rounded-lg font-bold font-mono transition-all flex items-center gap-1.5 ${
+              activeTab === 'movimentacoes'
+                ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-md font-extrabold'
+                : 'text-cyan-400 hover:text-cyan-300'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            Movimentações DataJud
+            {datajudMovs.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-950/80 text-cyan-300 border border-cyan-400/40">
+                {datajudMovs.length}
+              </span>
+            )}
           </button>
           <button
             onClick={() => setActiveTab('calculadora')}
@@ -207,6 +238,12 @@ export const CentralPrazosPage: React.FC = () => {
                           <span className="text-xs font-mono font-bold text-slate-200">
                             {d.processo}
                           </span>
+                          {d.temMovimentacaoDatajud && (
+                            <Badge className="bg-cyan-950 text-cyan-300 border-cyan-500 text-[9px] font-mono flex items-center gap-1">
+                              <Activity className="w-2.5 h-2.5" />
+                              ANDAMENTO DATAJUD
+                            </Badge>
+                          )}
                           <span className="text-xs text-slate-400">• {d.responsavel}</span>
                         </div>
                         <h4 className="text-sm font-bold text-slate-100">
@@ -259,6 +296,7 @@ export const CentralPrazosPage: React.FC = () => {
       {activeTab === 'agenda' && <AgendaView />}
       {activeTab === 'tarefas' && <TasksView />}
       {activeTab === 'calculadora' && <DeadlineCalculatorView />}
+      {activeTab === 'movimentacoes' && <MovimentacoesDatajudView />}
     </div>
   )
 }

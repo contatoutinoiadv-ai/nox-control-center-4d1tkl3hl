@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-02T16:07:16.405Z",
+  "generatedAt": "2026-09-02T16:32:49.168Z",
   "collections": [
     {
       "name": "users",
@@ -29,29 +29,21 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         },
         {
           "name": "role",
           "type": "select",
           "required": false,
           "system": false,
-          "selectValues": [
-            "admin",
-            "operador"
-          ]
+          "selectValues": ["admin", "operador"]
         },
         {
           "name": "ativo",
@@ -147,19 +139,14 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
       "indexes": [
@@ -225,37 +212,21 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": [
-            "novo",
-            "em_revisao",
-            "processado",
-            "quarentena",
-            "resolvido"
-          ]
+          "selectValues": ["novo", "em_revisao", "processado", "quarentena", "resolvido"]
         },
         {
           "name": "severity",
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": [
-            "informativo",
-            "medio",
-            "alto",
-            "critico"
-          ]
+          "selectValues": ["informativo", "medio", "alto", "critico"]
         },
         {
           "name": "alert_type",
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": [
-            "operacional",
-            "qualidade_dado",
-            "importacao",
-            "futuro_lex_tempus"
-          ]
+          "selectValues": ["operacional", "qualidade_dado", "importacao", "futuro_lex_tempus"]
         },
         {
           "name": "alert_title",
@@ -274,12 +245,7 @@
           "type": "select",
           "required": false,
           "system": false,
-          "selectValues": [
-            "baixa",
-            "media",
-            "alta",
-            "urgente"
-          ]
+          "selectValues": ["baixa", "media", "alta", "urgente"]
         },
         {
           "name": "responsible",
@@ -334,19 +300,14 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         },
         {
           "name": "client_id",
@@ -428,19 +389,14 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
       "indexes": [
@@ -572,19 +528,14 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         },
         {
           "name": "client_id",
@@ -728,19 +679,14 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
       "indexes": [
@@ -848,19 +794,14 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         },
         {
           "name": "preparacao_habilitada",
@@ -974,19 +915,14 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
       "indexes": []
@@ -1061,19 +997,14 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
       "indexes": []
@@ -1172,13 +1103,7 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": [
-            "intake_site",
-            "manual",
-            "whatsapp",
-            "indicacao",
-            "presencial"
-          ]
+          "selectValues": ["intake_site", "manual", "whatsapp", "indicacao", "presencial"]
         },
         {
           "name": "estagio",
@@ -1223,19 +1148,14 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         },
         {
           "name": "alegacoes_processo",
@@ -1365,19 +1285,14 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
       "indexes": [
@@ -1422,24 +1337,374 @@
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate"
-          ]
+          "autodateTriggers": ["onCreate"]
         },
         {
           "name": "updated",
           "type": "autodate",
           "required": false,
           "system": false,
-          "autodateTriggers": [
-            "onCreate",
-            "onUpdate"
-          ]
+          "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
       "indexes": [
         "CREATE UNIQUE INDEX idx_user_mod_perm ON user_module_permissions (user_id, modulo)",
         "CREATE INDEX idx_user_perm_user ON user_module_permissions (user_id)"
+      ]
+    },
+    {
+      "name": "processos_monitorados",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\"",
+        "update": "@request.auth.id != \"\"",
+        "delete": "@request.auth.id != \"\""
+      },
+      "fields": [
+        {
+          "name": "numero_processo",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "cliente",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tribunal",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "ativo",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tem_prazo_aberto",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "ultimo_status_mapeamento",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_proc_mon_num ON processos_monitorados (numero_processo)",
+        "CREATE INDEX idx_proc_mon_ativo ON processos_monitorados (ativo)",
+        "CREATE INDEX idx_proc_mon_trib ON processos_monitorados (tribunal)"
+      ]
+    },
+    {
+      "name": "processos_datajud_cache",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\"",
+        "update": "@request.auth.id != \"\"",
+        "delete": "@request.auth.id != \"\""
+      },
+      "fields": [
+        {
+          "name": "numero_processo",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "tribunal_alias",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "classe_codigo",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "classe_nome",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "grau",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_ajuizamento",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "orgao_julgador_codigo",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "orgao_julgador_nome",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "nivel_sigilo",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "formato_nome",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sistema_nome",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "assuntos_json",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "ultima_consulta_em",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "ultimo_resultado",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_datajud_cache_num ON processos_datajud_cache (numero_processo)",
+        "CREATE INDEX idx_datajud_cache_trib ON processos_datajud_cache (tribunal_alias)"
+      ]
+    },
+    {
+      "name": "movimentacoes_processo",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\"",
+        "update": "@request.auth.id != \"\"",
+        "delete": "@request.auth.id != \"\""
+      },
+      "fields": [
+        {
+          "name": "numero_processo",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "tribunal_alias",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "datajud_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "codigo_movimento",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "nome_movimento",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "data_hora_movimento",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "orgao_codigo_movimento",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "orgao_nome_movimento",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "complementos_json",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "nivel_sigilo_processo",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "hash_dedup",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "sigilo_descricao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_mov_hash_dedup ON movimentacoes_processo (hash_dedup)",
+        "CREATE INDEX idx_mov_num_proc ON movimentacoes_processo (numero_processo)",
+        "CREATE INDEX idx_mov_data_hora ON movimentacoes_processo (data_hora_movimento)"
+      ]
+    },
+    {
+      "name": "alertas_movimentacao",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\"",
+        "update": "@request.auth.id != \"\"",
+        "delete": "@request.auth.id != \"\""
+      },
+      "fields": [
+        {
+          "name": "numero_processo",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "descricao",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "tipo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "lido",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "movimentacao_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "hash_dedup",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_alertas_proc ON alertas_movimentacao (numero_processo)",
+        "CREATE INDEX idx_alertas_lido ON alertas_movimentacao (lido)",
+        "CREATE INDEX idx_alertas_created ON alertas_movimentacao (created DESC)"
       ]
     }
   ]

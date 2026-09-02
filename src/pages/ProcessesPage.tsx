@@ -27,12 +27,20 @@ import { NoxRecord, RecordStatus, SeverityLevel } from '@/types/nox'
 import { ProcessDetailDrawer } from '@/components/ProcessDetailDrawer'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import { datajudService, MovimentacaoProcesso } from '@/services/datajudService'
 
 export const ProcessesPage: React.FC = () => {
   const [searchParams] = useSearchParams()
   const [records, setRecords] = useState<NoxRecord[]>(dataStore.getRecords())
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table')
   const [selectedRecord, setSelectedRecord] = useState<NoxRecord | null>(null)
+  const [movimentacoesDatajud, setMovimentacoesDatajud] = useState<MovimentacaoProcesso[]>([])
+
+  useEffect(() => {
+    datajudService.getMovimentacoes().then((movs) => {
+      setMovimentacoesDatajud(movs)
+    })
+  }, [])
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('')
@@ -393,7 +401,16 @@ export const ProcessesPage: React.FC = () => {
                           <div className="font-bold text-cyan-300 group-hover:text-cyan-200">
                             {rec.recordCode}
                           </div>
-                          <div className="text-slate-400 text-[11px]">{rec.numeroProcesso}</div>
+                          <div className="text-slate-400 text-[11px] flex items-center gap-1.5">
+                            <span>{rec.numeroProcesso}</span>
+                            {movimentacoesDatajud.some(
+                              (m) => m.numero_processo === rec.numeroProcesso,
+                            ) && (
+                              <span className="text-[9px] px-1 py-0 bg-cyan-950 text-cyan-300 border border-cyan-700 rounded font-bold">
+                                DATAJUD
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="p-3">
                           <Badge className="text-[10px] px-1.5 py-0 bg-slate-800 text-slate-300 border-slate-700 font-mono">
