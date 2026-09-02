@@ -8,6 +8,7 @@ import {
   CheckSquare,
   Download,
   Clock,
+  CalendarCheck,
   ShieldAlert,
   Settings,
   Search,
@@ -67,6 +68,13 @@ export const Layout: React.FC = () => {
       icon: Clock,
       badge: 'Sincronizado',
       badgeVariant: 'cyan',
+    },
+    {
+      name: 'Compromissos',
+      path: '/compromissos',
+      icon: CalendarCheck,
+      badge: 'NOVO',
+      badgeVariant: 'aurora',
     },
     {
       name: 'Radar de Alertas',

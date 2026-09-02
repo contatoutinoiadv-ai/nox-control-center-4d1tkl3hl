@@ -37,6 +37,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   const navItems = [
     { title: 'Central NOX', path: '/', category: 'Navegação' },
+    { title: 'Sentinela NOX', path: '/sentinela', category: 'Navegação' },
+    { title: 'Central de Prazos', path: '/central-prazos', category: 'Navegação' },
+    { title: 'Compromissos & Agenda Autônoma', path: '/compromissos', category: 'Navegação' },
     { title: 'Radar de Alertas', path: '/radar', category: 'Navegação' },
     { title: 'Processos & Registros', path: '/processos', category: 'Navegação' },
     { title: 'Importações de CSV', path: '/importacoes', category: 'Navegação' },

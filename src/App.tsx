@@ -16,6 +16,7 @@ import AuditPage from './pages/AuditPage'
 import SettingsPage from './pages/SettingsPage'
 import SentinelaPage from './pages/SentinelaPage'
 import CentralPrazosPage from './pages/CentralPrazosPage'
+import CompromissosPage from './pages/CompromissosPage'
 import NotFound from './pages/NotFound'
 
 const App = () => (
@@ -49,6 +50,14 @@ const App = () => (
                 element={
                   <ErrorBoundary moduleName="Central de Prazos">
                     <CentralPrazosPage />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="/compromissos"
+                element={
+                  <ErrorBoundary moduleName="Compromissos">
+                    <CompromissosPage />
                   </ErrorBoundary>
                 }
               />

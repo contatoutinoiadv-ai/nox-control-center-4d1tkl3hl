@@ -37,6 +37,7 @@ import { toast } from 'sonner'
 
 const EVENT_TYPE_COLORS: Record<AgendaEventType, { bg: string; text: string; border: string }> = {
   AUDIENCIA: { bg: 'bg-purple-950/70', text: 'text-purple-300', border: 'border-purple-800' },
+  ATENDIMENTO: { bg: 'bg-emerald-950/70', text: 'text-emerald-300', border: 'border-emerald-800' },
   COMPROMISSO: { bg: 'bg-blue-950/70', text: 'text-blue-300', border: 'border-blue-800' },
   REUNIAO: { bg: 'bg-cyan-950/70', text: 'text-cyan-300', border: 'border-cyan-800' },
   DILIGENCIA: { bg: 'bg-amber-950/70', text: 'text-amber-300', border: 'border-amber-800' },
