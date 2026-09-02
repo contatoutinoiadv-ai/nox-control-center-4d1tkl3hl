@@ -252,10 +252,10 @@ export const ImportsPage: React.FC = () => {
       sampleRows: parsedRows.slice(0, 5),
     }
 
-    const res = dataStore.addImportBatch(newBatch, [...accepted, ...quarantined])
+    const res = await dataStore.addImportBatch(newBatch, [...accepted, ...quarantined])
     if (res.success) {
       toast.success('Ingestão concluída!', {
-        description: res.message,
+        description: `${res.message} Registros propagados para Processos, Radar, Sentinela e Revisão.`,
       })
       setStage('completed')
     } else {
@@ -590,12 +590,15 @@ SNT-9904;INVALID-CNJ-LINE;TJMG;;Ação de Cobrança;;Construtora Vale Verde;Pref
           </div>
           <span className="text-[11px] font-mono text-slate-400">Preservação imutável</span>
         </div>
-
         <div className="divide-y divide-slate-800 border border-slate-800 rounded-2xl overflow-hidden bg-slate-950/60 nox-glass-card">
           {batches.map((b) => (
             <div
               key={b.id}
-              className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs"
+              className={`p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs ${
+                dataStore.getActiveBatch()?.id === b.id
+                  ? 'bg-cyan-950/20 border-l-4 border-l-cyan-400'
+                  : ''
+              }`}
             >
               <div className="space-y-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -609,6 +612,11 @@ SNT-9904;INVALID-CNJ-LINE;TJMG;;Ação de Cobrança;;Construtora Vale Verde;Pref
                   >
                     {b.status.replace('_', ' ')}
                   </Badge>
+                  {dataStore.getActiveBatch()?.id === b.id && (
+                    <Badge className="bg-cyan-950 text-cyan-300 border-cyan-600 font-mono text-[9px]">
+                      LOTE ATIVO NO SISTEMA
+                    </Badge>
+                  )}
                   <span className="text-slate-500 font-mono text-[11px]">
                     {new Date(b.createdAt).toLocaleString('pt-BR')}
                   </span>
@@ -618,12 +626,18 @@ SNT-9904;INVALID-CNJ-LINE;TJMG;;Ação de Cobrança;;Construtora Vale Verde;Pref
                   <span>
                     SHA-256: <strong className="text-slate-300">{b.hash.slice(0, 16)}...</strong>
                   </span>
+                  <span>• Delimitador: [{b.delimiter}]</span>
+                  <span>• Encoding: {b.encoding}</span>
                   <span>• Total: {b.totalRows}</span>
                   <span>
-                    • Aceitos: <span className="text-emerald-400">{b.acceptedCount}</span>
+                    • Aceitos: <span className="text-emerald-400 font-bold">{b.acceptedCount}</span>
                   </span>
                   <span>
-                    • Quarentena: <span className="text-amber-400">{b.quarantinedCount}</span>
+                    • Quarentena:{' '}
+                    <span className="text-amber-400 font-bold">{b.quarantinedCount}</span>
+                  </span>
+                  <span>
+                    • Rejeitados: <span className="text-rose-400">{b.rejectedCount}</span>
                   </span>
                 </div>
               </div>
@@ -637,12 +651,12 @@ SNT-9904;INVALID-CNJ-LINE;TJMG;;Ação de Cobrança;;Construtora Vale Verde;Pref
                   title="Baixar cópia original com bytes 100% idênticos"
                 >
                   <Download className="w-3.5 h-3.5 mr-1.5 text-cyan-400" />
-                  Baixar Original Intocado
+                  Baixar CSV Original
                 </Button>
               </div>
             </div>
           ))}
-        </div>
+        </div>{' '}
       </div>
     </div>
   )

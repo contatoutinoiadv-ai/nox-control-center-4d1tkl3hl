@@ -561,10 +561,20 @@ export const SentinelaHub: React.FC = () => {
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Badge className="bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 text-[10px] font-mono tracking-wider uppercase px-2 py-0.5">
                 Sentinela NOX v2.0
               </Badge>
+              {dataStore.isUsingRealImportedData() ? (
+                <Badge className="bg-emerald-950 text-emerald-300 border border-emerald-600 text-[10px] font-mono flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  BASE IMPORTADA REAL ({communications.length})
+                </Badge>
+              ) : (
+                <Badge className="bg-amber-950/80 text-amber-300 border border-amber-800 text-[10px] font-mono">
+                  DEMO SINTÉTICO (42)
+                </Badge>
+              )}
               <span className="text-xs text-slate-400 font-mono flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
                 Operação Inteligente & Cadeia de Custódia

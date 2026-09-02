@@ -149,6 +149,16 @@ export const ReviewPage: React.FC = () => {
             <Badge className="bg-amber-950 text-amber-400 border-amber-800 font-mono text-xs">
               Fila de Triagem ({reviewQueue.length} pendentes)
             </Badge>
+            {dataStore.isUsingRealImportedData() ? (
+              <Badge className="bg-emerald-950 text-emerald-300 border-emerald-700 font-mono text-xs flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                BASE IMPORTADA REAL
+              </Badge>
+            ) : (
+              <Badge className="bg-amber-950/70 text-amber-300 border-amber-800 font-mono text-xs">
+                DATASET SINTÉTICO (DEMO)
+              </Badge>
+            )}
           </div>
           <p className="text-slate-400 text-xs mt-1">
             Fluxo contínuo de decisão: priorização, despacho para advogados/analistas e anotação

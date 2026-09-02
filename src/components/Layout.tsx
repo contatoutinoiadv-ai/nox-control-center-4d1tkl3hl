@@ -209,17 +209,30 @@ export const Layout: React.FC = () => {
           })}
         </nav>
 
-        {/* Demo Environment Badge & Footer */}
+        {/* Dataset Source Status Badge & Footer */}
         <div className="p-3 border-t border-slate-800/80 bg-slate-950/70">
-          <div className="bg-amber-950/40 border border-amber-800/40 rounded-md p-2 mb-2">
-            <div className="flex items-center gap-1.5 text-amber-300 text-[10px] font-semibold font-mono">
-              <Sparkles className="w-3 h-3 text-amber-400" />
-              <span>Ambiente de demonstração</span>
+          {dataStore.isUsingRealImportedData() ? (
+            <div className="bg-emerald-950/40 border border-emerald-800/60 rounded-md p-2 mb-2">
+              <div className="flex items-center gap-1.5 text-emerald-300 text-[10px] font-semibold font-mono">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>Base Real Importada</span>
+              </div>
+              <p className="text-[10px] text-emerald-400/90 mt-0.5 leading-tight font-mono">
+                {dataStore.getActiveBatch()?.filename || 'Lote CSV Ativo'} ({stats.totalMonitored}{' '}
+                registros)
+              </p>
             </div>
-            <p className="text-[10px] text-amber-400/80 mt-0.5 leading-tight">
-              Dados sintéticos determinísticos ativos
-            </p>
-          </div>
+          ) : (
+            <div className="bg-amber-950/40 border border-amber-800/40 rounded-md p-2 mb-2">
+              <div className="flex items-center gap-1.5 text-amber-300 text-[10px] font-semibold font-mono">
+                <Sparkles className="w-3 h-3 text-amber-400" />
+                <span>Dados Sintéticos Demo</span>
+              </div>
+              <p className="text-[10px] text-amber-400/80 mt-0.5 leading-tight">
+                Importe um CSV para alternar para a base real
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
@@ -326,9 +339,19 @@ export const Layout: React.FC = () => {
 
             <div className="hidden lg:flex items-center gap-2 pl-2 border-l border-slate-800 text-xs font-mono text-slate-400">
               <span className="text-slate-500">Origem:</span>
-              <span className="text-slate-300">sentinela_nox_2026-09-01_1155.csv</span>
+              <span className="text-slate-300">
+                {dataStore.getActiveBatch()?.filename || 'sentinela_nox_2026-09-01_1155.csv'}
+              </span>
               <span className="text-slate-600">|</span>
-              <span className="text-emerald-400">SHA-256 OK</span>
+              <span
+                className={
+                  dataStore.isUsingRealImportedData()
+                    ? 'text-emerald-400 font-bold'
+                    : 'text-amber-400'
+                }
+              >
+                {dataStore.isUsingRealImportedData() ? 'BASE REAL IMPORTADA' : 'DEMO SINTÉTICO'}
+              </span>
             </div>
           </div>
 

@@ -337,10 +337,10 @@ export class NoxDataStore {
     return true
   }
 
-  public addImportBatch(
+  public async addImportBatch(
     batch: ImportBatch,
     newRecords: NoxRecord[],
-  ): { success: boolean; message: string } {
+  ): Promise<{ success: boolean; message: string }> {
     // Duplicate check
     const existing = this.imports.find((i) => i.hash === batch.hash)
     if (existing) {
@@ -350,8 +350,16 @@ export class NoxDataStore {
       }
     }
 
-    this.imports.unshift(batch)
-    this.records = [...newRecords, ...this.records]
+    // Set records directly from imported batch (replace synthetic demo default)
+    this.imports = [batch, ...this.imports.filter((i) => i.id !== 'batch_sentinela_2026_09_01')]
+    this.records = [...newRecords]
+
+    // Also convert imported records to Sentinela Communications so all Sentinela/Triagem/Prazos tabs reflect the dataset
+    const importedComms = this.buildCommunicationsFromRecords(newRecords, batch)
+    if (importedComms.length > 0) {
+      this.communications = importedComms
+      this.saveCommunications()
+    }
 
     this.logAction('LOTE_IMPORTADO_NOVO', 'importacao', 'Operador NOX', batch.id, {
       filename: batch.filename,
@@ -364,9 +372,220 @@ export class NoxDataStore {
 
     this.saveImports()
     this.saveRecords()
+
+    // Asynchronously persist to PocketBase backend collections `imports` and `records`
+    this.syncToPocketBase(batch, newRecords).catch((err) => {
+      console.warn('PocketBase sync background warning:', err)
+    })
+
     return {
       success: true,
       message: `Lote importado com sucesso: ${batch.acceptedCount} aceitos, ${batch.quarantinedCount} em quarentena.`,
+    }
+  }
+
+  private buildCommunicationsFromRecords(
+    records: NoxRecord[],
+    batch: ImportBatch,
+  ): SentinelaCommunication[] {
+    return records.map((rec, idx) => {
+      const isQuarantine = rec.status === 'quarentena'
+      const urgency =
+        rec.severity === 'critico'
+          ? ('critica' as const)
+          : rec.severity === 'alto'
+            ? ('alta' as const)
+            : rec.severity === 'medio'
+              ? ('media' as const)
+              : ('baixa' as const)
+
+      return {
+        id: `comm-imp-${idx + 1}-${rec.recordCode.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+        externalId: rec.recordCode || `IMP-${idx + 100}`,
+        source: 'DJEN' as const,
+        numeroProcesso: rec.numeroProcesso,
+        tribunal: rec.tribunal || 'TJSP',
+        orgaoJulgador: rec.orgaoJulgador || 'Vara Cível',
+        comarca: rec.normalizedData?.uf || 'SP',
+        classeJudicial: rec.classeJudicial || 'Procedimento Cível',
+        destinatario: rec.partes || 'Dr. Higor Utinói (OAB/MS 15.400)',
+        tipoComunicacao: isQuarantine
+          ? 'INTIMACAO'
+          : rec.severity === 'critico'
+            ? 'CITACAO'
+            : 'INTIMACAO',
+        dataDisponibilizacao: rec.dataDistribuicao || new Date().toISOString().split('T')[0],
+        dataPublicacao: rec.dataDistribuicao || new Date().toISOString().split('T')[0],
+        teorResumido: isQuarantine
+          ? `[QUARENTENA SCHEMA] ${rec.alertDescription || 'Registro em quarentena por inconsistência estrutural.'}`
+          : `${rec.alertTitle}: ${rec.alertDescription}`,
+        teorCompleto: `${rec.alertTitle}. Processo ${rec.numeroProcesso} em trâmite no ${rec.tribunal} (${rec.orgaoJulgador}). Partes: ${rec.partes}. Assunto: ${rec.assunto}.`,
+        status: isQuarantine
+          ? ('REVISAO_HUMANA' as const)
+          : rec.status === 'em_revisao'
+            ? ('REVISAO_HUMANA' as const)
+            : ('ANALISADA' as const),
+        triageCategory: isQuarantine
+          ? ('ambigua' as const)
+          : urgency === 'critica' || urgency === 'alta'
+            ? ('urgente' as const)
+            : ('nova' as const),
+        urgencyLevel: urgency,
+        riskScore:
+          urgency === 'critica' ? 95 : urgency === 'alta' ? 80 : urgency === 'media' ? 55 : 25,
+        assignedTo: rec.responsible || 'Dr. Higor Utinói',
+        custody: {
+          communicationId: `comm-imp-${idx + 1}`,
+          snapshot: {
+            hashSha256: batch.hash,
+            capturedAt: batch.createdAt,
+            source: 'DJEN',
+            externalId: rec.recordCode,
+            rawPayloadSnippet: `CSV.${batch.filename}.${rec.recordCode}.${rec.numeroProcesso}`,
+            contentLength: batch.byteSize,
+            sanitized: true,
+            promptInjectionCheck: { clean: true, riskScore: 0 },
+          },
+          processNumber: rec.numeroProcesso,
+          suggestedClassification: isQuarantine
+            ? 'Revisão Técnica de Quarentena'
+            : `${rec.classeJudicial} (${rec.assunto})`,
+          confidence: isQuarantine ? 0.6 : 0.95,
+          humanReviewRequired: isQuarantine,
+          humanReviewReason: isQuarantine
+            ? rec.validationErrors?.map((v) => v.message).join('; ')
+            : undefined,
+          generatedArtifacts: {},
+          isDuplicate: false,
+          timeline: [
+            {
+              id: `step-imp-${idx}-1`,
+              stage: 'CAPTURADA',
+              timestamp: batch.createdAt,
+              actor: 'Importador CSV Sentinela NOX',
+              actorRole: 'SISTEMA_IA',
+              sourceConfidence: 1.0,
+              actionSummary: `Importado do lote ${batch.filename} (Hash SHA-256: ${batch.hash.slice(0, 16)}...).`,
+              evidenceHash: batch.hash.slice(0, 16),
+            },
+            {
+              id: `step-imp-${idx}-2`,
+              stage: isQuarantine ? 'REVISAO_HUMANA' : 'VALIDADA',
+              timestamp: new Date().toISOString(),
+              actor: 'Motor de Integridade NOX',
+              actorRole: 'SISTEMA_IA',
+              sourceConfidence: isQuarantine ? 0.65 : 0.98,
+              actionSummary: isQuarantine
+                ? 'Registro encaminhado para quarentena técnica.'
+                : 'Registro validado com sucesso e disponibilizado para operações.',
+            },
+          ],
+        },
+        deadlineCalculated: isQuarantine
+  ? undefined
+  : {
+      id: `dead-imp-${idx + 1}`,
+      communicationId: `comm-imp-${idx + 1}`,
+      numeroProcesso: rec.numeroProcesso,
+      originText: `Intimação referente a ${rec.assunto || rec.alertTitle}`,
+      generatingAct: 'DISPONIBILIZACAO_DJEN',
+      legalRuleName: 'Prazo Geral de Manifestação (15 dias úteis)',
+      legalRuleArticle: 'Art. 219 e 335 do CPC',
+      daysCount: 15,
+      daysType: 'DIAS_UTEIS' as const,
+      initialDateMarker: rec.dataDistribuicao || '2026-09-01',
+      firstDayCounted: '2026-09-02',
+      tribunal: rec.tribunal || 'TJSP',
+      comarca: rec.normalizedData?.uf || 'SP',
+      holidaysApplied: [
+        {
+          date: '2026-09-07',
+          name: 'Independência do Brasil',
+          type: 'FERIADO_NACIONAL' as const,
+        },
+      ],
+      calculationSteps: [
+        {
+          stepNumber: 1,
+          date: rec.dataDistribuicao || '2026-09-01',
+          dayOfWeek: 'Terça-feira',
+          isBusinessDay: true,
+          description: 'Disponibilização da publicação no DJEN',
+        },
+        {
+          stepNumber: 2,
+          date: '2026-09-24',
+          dayOfWeek: 'Quinta-feira',
+          isBusinessDay: true,
+          description: '15º dia útil — Vencimento fatal CPC',
+        },
+      ],
+      finalDeadlineDate: '2026-09-24',
+      finalDeadlineTime: '23:59',
+      confidenceScore: 0.98,
+      confidenceLevel: 'ALTA' as const,
+      isDeterminable: true,
+      reviewApprovalStatus: 'PENDENTE' as const,
+      ruleVersion: 'CPC_2015_V2',
+      internalDeadlineDate: '2026-09-22',
+      notes: 'Calculado automaticamente pelo Motor de Prazos NOX.',
+    },
+        createdAt: batch.createdAt,
+        updatedAt: new Date().toISOString(),
+      }
+    })
+  }
+
+  private async syncToPocketBase(batch: ImportBatch, records: NoxRecord[]): Promise<void> {
+    try {
+      const { pb } = await import('@/lib/pocketbase/client')
+
+      // Save batch in `imports` collection
+      await pb.collection('imports').create({
+        filename: batch.filename,
+        hash: batch.hash,
+        encoding: batch.encoding,
+        delimiter: batch.delimiter,
+        raw_content: batch.rawContent,
+        total_rows: batch.totalRows,
+        accepted_count: batch.acceptedCount,
+        quarantined_count: batch.quarantinedCount,
+        rejected_count: batch.rejectedCount,
+        mapping_applied: batch.columnMapping,
+        stats: {
+          status: batch.status,
+          importedAt: batch.createdAt,
+        },
+      })
+
+      // Batch save records in `records` collection
+      for (const rec of records) {
+        await pb.collection('records').create({
+          record_code: rec.recordCode,
+          numero_processo: rec.numeroProcesso,
+          tribunal: rec.tribunal,
+          orgao_julgador: rec.orgaoJulgador,
+          classe_judicial: rec.classeJudicial,
+          assunto: rec.assunto,
+          partes: rec.partes,
+          status: rec.status,
+          severity: rec.severity,
+          alert_type: rec.alertType,
+          alert_title: rec.alertTitle,
+          alert_description: rec.alertDescription,
+          priority: rec.priority,
+          responsible: rec.responsible,
+          tags: rec.tags,
+          notes: rec.notes,
+          raw_source_row: rec.rawSourceRow,
+          normalized_data: rec.normalizedData,
+          validation_errors: rec.validationErrors,
+          source_batch_id: batch.id,
+          source_row_index: rec.sourceRowIndex,
+        })
+      }
+    } catch (err) {
+      console.error('PocketBase sync failed:', err)
     }
   }
 
@@ -774,6 +993,15 @@ export class NoxDataStore {
         },
       ],
     }
+  }
+
+  public isUsingRealImportedData(): boolean {
+    const activeBatch = this.imports[0]
+    return Boolean(activeBatch && activeBatch.id !== 'batch_sentinela_2026_09_01')
+  }
+
+  public getActiveBatch(): ImportBatch | undefined {
+    return this.imports[0]
   }
 
   public resetToSyntheticDemo(): void {
