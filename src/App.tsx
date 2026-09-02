@@ -1,12 +1,13 @@
 /* Main App Component - Handles routing, query client and other providers */
 import { useEffect } from 'react'
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import Layout from './components/Layout'
 import Index from './pages/Index'
+import LoginPage from './pages/LoginPage'
 import RadarPage from './pages/RadarPage'
 import ProcessesPage from './pages/ProcessesPage'
 import ImportsPage from './pages/ImportsPage'
@@ -26,7 +27,19 @@ import ProducaoPage from './pages/ProducaoPage'
 import IntakePublicPage from './pages/IntakePublicPage'
 import NotFound from './pages/NotFound'
 
-// Componente de Guarda de Rota com Dupla Camada (Front-end + Back-end)
+// Guarda de Autenticação Geral: Se não estiver autenticado, redireciona para /login
+const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const location = useLocation()
+  const isAuthenticated = authUsersService.isAuthenticated()
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />
+  }
+
+  return <>{children}</>
+}
+
+// Guarda de Módulo com Dupla Camada (Front-end + Back-end)
 const ProtectedModuleRoute: React.FC<{
   moduleKey: string
   moduleName: string
@@ -81,6 +94,16 @@ const App = () => (
           <Toaster />
           <Sonner position="top-right" richColors theme="dark" />
           <Routes>
+            {/* Rota pública de Login */}
+            <Route
+              path="/login"
+              element={
+                <ErrorBoundary moduleName="Autenticação NOX">
+                  <LoginPage />
+                </ErrorBoundary>
+              }
+            />
+
             {/* Rota pública de Intake sem autenticação, sem verificação de sessão e sem Layout administrativo */}
             <Route
               path="/intake"
@@ -99,8 +122,22 @@ const App = () => (
               }
             />
 
-            <Route element={<Layout />}>
-              <Route path="/" element={<Index />} />
+            {/* Rotas Administrativas e Operacionais Protegidas por Sessão */}
+            <Route
+              element={
+                <RequireAuth>
+                  <Layout />
+                </RequireAuth>
+              }
+            >
+              <Route
+                path="/"
+                element={
+                  <ProtectedModuleRoute moduleKey="central_nox" moduleName="Central NOX">
+                    <Index />
+                  </ProtectedModuleRoute>
+                }
+              />
               <Route
                 path="/sentinela"
                 element={

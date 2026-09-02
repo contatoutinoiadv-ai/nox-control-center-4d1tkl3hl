@@ -21,6 +21,7 @@ import {
   RefreshCw,
   Users,
   Layers,
+  LogOut,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -28,6 +29,7 @@ import { CommandPalette } from './CommandPalette'
 import { dataStore } from '@/services/dataStore'
 import { authUsersService } from '@/services/authUsersService'
 import { NoxSystemStats, AuthMeResponse } from '@/types/nox'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
 export const Layout: React.FC = () => {
@@ -38,7 +40,9 @@ export const Layout: React.FC = () => {
   const [userProfile, setUserProfile] = useState<AuthMeResponse | null>(
     authUsersService.getCachedMe(),
   )
+  const [loggingOut, setLoggingOut] = useState(false)
   const location = useLocation()
+  const navigate = useNavigate()
 
   useEffect(() => {
     const unsub = dataStore.subscribe(() => {
@@ -48,13 +52,32 @@ export const Layout: React.FC = () => {
     const unsubAuth = authUsersService.subscribe(() => {
       setUserProfile(authUsersService.getCachedMe())
     })
-    // Inicializa auth profile
-    authUsersService.fetchMe().then((me) => setUserProfile(me))
+    // Inicializa auth profile se autenticado
+    if (authUsersService.isAuthenticated()) {
+      authUsersService
+        .fetchMe()
+        .then((me) => setUserProfile(me))
+        .catch(() => {})
+    }
     return () => {
       unsub()
       unsubAuth()
     }
   }, [])
+
+  const handleLogout = async () => {
+    setLoggingOut(true)
+    try {
+      await authUsersService.logout()
+      toast.info('Sessão encerrada com sucesso.')
+      navigate('/login', { replace: true })
+    } catch (err: any) {
+      console.error('Erro no logout:', err)
+      toast.error('Erro ao encerrar sessão.')
+    } finally {
+      setLoggingOut(false)
+    }
+  }
 
   // Global hotkey Ctrl+K / Cmd+K
   useEffect(() => {
@@ -329,14 +352,19 @@ export const Layout: React.FC = () => {
             </div>
           )}
 
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-cyan-400 text-xs">
-                {userProfile?.user.name ? userProfile.user.name.slice(0, 2).toUpperCase() : 'HU'}
+          <div className="flex items-center justify-between text-xs pt-1">
+            <div className="flex items-center gap-2 min-w-0 pr-2">
+              <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-cyan-400 text-xs shrink-0">
+                {(userProfile?.user?.name
+                  ? userProfile.user.name.slice(0, 2)
+                  : userProfile?.user?.email
+                    ? userProfile.user.email.slice(0, 2)
+                    : 'NO'
+                ).toUpperCase()}
               </div>
               <div className="truncate">
                 <div className="text-xs font-medium text-slate-200 truncate">
-                  {userProfile?.user.name || 'Higor Utinoi'}
+                  {userProfile?.user?.name || userProfile?.user?.email?.split('@')[0] || 'Usuário'}
                 </div>
                 <div className="text-[10px] font-mono text-slate-400 truncate flex items-center gap-1">
                   <span
@@ -349,11 +377,21 @@ export const Layout: React.FC = () => {
                     {userProfile?.role === 'admin' ? 'Admin' : 'Operador'}
                   </span>
                   <span>•</span>
-                  <span>{userProfile?.user.email || 'OAB/MS 15.400'}</span>
+                  <span className="truncate">{userProfile?.user?.email || 'Autenticado'}</span>
                 </div>
               </div>
             </div>
-            <Lock className="w-3.5 h-3.5 text-slate-400" />
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              title="Encerrar sessão (Logout)"
+              className="h-7 w-7 p-0 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 shrink-0"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </Button>
           </div>
         </div>
       </aside>
@@ -422,6 +460,18 @@ export const Layout: React.FC = () => {
               </NavLink>
             )
           })}
+
+          <div className="pt-4 mt-4 border-t border-slate-800">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLogout}
+              className="w-full bg-rose-950/40 border-rose-800 text-rose-300 hover:bg-rose-900 flex items-center justify-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+              Sair do Sistema
+            </Button>
+          </div>
         </div>
       )}
 

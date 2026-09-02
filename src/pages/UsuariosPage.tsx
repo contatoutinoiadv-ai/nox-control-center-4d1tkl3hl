@@ -105,6 +105,16 @@ export const UsuariosPage: React.FC = () => {
     loadData()
   }, [])
 
+  // Escuta mudanças de auth reativas
+  useEffect(() => {
+    const unsub = authUsersService.subscribe(() => {
+      setCurrentUserProfile(authUsersService.getCachedMe())
+    })
+    return () => {
+      unsub()
+    }
+  }, [])
+
   // Gerador de Senha Segura Temporária
   const handleGenerateRandomPassword = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*'
@@ -291,11 +301,14 @@ export const UsuariosPage: React.FC = () => {
     }
   }
 
-  // Filtragem de Usuários
+  // Filtragem de Usuários com proteção contra valores nulos/indefinidos
   const filteredUsers = useMemo(() => {
-    return users.filter((u) => {
-      const q = searchQuery.toLowerCase()
-      const matchesSearch = u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+    return (users || []).filter((u) => {
+      if (!u) return false
+      const q = (searchQuery || '').toLowerCase()
+      const userName = (u.name || '').toLowerCase()
+      const userEmail = (u.email || '').toLowerCase()
+      const matchesSearch = !q || userName.includes(q) || userEmail.includes(q)
 
       const matchesRole =
         roleFilter === 'all' ||
@@ -304,19 +317,20 @@ export const UsuariosPage: React.FC = () => {
 
       const matchesStatus =
         statusFilter === 'all' ||
-        (statusFilter === 'ativo' && u.ativo) ||
+        (statusFilter === 'ativo' && !!u.ativo) ||
         (statusFilter === 'inativo' && !u.ativo)
 
       return matchesSearch && matchesRole && matchesStatus
     })
   }, [users, searchQuery, roleFilter, statusFilter])
 
-  // Contadores
+  // Contadores com proteção defensiva
   const stats = useMemo(() => {
-    const total = users.length
-    const admins = users.filter((u) => u.role === 'admin').length
-    const operadores = users.filter((u) => u.role === 'operador').length
-    const ativos = users.filter((u) => u.ativo).length
+    const safeUsers = users || []
+    const total = safeUsers.length
+    const admins = safeUsers.filter((u) => u && u.role === 'admin').length
+    const operadores = safeUsers.filter((u) => u && u.role === 'operador').length
+    const ativos = safeUsers.filter((u) => u && !!u.ativo).length
     const inativos = total - ativos
     return { total, admins, operadores, ativos, inativos }
   }, [users])
@@ -533,11 +547,16 @@ export const UsuariosPage: React.FC = () => {
                 </tr>
               ) : (
                 filteredUsers.map((user) => {
-                  const isCurrent = currentUserProfile?.user.id === user.id
+                  if (!user) return null
+                  const isCurrent = currentUserProfile?.user?.id === user.id
                   const activePermCount =
                     user.role === 'admin'
                       ? SYSTEM_MODULES_LIST.length
-                      : (user.permissions || []).filter((p) => p.pode_acessar).length
+                      : (user.permissions || []).filter((p) => p && p.pode_acessar).length
+                  const displayName = user.name || user.email?.split('@')[0] || 'Usuário'
+                  const initials = (
+                    user.name ? user.name.slice(0, 2) : user.email ? user.email.slice(0, 2) : 'NO'
+                  ).toUpperCase()
 
                   return (
                     <tr
@@ -553,11 +572,11 @@ export const UsuariosPage: React.FC = () => {
                                 : 'bg-purple-950 text-purple-400 border border-purple-800'
                             }`}
                           >
-                            {user.name.slice(0, 2) || 'NO'}
+                            {initials}
                           </div>
                           <div>
                             <div className="font-semibold text-slate-100 flex items-center gap-2">
-                              {user.name}
+                              {displayName}
                               {isCurrent && (
                                 <Badge
                                   variant="outline"
@@ -567,7 +586,9 @@ export const UsuariosPage: React.FC = () => {
                                 </Badge>
                               )}
                             </div>
-                            <div className="text-[11px] font-mono text-slate-400">{user.email}</div>
+                            <div className="text-[11px] font-mono text-slate-400">
+                              {user.email || '—'}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -625,7 +646,7 @@ export const UsuariosPage: React.FC = () => {
                             {activePermCount > 0 && (
                               <div className="flex flex-wrap gap-1 max-w-xs">
                                 {(user.permissions || [])
-                                  .filter((p) => p.pode_acessar)
+                                  .filter((p) => p && p.pode_acessar)
                                   .slice(0, 3)
                                   .map((p) => (
                                     <span

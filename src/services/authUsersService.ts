@@ -137,17 +137,103 @@ export class AuthUsersService {
     })
   }
 
+  public static isAuthenticated(): boolean {
+    return Boolean(pb.authStore.isValid && pb.authStore.token && pb.authStore.record)
+  }
+
   public static async ensureAuth(): Promise<boolean> {
-    if (pb.authStore.isValid && pb.authStore.token) {
-      return true
+    return this.isAuthenticated()
+  }
+
+  /**
+   * Realiza login real contra a coleção `users` do PocketBase,
+   * valida se a conta está ativa e audita a sessão em `audit_logs`.
+   */
+  public static async login(emailInput: string, passwordInput: string): Promise<AuthMeResponse> {
+    const cleanEmail = emailInput.trim().toLowerCase()
+    const cleanPassword = passwordInput.trim()
+
+    if (!cleanEmail || !cleanPassword) {
+      throw new Error('Informe o e-mail e a senha de acesso.')
     }
+
     try {
-      await pb.collection('users').authWithPassword('contatoutinoiadv@gmail.com', 'Skip@Pass')
-      return pb.authStore.isValid
-    } catch (e) {
-      console.warn('[authUsersService] Falha no auto-login PocketBase:', e)
-      return false
+      const authData = await pb.collection('users').authWithPassword(cleanEmail, cleanPassword)
+      const record = authData.record as any
+
+      if (record && record.ativo === false) {
+        pb.authStore.clear()
+        this.cachedMe = null
+        this.notify()
+        throw new Error('Conta inativa ou suspensa. Contate o administrador do escritório.')
+      }
+
+      // Busca o perfil completo e permissões reais
+      const me = await this.fetchMe(true)
+
+      // Registra login bem-sucedido em audit_logs
+      try {
+        await pb.collection('audit_logs').create({
+          action: 'LOGIN_SUCESSO',
+          category: 'sistema',
+          actor: cleanEmail,
+          target_id: record?.id || 'unknown',
+          details: {
+            email: cleanEmail,
+            name: record?.name || 'Usuário',
+            role: record?.role || 'operador',
+            timestamp: new Date().toISOString(),
+          },
+          ip_address: 'client_browser',
+        })
+      } catch (logErr) {
+        console.warn('[authUsersService] Não foi possível salvar auditoria de login:', logErr)
+      }
+
+      return me
+    } catch (err: any) {
+      console.error('[authUsersService] Erro ao autenticar:', err)
+      const msg = err.message || ''
+      if (
+        msg.includes('Failed to authenticate') ||
+        msg.includes('Invalid') ||
+        msg.includes('400') ||
+        msg.includes('credentials')
+      ) {
+        throw new Error('Credenciais inválidas. Verifique seu e-mail e senha.')
+      }
+      throw new Error(msg || 'Erro ao realizar login.')
     }
+  }
+
+  /**
+   * Encerra a sessão atual e limpa estado
+   */
+  public static async logout(): Promise<void> {
+    const currentActor = this.cachedMe?.user.email || pb.authStore.record?.email || 'usuario'
+    const currentId = this.cachedMe?.user.id || pb.authStore.record?.id
+
+    try {
+      if (pb.authStore.isValid && pb.authStore.token) {
+        await pb.collection('audit_logs').create({
+          action: 'LOGOUT',
+          category: 'sistema',
+          actor: currentActor,
+          target_id: currentId || 'unknown',
+          details: {
+            email: currentActor,
+            timestamp: new Date().toISOString(),
+          },
+          ip_address: 'client_browser',
+        })
+      }
+    } catch (logErr) {
+      console.warn('[authUsersService] Não foi possível salvar auditoria de logout:', logErr)
+    }
+
+    pb.authStore.clear()
+    this.cachedMe = null
+    this.notify()
   }
 
   /**
@@ -158,7 +244,12 @@ export class AuthUsersService {
       return this.cachedMe
     }
 
-    await this.ensureAuth()
+    if (!pb.authStore.isValid || !pb.authStore.token) {
+      this.cachedMe = null
+      this.notify()
+      throw new Error('Não autenticado')
+    }
+
     const baseUrl = pb.baseUrl.replace(/\/$/, '')
     const token = pb.authStore.token
 
@@ -172,6 +263,11 @@ export class AuthUsersService {
       })
 
       if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          pb.authStore.clear()
+          this.cachedMe = null
+          this.notify()
+        }
         const errJson = await res.json().catch(() => ({}))
         throw new Error(errJson.error || `HTTP ${res.status}`)
       }
@@ -180,24 +276,34 @@ export class AuthUsersService {
       this.cachedMe = data
       this.notify()
       return data
-    } catch (err) {
+    } catch (err: any) {
       console.warn('[authUsersService] Erro ao buscar /backend/v1/auth/me:', err)
-      // Fallback gracioso caso hook falhe ou token inicial
-      const fallback: AuthMeResponse = {
-        ok: true,
-        user: {
-          id: pb.authStore.record?.id || 'admin_fallback',
-          email: pb.authStore.record?.email || 'contatoutinoiadv@gmail.com',
-          name: (pb.authStore.record as any)?.name || 'Administrador Master',
-          role: ((pb.authStore.record as any)?.role as UserRole) || 'admin',
-          ativo: (pb.authStore.record as any)?.ativo ?? true,
-        },
-        role: ((pb.authStore.record as any)?.role as UserRole) || 'admin',
-        allowedModules: SYSTEM_MODULES_LIST.map((m) => m.key).concat(['usuarios']),
-        isAdmin: ((pb.authStore.record as any)?.role || 'admin') === 'admin',
+      const currentRecord = pb.authStore.record as any
+      if (currentRecord) {
+        // Monta representação segura a partir do token/record autenticado
+        const isAdm = currentRecord.role === 'admin'
+        const fallback: AuthMeResponse = {
+          ok: true,
+          user: {
+            id: currentRecord.id,
+            email: currentRecord.email,
+            name: currentRecord.name || currentRecord.email?.split('@')[0] || 'Usuário',
+            role: (currentRecord.role as UserRole) || 'operador',
+            ativo: currentRecord.ativo ?? true,
+          },
+          role: (currentRecord.role as UserRole) || 'operador',
+          allowedModules: isAdm
+            ? SYSTEM_MODULES_LIST.map((m) => m.key).concat(['usuarios'])
+            : ['central_nox'],
+          isAdmin: isAdm,
+        }
+        this.cachedMe = fallback
+        this.notify()
+        return fallback
       }
-      this.cachedMe = fallback
-      return fallback
+      this.cachedMe = null
+      this.notify()
+      throw err
     }
   }
 
@@ -206,7 +312,7 @@ export class AuthUsersService {
   }
 
   public static hasModuleAccess(moduleKey: string): boolean {
-    if (!this.cachedMe) return true // default permissivo enquanto carrega
+    if (!this.cachedMe) return false
     if (this.cachedMe.isAdmin || this.cachedMe.role === 'admin') return true
     if (moduleKey === 'usuarios') return false // exclusivo admin
     return this.cachedMe.allowedModules.includes(moduleKey)

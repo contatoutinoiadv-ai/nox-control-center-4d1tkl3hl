@@ -51,11 +51,10 @@ export async function ensurePocketBaseAuth(): Promise<boolean> {
     if (pb.authStore.isValid && pb.authStore.token) {
       return true
     }
-    // Tenta autenticar com a conta de operador seed padrão
-    await pb.collection('users').authWithPassword('contatoutinoiadv@gmail.com', 'Skip@Pass')
-    return pb.authStore.isValid
+    // Se não há sessão válida, não tenta auto-login com credenciais fixas; retorna falso para que use fallback local
+    return pb.authStore.isValid && !!pb.authStore.token
   } catch (err) {
-    console.warn('[Oraculo NOX] Não foi possível autenticar sessão PocketBase:', err)
+    console.warn('[Oraculo NOX] Sessão PocketBase não autenticada:', err)
     return false
   }
 }
