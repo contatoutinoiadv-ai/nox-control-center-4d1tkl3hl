@@ -96,11 +96,14 @@ routerAdd(
       })
     }
 
-    // Chave pública e URL base do DataJud vindos de config/segredo (nunca hardcoded)
+    // Chave pública e URL base do DataJud vindos de segredo/ambiente com fallback seguro para chave pública oficial do CNJ
+    // Chave pública oficial do CNJ conforme Wiki pública do DataJud: https://datajud-wiki.cnj.jus.br/api-publica/acesso/
+    const OFICIAL_PUBLIC_API_KEY = 'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
     const apiKey =
       $secrets.get('DATAJUD_API_KEY') ||
       $os.getenv('DATAJUD_API_KEY') ||
-      'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
+      OFICIAL_PUBLIC_API_KEY
+
     let baseUrl =
       $secrets.get('DATAJUD_API_URL') ||
       $os.getenv('DATAJUD_API_URL') ||
@@ -116,6 +119,19 @@ routerAdd(
       },
     }
 
+    const logReqMsg =
+      '[' +
+      new Date().toISOString() +
+      '] [DataJud Consultar] Disparando requisição: Método=POST | URL=' +
+      endpointUrl +
+      ' | Processo=' +
+      rawNumeroProcesso +
+      ' | NumeroLimpo=' +
+      numeroLimpo +
+      ' | Alias=' +
+      alias
+    console.log(logReqMsg)
+
     let apiResponse = null
     try {
       apiResponse = $http.send({
@@ -129,14 +145,14 @@ routerAdd(
         timeout: 30,
       })
     } catch (httpErr) {
-      console.error(
+      const msgErroRede =
         '[' +
-          new Date().toISOString() +
-          '] Erro de rede/comunicação ao consultar DataJud (' +
-          endpointUrl +
-          '): ' +
-          String(httpErr),
-      )
+        new Date().toISOString() +
+        '] [DataJud Consultar] Erro de rede/comunicação: URL=' +
+        endpointUrl +
+        ' | Método=POST | Erro=' +
+        String(httpErr)
+      console.error(msgErroRede)
       return e.json(502, {
         ok: false,
         error: 'Erro de comunicação ao contactar a API Pública do DataJud (' + alias + ').',
@@ -144,44 +160,60 @@ routerAdd(
       })
     }
 
+    const statusCode = apiResponse ? apiResponse.statusCode : 0
+    const rawBody = apiResponse && apiResponse.raw ? String(apiResponse.raw) : ''
+    const logResMsg =
+      '[' +
+      new Date().toISOString() +
+      '] [DataJud Consultar] Resposta recebida do DataJud: StatusCode=' +
+      statusCode +
+      ' | URL=' +
+      endpointUrl +
+      ' | Processo=' +
+      rawNumeroProcesso +
+      ' | BodyLength=' +
+      rawBody.length +
+      ' | BodyPreview=' +
+      rawBody.slice(0, 500)
+    console.log(logResMsg)
+
     // Checagem de rotação de chave (401 / 403)
-    if (
-      apiResponse &&
-      apiResponse.statusCode &&
-      (apiResponse.statusCode === 401 || apiResponse.statusCode === 403)
-    ) {
+    if (statusCode === 401 || statusCode === 403) {
       const warnKey =
         '[' +
         new Date().toISOString() +
-        '] Possível rotação de chave pública do DataJud, verificar https://datajud-wiki.cnj.jus.br/api-publica/acesso/ (HTTP ' +
-        apiResponse.statusCode +
-        ')'
+        '] [DataJud Consultar] Possível rotação de chave pública do DataJud (HTTP ' +
+        statusCode +
+        '): ' +
+        rawBody.slice(0, 300)
       console.error(warnKey)
-      return e.json(apiResponse.statusCode, {
+      return e.json(statusCode, {
         ok: false,
         error:
           'Possível rotação de chave pública do DataJud, verificar https://datajud-wiki.cnj.jus.br/api-publica/acesso/',
-        statusCode: apiResponse.statusCode,
+        statusCode: statusCode,
+        detalhes: rawBody.slice(0, 500),
       })
     }
 
-    if (!apiResponse || apiResponse.statusCode !== 200) {
-      const errStatus = apiResponse ? apiResponse.statusCode : 500
-      const rawBody = apiResponse && apiResponse.raw ? String(apiResponse.raw).slice(0, 500) : ''
-      console.error(
+    if (statusCode !== 200) {
+      const errStatus = statusCode || 500
+      const errLogMsg =
         '[' +
-          new Date().toISOString() +
-          '] Resposta não-200 do DataJud (' +
-          alias +
-          ', HTTP ' +
-          errStatus +
-          '): ' +
-          rawBody,
-      )
+        new Date().toISOString() +
+        '] [DataJud Consultar] Resposta não-200 do DataJud: Alias=' +
+        alias +
+        ' | HTTP ' +
+        errStatus +
+        ' | URL=' +
+        endpointUrl +
+        ' | Corpo=' +
+        rawBody.slice(0, 1000)
+      console.error(errLogMsg)
       return e.json(errStatus >= 100 && errStatus < 600 ? errStatus : 502, {
         ok: false,
         error: 'DataJud retornou status HTTP ' + errStatus,
-        detalhes: rawBody || null,
+        detalhes: rawBody.slice(0, 1000) || null,
       })
     }
 

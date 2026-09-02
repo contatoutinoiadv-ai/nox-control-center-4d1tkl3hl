@@ -155,7 +155,8 @@ class DatajudService {
     const timestamp = new Date().toISOString()
     try {
       const token = pb.authStore.token
-      const response = await fetch('/backend/v1/datajud/consultar', {
+      const baseUrl = pb.baseUrl.replace(/\/$/, '')
+      const response = await fetch(`${baseUrl}/backend/v1/datajud/consultar`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -244,7 +245,8 @@ class DatajudService {
     const timestamp = new Date().toISOString()
     try {
       const token = pb.authStore.token
-      const response = await fetch('/backend/v1/datajud/lote', {
+      const baseUrl = pb.baseUrl.replace(/\/$/, '')
+      const response = await fetch(`${baseUrl}/backend/v1/datajud/lote`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -20,11 +20,14 @@ routerAdd(
     const body = info.body || {}
     const apenasPrazosAbertos = body.apenas_prazos_abertos === true
 
-    // Chave pública e URL base do DataJud vindos de config/segredo (nunca hardcoded)
+    // Chave pública e URL base do DataJud vindos de segredo/ambiente com fallback seguro para chave pública oficial do CNJ
+    // Chave pública oficial do CNJ conforme Wiki pública do DataJud: https://datajud-wiki.cnj.jus.br/api-publica/acesso/
+    const OFICIAL_PUBLIC_API_KEY = 'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
     const apiKey =
       $secrets.get('DATAJUD_API_KEY') ||
       $os.getenv('DATAJUD_API_KEY') ||
-      'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
+      OFICIAL_PUBLIC_API_KEY
+
     let baseUrl =
       $secrets.get('DATAJUD_API_URL') ||
       $os.getenv('DATAJUD_API_URL') ||
@@ -124,6 +127,15 @@ routerAdd(
         },
       }
 
+      console.log(
+        '[' +
+          new Date().toISOString() +
+          '] [DataJud Lote] Disparando requisição: Método=POST | URL=' +
+          endpointUrl +
+          ' | Processo=' +
+          rawNumeroProcesso,
+      )
+
       let apiResponse = null
       try {
         apiResponse = $http.send({
@@ -140,7 +152,7 @@ routerAdd(
         console.error(
           '[' +
             new Date().toISOString() +
-            '] Erro de comunicação no processo ' +
+            '] [DataJud Lote] Erro de rede/comunicação no processo ' +
             rawNumeroProcesso +
             ': ' +
             String(httpErr),
@@ -153,17 +165,27 @@ routerAdd(
         continue
       }
 
-      if (
-        apiResponse &&
-        apiResponse.statusCode &&
-        (apiResponse.statusCode === 401 || apiResponse.statusCode === 403)
-      ) {
+      const statusCode = apiResponse ? apiResponse.statusCode : 0
+      const rawBody = apiResponse && apiResponse.raw ? String(apiResponse.raw) : ''
+      console.log(
+        '[' +
+          new Date().toISOString() +
+          '] [DataJud Lote] Resposta recebida: StatusCode=' +
+          statusCode +
+          ' | Processo=' +
+          rawNumeroProcesso +
+          ' | BodyPreview=' +
+          rawBody.slice(0, 300),
+      )
+
+      if (statusCode === 401 || statusCode === 403) {
         const warnKey =
           '[' +
           new Date().toISOString() +
-          '] Possível rotação de chave pública do DataJud, verificar https://datajud-wiki.cnj.jus.br/api-publica/acesso/ (HTTP ' +
-          apiResponse.statusCode +
-          ')'
+          '] [DataJud Lote] Possível rotação de chave pública do DataJud (HTTP ' +
+          statusCode +
+          ') no processo ' +
+          rawNumeroProcesso
         console.error(warnKey)
         resultados.push({
           numero_processo: rawNumeroProcesso,
@@ -174,18 +196,17 @@ routerAdd(
         continue
       }
 
-      if (!apiResponse || apiResponse.statusCode !== 200) {
-        const errStatus = apiResponse ? apiResponse.statusCode : 500
-        const rawBody = apiResponse && apiResponse.raw ? String(apiResponse.raw).slice(0, 300) : ''
+      if (statusCode !== 200) {
+        const errStatus = statusCode || 500
         console.error(
           '[' +
             new Date().toISOString() +
-            '] DataJud retornou HTTP ' +
+            '] [DataJud Lote] DataJud retornou HTTP ' +
             errStatus +
             ' para o processo ' +
             rawNumeroProcesso +
             ': ' +
-            rawBody,
+            rawBody.slice(0, 500),
         )
         resultados.push({
           numero_processo: rawNumeroProcesso,

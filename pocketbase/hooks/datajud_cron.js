@@ -9,10 +9,12 @@ cronAdd('datajud_diario', '0 6 * * *', () => {
       '] [CRON DATAJUD DIÁRIO] Iniciando varredura diária de processos com prazos abertos.',
   )
 
+  const OFICIAL_PUBLIC_API_KEY = 'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
   const apiKey =
     $secrets.get('DATAJUD_API_KEY') ||
     $os.getenv('DATAJUD_API_KEY') ||
-    'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
+    OFICIAL_PUBLIC_API_KEY
+
   let baseUrl =
     $secrets.get('DATAJUD_API_URL') ||
     $os.getenv('DATAJUD_API_URL') ||
@@ -317,10 +319,12 @@ cronAdd('datajud_semanal', '0 3 * * 0', () => {
       '] [CRON DATAJUD SEMANAL] Iniciando varredura semanal de todos os demais processos ativos.',
   )
 
+  const OFICIAL_PUBLIC_API_KEY = 'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
   const apiKey =
     $secrets.get('DATAJUD_API_KEY') ||
     $os.getenv('DATAJUD_API_KEY') ||
-    'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
+    OFICIAL_PUBLIC_API_KEY
+
   let baseUrl =
     $secrets.get('DATAJUD_API_URL') ||
     $os.getenv('DATAJUD_API_URL') ||
