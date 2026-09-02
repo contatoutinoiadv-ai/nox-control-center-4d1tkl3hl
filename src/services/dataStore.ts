@@ -195,6 +195,120 @@ export class NoxDataStore {
       this.productionItems = this.generateInitialProductionItems(this.clients)
       this.settings = DEFAULT_SETTINGS
     }
+
+    // Inicializar sincronização com PocketBase
+    this.initPocketBaseSync()
+  }
+
+  public async initPocketBaseSync(): Promise<void> {
+    try {
+      const pb = (await import('@/lib/pocketbase/client')).default
+
+      // 1. Carregar clientes do PocketBase
+      try {
+        const pbClients = await pb.collection('clients').getFullList({
+          sort: '-created',
+        })
+        if (pbClients && pbClients.length > 0) {
+          const mapped: NoxClient[] = pbClients.map((rec: any) => ({
+            id: rec.id,
+            clientCode: rec.client_code || `CLI-${rec.id.slice(0, 4)}`,
+            protocolo: rec.protocolo || `INT-${rec.id.slice(0, 4)}`,
+            nome: rec.nome,
+            cpf: rec.cpf,
+            rg: rec.rg,
+            telefone: rec.telefone,
+            email: rec.email,
+            endereco: rec.endereco,
+            profissao: rec.profissao,
+            nacionalidade: rec.nacionalidade || 'brasileiro(a)',
+            estadoCivil: rec.estado_civil || 'solteiro(a)',
+            demanda: rec.demanda || 'outro',
+            descricaoCaso: rec.descricao_caso || '',
+            origem: rec.origem || 'intake_site',
+            estagio: rec.estagio || 'novo',
+            docsGerados: rec.docs_gerados || [],
+            processosVinculados: rec.processos_vinculados || [],
+            obs: rec.obs,
+            responsavel: rec.responsavel || 'Higor Utinoi de Oliveira',
+            createdAt: rec.created,
+            updatedAt: rec.updated,
+          }))
+
+          // Merge com locais, dando prioridade para registros do banco
+          const existingIds = new Set(mapped.map((c) => c.id))
+          const existingCodes = new Set(mapped.map((c) => c.clientCode))
+          const localOnly = this.clients.filter(
+            (c) => !existingIds.has(c.id) && !existingCodes.has(c.clientCode),
+          )
+          this.clients = [...mapped, ...localOnly]
+          this.saveClients()
+        }
+      } catch (err) {
+        console.warn('PocketBase initial load clients failed (using local):', err)
+      }
+
+      // 2. Realtime listener para novas inserções (ex: Intake pelo endpoint público)
+      try {
+        pb.collection('clients').subscribe('*', (e: any) => {
+          if (e.action === 'create') {
+            const rec = e.record
+            const exists = this.clients.some(
+              (c) => c.id === rec.id || (rec.protocolo && c.protocolo === rec.protocolo),
+            )
+            if (!exists) {
+              const newC: NoxClient = {
+                id: rec.id,
+                clientCode: rec.client_code || `CLI-${rec.id.slice(0, 4)}`,
+                protocolo: rec.protocolo || `INT-${rec.id.slice(0, 4)}`,
+                nome: rec.nome,
+                cpf: rec.cpf,
+                rg: rec.rg,
+                telefone: rec.telefone,
+                email: rec.email,
+                endereco: rec.endereco,
+                profissao: rec.profissao,
+                nacionalidade: rec.nacionalidade || 'brasileiro(a)',
+                estadoCivil: rec.estado_civil || 'solteiro(a)',
+                demanda: rec.demanda || 'outro',
+                descricaoCaso: rec.descricao_caso || '',
+                origem: rec.origem || 'intake_site',
+                estagio: rec.estagio || 'novo',
+                docsGerados: rec.docs_gerados || [],
+                processosVinculados: rec.processos_vinculados || [],
+                obs: rec.obs,
+                responsavel: rec.responsavel || 'Higor Utinoi de Oliveira',
+                createdAt: rec.created,
+                updatedAt: rec.updated,
+              }
+              this.clients.unshift(newC)
+              this.saveClients()
+            }
+          } else if (e.action === 'update') {
+            const rec = e.record
+            const idx = this.clients.findIndex((c) => c.id === rec.id)
+            if (idx !== -1) {
+              this.clients[idx] = {
+                ...this.clients[idx],
+                nome: rec.nome || this.clients[idx].nome,
+                estagio: rec.estagio || this.clients[idx].estagio,
+                demanda: rec.demanda || this.clients[idx].demanda,
+                descricaoCaso: rec.descricao_caso || this.clients[idx].descricaoCaso,
+                updatedAt: rec.updated || new Date().toISOString(),
+              }
+              this.saveClients()
+            }
+          } else if (e.action === 'delete') {
+            this.clients = this.clients.filter((c) => c.id !== e.record.id)
+            this.saveClients()
+          }
+        })
+      } catch (subErr) {
+        console.warn('Realtime subscribe to clients not available:', subErr)
+      }
+    } catch (_) {
+      /* non blocking */
+    }
   }
 
   private generateInitialProductionItems(clients: NoxClient[]): ProductionItem[] {

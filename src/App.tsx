@@ -19,6 +19,7 @@ import CentralPrazosPage from './pages/CentralPrazosPage'
 import CompromissosPage from './pages/CompromissosPage'
 import ClientesPage from './pages/ClientesPage'
 import ProducaoPage from './pages/ProducaoPage'
+import IntakePublicPage from './pages/IntakePublicPage'
 import NotFound from './pages/NotFound'
 
 const App = () => (
@@ -29,6 +30,24 @@ const App = () => (
           <Toaster />
           <Sonner position="top-right" richColors theme="dark" />
           <Routes>
+            {/* Rota pública de Intake sem autenticação, sem verificação de sessão e sem Layout administrativo */}
+            <Route
+              path="/intake"
+              element={
+                <ErrorBoundary moduleName="Intake Público">
+                  <IntakePublicPage />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/intake/"
+              element={
+                <ErrorBoundary moduleName="Intake Público">
+                  <IntakePublicPage />
+                </ErrorBoundary>
+              }
+            />
+
             <Route element={<Layout />}>
               <Route path="/" element={<Index />} />
               <Route
