@@ -42,6 +42,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { PreparacaoAudienciaControl } from '@/components/PreparacaoAudienciaControl'
 import {
   Dialog,
   DialogContent,
@@ -1384,6 +1385,12 @@ export const ClientesPage: React.FC = () => {
                     {clientAgendaDeadlines.events.length + clientAgendaDeadlines.deadlines.length})
                   </TabsTrigger>
                   <TabsTrigger
+                    value="preparacao"
+                    className="data-[state=active]:bg-amber-950/90 data-[state=active]:text-amber-300 text-slate-400 text-xs font-mono rounded-t-lg"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 mr-1.5 text-amber-400" /> Preparação Audiência
+                  </TabsTrigger>
+                  <TabsTrigger
                     value="documentos"
                     className="data-[state=active]:bg-cyan-950/80 data-[state=active]:text-cyan-300 text-slate-400 text-xs font-mono rounded-t-lg"
                   >
@@ -1742,6 +1749,16 @@ export const ClientesPage: React.FC = () => {
                     </div>
                   )}
                 </div>
+              </TabsContent>
+
+              {/* ============================================================== */}
+              {/* TAB PREPARAÇÃO AUDIÊNCIA DO CLIENTE */}
+              {/* ============================================================== */}
+              <TabsContent value="preparacao" className="flex-1 overflow-y-auto p-5 space-y-4 m-0">
+                <PreparacaoAudienciaControl
+                  clientId={selectedClient.id}
+                  title={`Preparação para Audiência: ${selectedClient.nome}`}
+                />
               </TabsContent>
 
               {/* ============================================================== */}

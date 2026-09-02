@@ -16,10 +16,12 @@ import {
   DollarSign,
   Lock,
   ArrowRight,
+  Sparkles,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { PreparacaoAudienciaControl } from '@/components/PreparacaoAudienciaControl'
 import { dataStore } from '@/services/dataStore'
 import { toast } from 'sonner'
 
@@ -166,12 +168,18 @@ export const ProcessDetailDrawer: React.FC<ProcessDetailDrawerProps> = ({
               <History className="w-3.5 h-3.5 mr-1.5" /> Histórico
             </TabsTrigger>
             <TabsTrigger
-              value="lex_tempus"
-              className="data-[state=active]:bg-purple-950/80 data-[state=active]:text-purple-300 text-purple-400/80 text-xs font-mono rounded-t-lg"
+              value="preparacao"
+              className="data-[state=active]:bg-amber-950/80 data-[state=active]:text-amber-300 text-slate-400 text-xs font-mono"
             >
-              <Clock className="w-3.5 h-3.5 mr-1.5" /> LEX TEMPUS
+              <Sparkles className="w-3.5 h-3.5 mr-1 text-amber-400" /> Preparação
             </TabsTrigger>
-          </TabsList>
+            <TabsTrigger
+              value="lex_tempus"
+              className="data-[state=active]:bg-cyan-950/80 data-[state=active]:text-cyan-300 text-slate-400 text-xs font-mono"
+            >
+              LEX TEMPUS
+            </TabsTrigger>
+          </TabsList>{' '}
         </div>
 
         {/* Tab 1: Resumo */}
@@ -501,6 +509,15 @@ export const ProcessDetailDrawer: React.FC<ProcessDetailDrawerProps> = ({
               </div>
             </div>
           </div>
+        </TabsContent>
+
+        {/* Tab Preparação para Audiência */}
+        <TabsContent value="preparacao" className="flex-1 overflow-y-auto p-5 space-y-4 m-0">
+          <PreparacaoAudienciaControl
+            processNumber={currentRecord.numeroProcesso}
+            clientId={currentRecord.clientId}
+            title={`Preparação: Processo ${currentRecord.numeroProcesso}`}
+          />
         </TabsContent>
 
         {/* Tab 5: LEX TEMPUS (Contract Preview) */}

@@ -49,6 +49,7 @@ import {
 import { CustodyChainTimeline } from '@/components/CustodyChainTimeline'
 import { DeadlineCalculatorView } from '@/components/DeadlineCalculatorView'
 import { AgendaView } from '@/components/AgendaView'
+import { PreparacaoAudienciaControl } from '@/components/PreparacaoAudienciaControl'
 import { TasksView } from '@/components/TasksView'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -68,6 +69,7 @@ export type SentinelaSubArea =
   | 'triagem'
   | 'sala_situacao'
   | 'prazos'
+  | 'preparacao'
   | 'processos'
   | 'automacoes'
   | 'saude'
@@ -90,6 +92,13 @@ export const SentinelaHub: React.FC = () => {
     if (raw === 'dossie' || raw === 'processo' || raw === 'processos') return 'processos'
     if (raw === 'comunicacao' || raw === 'comunicacoes' || raw === 'djen') return 'comunicacoes'
     if (raw === 'prazo' || raw === 'prazos' || raw === 'memorial') return 'prazos'
+    if (
+      raw === 'preparacao' ||
+      raw === 'preparacao-audiencia' ||
+      raw === 'audiencia' ||
+      raw === 'audiencias'
+    )
+      return 'preparacao'
     if (raw === 'automacao' || raw === 'automacoes' || raw === 'regras') return 'automacoes'
     if (raw === 'triagem') return 'triagem'
     if (raw === 'pulso') return 'pulso'
@@ -936,6 +945,17 @@ export const SentinelaHub: React.FC = () => {
               badgeVariant: 'destructive',
             },
             { id: 'prazos', label: 'Prazos & Memorial', icon: Clock, badge: null },
+            {
+              id: 'preparacao',
+              label: 'Preparação Audiência',
+              icon: Sparkles,
+              badge:
+                dataStore
+                  .getAgendaEvents()
+                  .filter((e) => e.eventType === 'AUDIENCIA' && e.preparacaoHabilitada).length ||
+                null,
+              badgeVariant: 'warning',
+            },
             { id: 'processos', label: 'Dossiê Vivo', icon: Brain, badge: null },
             {
               id: 'automacoes',
@@ -1912,6 +1932,13 @@ export const SentinelaHub: React.FC = () => {
         </div>
       )}
 
+      {/* SUB-VIEW PREPARAÇÃO PARA AUDIÊNCIA (MÓDULO INTERNO SENTINELA) */}
+      {activeSubTab === 'preparacao' && (
+        <div className="space-y-6">
+          <PreparacaoAudienciaControl />
+        </div>
+      )}
+
       {/* SUB-VIEW 6: PROCESSOS & DOSSIE VIVO */}
       {activeSubTab === 'processos' && (
         <div className="space-y-4">
@@ -2473,6 +2500,40 @@ export const SentinelaHub: React.FC = () => {
 
               {/* Custody Chain Component */}
               <CustodyChainTimeline custody={selectedComm.custody} />
+
+              {/* Atalho de Preparação de Audiência quando for ato de Audiência ou houver processo */}
+              <div className="p-3.5 rounded-xl bg-slate-900/90 border border-amber-500/30 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    <span className="text-xs font-bold text-amber-300 font-mono uppercase">
+                      Preparação para Audiência (Portal do Cliente)
+                    </span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedCommModalOpen(false)
+                      handleSubTabChange('preparacao')
+                    }}
+                    className="h-7 text-[11px] border-amber-600 text-amber-300 hover:bg-amber-950/50 font-mono flex items-center gap-1"
+                  >
+                    Abrir Controle Geral ↗
+                  </Button>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Gerencie alegações e habilite a experiência imersiva de preparação para este
+                  cliente e processo.
+                </p>
+                <div className="pt-1">
+                  <PreparacaoAudienciaControl
+                    processNumber={selectedComm.numeroProcesso}
+                    clientId={selectedComm.clientId}
+                    title={`Preparação: Processo ${selectedComm.numeroProcesso}`}
+                  />
+                </div>
+              </div>
 
               {/* Deadline Engine Integration */}
               <div className="pt-2">

@@ -21,6 +21,7 @@ import {
 import { AgendaEvent, AgendaEventType } from '@/types/sentinela'
 import { dataStore } from '@/services/dataStore'
 import { safeCalendarAdapter } from '@/services/adapters'
+import { PreparacaoAudienciaControl } from '@/components/PreparacaoAudienciaControl'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -52,7 +53,9 @@ const EVENT_TYPE_COLORS: Record<AgendaEventType, { bg: string; text: string; bor
 
 export const AgendaView: React.FC = () => {
   const [events, setEvents] = useState<AgendaEvent[]>(dataStore.getAgendaEvents())
-  const [viewMode, setViewMode] = useState<'lista' | 'mes' | 'semana' | 'dia' | 'timeline'>('lista')
+  const [viewMode, setViewMode] = useState<'lista' | 'preparacao' | 'semana' | 'mes' | 'timeline'>(
+    'lista',
+  )
   const [searchFilter, setSearchFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState<string>('TODOS')
   const [responsibleFilter, setResponsibleFilter] = useState<string>('TODOS')
@@ -204,119 +207,133 @@ export const AgendaView: React.FC = () => {
 
         {/* View Mode Buttons */}
         <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
-          {(['lista', 'semana', 'mes', 'timeline'] as const).map((mode) => (
+          {(['lista', 'preparacao', 'semana', 'mes', 'timeline'] as const).map((mode) => (
             <button
               key={mode}
               onClick={() => setViewMode(mode)}
               className={`px-2.5 py-1 rounded text-[11px] font-mono capitalize transition-all ${
                 viewMode === mode
-                  ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-bold'
+                  ? mode === 'preparacao'
+                    ? 'bg-amber-950 text-amber-300 border border-amber-500/50 font-bold'
+                    : 'bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-bold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              {mode}
+              {mode === 'preparacao' ? '✨ Preparação' : mode}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Events List / Cards */}
-      <div className="space-y-3">
-        {filteredEvents.length === 0 ? (
-          <div className="p-8 rounded-xl bg-slate-900/40 border border-slate-800 text-center text-slate-500 text-xs">
-            Nenhum compromisso encontrado para os filtros selecionados.
-          </div>
-        ) : (
-          filteredEvents.map((ev) => {
-            const colors = EVENT_TYPE_COLORS[ev.eventType] || {
-              bg: 'bg-slate-900',
-              text: 'text-slate-300',
-              border: 'border-slate-800',
-            }
-            const startD = new Date(ev.startDate)
-
-            return (
-              <div
-                key={ev.id}
-                className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 nox-glass-card"
-              >
-                <div className="flex items-start gap-3">
-                  {/* Date Block */}
-                  <div className="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-slate-950 border border-slate-800 text-center shrink-0">
-                    <span className="text-[10px] font-mono text-cyan-400 uppercase">
-                      {startD.toLocaleString('pt-BR', { month: 'short' })}
-                    </span>
-                    <span className="text-base font-extrabold text-slate-100 font-mono leading-none">
-                      {startD.getDate()}
-                    </span>
-                  </div>
-
-                  {/* Details */}
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] font-mono px-2 py-0.5 ${colors.bg} ${colors.text} ${colors.border}`}
-                      >
-                        {ev.eventType}
-                      </Badge>
-                      <h4 className="text-xs sm:text-sm font-bold text-slate-200">{ev.title}</h4>
-                      {ev.isVirtual && (
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] text-cyan-400 border-cyan-800/40 bg-cyan-950/30 flex items-center gap-1"
-                        >
-                          <Video className="w-2.5 h-2.5" /> Virtual
-                        </Badge>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-3 text-[11px] text-slate-400 font-mono flex-wrap">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-slate-500" />
-                        {startD.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      <span>•</span>
-                      <span className="text-slate-300">{ev.responsible}</span>
-                      {ev.processNumber && (
-                        <>
-                          <span>•</span>
-                          <span className="text-cyan-400/80">{ev.processNumber}</span>
-                        </>
-                      )}
-                      {ev.locationOrLink && (
-                        <>
-                          <span>•</span>
-                          <span className="truncate max-w-[200px] text-slate-500">
-                            {ev.locationOrLink}
-                          </span>
-                        </>
-                      )}
-                    </div>
-
-                    {ev.description && (
-                      <p className="text-xs text-slate-400 mt-1">{ev.description}</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleExportIcs(ev)}
-                    className="h-7 text-[11px] bg-slate-950/60 border-slate-700 text-slate-300 hover:text-cyan-300 flex items-center gap-1"
-                  >
-                    <Download className="w-3 h-3" />
-                    .ICS
-                  </Button>
-                </div>
+      {/* View Mode: Preparação de Audiência */}
+      {viewMode === 'preparacao' ? (
+        <PreparacaoAudienciaControl />
+      ) : (
+        <>
+          {/* Events List / Cards */}
+          <div className="space-y-3">
+            {filteredEvents.length === 0 ? (
+              <div className="p-8 rounded-xl bg-slate-900/40 border border-slate-800 text-center text-slate-500 text-xs">
+                Nenhum compromisso encontrado para os filtros selecionados.
               </div>
-            )
-          })
-        )}
-      </div>
+            ) : (
+              filteredEvents.map((ev) => {
+                const colors = EVENT_TYPE_COLORS[ev.eventType] || {
+                  bg: 'bg-slate-900',
+                  text: 'text-slate-300',
+                  border: 'border-slate-800',
+                }
+                const startD = new Date(ev.startDate)
+
+                return (
+                  <div
+                    key={ev.id}
+                    className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 nox-glass-card"
+                  >
+                    <div className="flex items-start gap-3">
+                      {/* Date Block */}
+                      <div className="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-slate-950 border border-slate-800 text-center shrink-0">
+                        <span className="text-[10px] font-mono text-cyan-400 uppercase">
+                          {startD.toLocaleString('pt-BR', { month: 'short' })}
+                        </span>
+                        <span className="text-base font-extrabold text-slate-100 font-mono leading-none">
+                          {startD.getDate()}
+                        </span>
+                      </div>
+
+                      {/* Details */}
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] font-mono px-2 py-0.5 ${colors.bg} ${colors.text} ${colors.border}`}
+                          >
+                            {ev.eventType}
+                          </Badge>
+                          <h4 className="text-xs sm:text-sm font-bold text-slate-200">
+                            {ev.title}
+                          </h4>
+                          {ev.isVirtual && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] text-cyan-400 border-cyan-800/40 bg-cyan-950/30 flex items-center gap-1"
+                            >
+                              <Video className="w-2.5 h-2.5" /> Virtual
+                            </Badge>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-3 text-[11px] text-slate-400 font-mono flex-wrap">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-slate-500" />
+                            {startD.toLocaleTimeString('pt-BR', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                          <span>•</span>
+                          <span className="text-slate-300">{ev.responsible}</span>
+                          {ev.processNumber && (
+                            <>
+                              <span>•</span>
+                              <span className="text-cyan-400/80">{ev.processNumber}</span>
+                            </>
+                          )}
+                          {ev.locationOrLink && (
+                            <>
+                              <span>•</span>
+                              <span className="truncate max-w-[200px] text-slate-500">
+                                {ev.locationOrLink}
+                              </span>
+                            </>
+                          )}
+                        </div>
+
+                        {ev.description && (
+                          <p className="text-xs text-slate-400 mt-1">{ev.description}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleExportIcs(ev)}
+                        className="h-7 text-[11px] bg-slate-950/60 border-slate-700 text-slate-300 hover:text-cyan-300 flex items-center gap-1"
+                      >
+                        <Download className="w-3 h-3" />
+                        .ICS
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </>
+      )}
 
       {/* Modal Novo Compromisso */}
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>

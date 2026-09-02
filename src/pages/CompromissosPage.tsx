@@ -33,6 +33,7 @@ import {
   OperationalTwinCapacity,
 } from '@/types/sentinela'
 import { dataStore } from '@/services/dataStore'
+import { PreparacaoAudienciaControl } from '@/components/PreparacaoAudienciaControl'
 import { getComplexidadeTarefa, ComplexidadeResultado } from '@/services/complexityService'
 import {
   gerarSugestoesAgendamento,
@@ -144,7 +145,7 @@ export const CompromissosPage: React.FC = () => {
   const [tasks, setTasks] = useState<SentinelaTask[]>(dataStore.getTasks())
   const [comms, setComms] = useState<SentinelaCommunication[]>(dataStore.getCommunications())
   const [activeTab, setActiveTab] = useState<
-    'hoje' | 'audiencias' | 'consulta_periodo' | 'sugestoes' | 'todos'
+    'hoje' | 'preparacao' | 'audiencias' | 'consulta_periodo' | 'sugestoes' | 'todos'
   >('hoje')
   const [filterType, setFilterType] = useState<string>('TODOS')
   const [searchFilter, setSearchFilter] = useState('')
@@ -840,23 +841,36 @@ export const CompromissosPage: React.FC = () => {
 
       {/* Tabs de Navegação Interna do Módulo */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-        <TabsList className="bg-slate-950/80 border border-slate-800 p-1 rounded-xl flex flex-wrap gap-1 max-w-3xl">
+        <TabsList className="bg-slate-950/80 border border-slate-800 p-1 rounded-xl flex flex-wrap gap-1 max-w-4xl">
           <TabsTrigger
             value="hoje"
-            className="text-xs font-semibold data-[state=active]:bg-cyan-950 data-[state=active]:text-cyan-300 flex-1 min-w-[120px]"
+            className="text-xs font-semibold data-[state=active]:bg-cyan-950 data-[state=active]:text-cyan-300 flex-1 min-w-[110px]"
           >
             Visão do Dia
           </TabsTrigger>
           <TabsTrigger
+            value="preparacao"
+            className="text-xs font-semibold data-[state=active]:bg-amber-950 data-[state=active]:text-amber-300 flex-1 min-w-[160px] relative"
+          >
+            <Sparkles className="w-3.5 h-3.5 mr-1 text-amber-400" />
+            Preparação Audiência
+            {events.filter((e) => e.eventType === 'AUDIENCIA' && e.preparacaoHabilitada).length >
+              0 && (
+              <span className="ml-1.5 px-1.5 py-0.2 rounded-full text-[9px] bg-amber-500 text-slate-950 font-mono font-bold">
+                {events.filter((e) => e.eventType === 'AUDIENCIA' && e.preparacaoHabilitada).length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger
             value="consulta_periodo"
-            className="text-xs font-semibold data-[state=active]:bg-purple-950 data-[state=active]:text-purple-300 flex-1 min-w-[180px] relative"
+            className="text-xs font-semibold data-[state=active]:bg-purple-950 data-[state=active]:text-purple-300 flex-1 min-w-[160px] relative"
           >
             <Search className="w-3.5 h-3.5 mr-1 text-purple-400" />
-            Consultar por Período DJEN
+            Consultar DJEN
           </TabsTrigger>
           <TabsTrigger
             value="audiencias"
-            className="text-xs font-semibold data-[state=active]:bg-purple-950/70 data-[state=active]:text-purple-300 flex-1 min-w-[140px] relative"
+            className="text-xs font-semibold data-[state=active]:bg-purple-950/70 data-[state=active]:text-purple-300 flex-1 min-w-[120px] relative"
           >
             Pauta Geral
             {audienciasDjen.length > 0 && (
@@ -1110,6 +1124,11 @@ export const CompromissosPage: React.FC = () => {
               </div>
             </div>
           </div>
+        </TabsContent>
+
+        {/* TAB PREPARAÇÃO PARA AUDIÊNCIA (CONTROLE INTERNO) */}
+        <TabsContent value="preparacao" className="space-y-5 mt-4">
+          <PreparacaoAudienciaControl onChanged={reloadData} />
         </TabsContent>
 
         {/* TAB 2: CONSULTAR POR PERÍODO AS AUDIÊNCIAS DJEN */}
