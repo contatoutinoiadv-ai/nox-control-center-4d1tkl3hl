@@ -21,8 +21,43 @@ export interface ComplexidadeResultado {
 }
 
 // Sensor de grandes partes adversárias / complexidade de grande porte (mesmo sensor Nível 3 do Oráculo NOX)
-const GRANDES_LITIGANTES_REGEX =
+export const GRANDES_LITIGANTES_REGEX =
   /(banco|institui[cç][aã]o\s+financeira|itau|bradesco|santander|caixa\s+econ[oô]mica|safra|bb\s|banco\s+do\s+brasil|seguradora|seguros|porto\s+seguro|sulamerica|bradesco\s+auto|tokio\s+marine|telef[oô]nica|claro|tim\s|vivo|magazine\s+luiza|magalu|via\s+varejo|casas\s+bahia|ponto\s+frio|americanas|mercado\s+livre|shopee|amazon|latam|gol\s+linhas|azul\s+linhas|enel|energisa|sabesp|sanepar|cedae)/i
+
+/**
+ * Avalia o Nível do Oráculo NOX (1, 2 ou 3) para uma peça ou contexto de produção.
+ * Regra: Nível 3 é o padrão absoluto salvo indicação contrária;
+ * O sensor de complexidade reclassifica automaticamente pra Nível 3 quando envolve grande litigante.
+ */
+export function classificarNivelProducao(
+  textoOuContexto: string,
+  indicacaoUsuario?: 1 | 2 | 3,
+): { nivel: 1 | 2 | 3; motivo: string; reclassificadoAutomatico: boolean } {
+  const isGrandeLitigante = GRANDES_LITIGANTES_REGEX.test(textoOuContexto)
+
+  if (isGrandeLitigante) {
+    return {
+      nivel: 3,
+      motivo:
+        'Sensor de Complexidade ativado: Caso envolve Instituição Financeira, Grande Varejista ou Seguradora (Nível 3 Obrigatório)',
+      reclassificadoAutomatico: indicacaoUsuario !== undefined && indicacaoUsuario !== 3,
+    }
+  }
+
+  if (indicacaoUsuario) {
+    return {
+      nivel: indicacaoUsuario,
+      motivo: `Nível ${indicacaoUsuario} definido manualmente pelo operador`,
+      reclassificadoAutomatico: false,
+    }
+  }
+
+  return {
+    nivel: 3,
+    motivo: 'Nível 3 (Padrão absoluto do Oráculo NOX)',
+    reclassificadoAutomatico: false,
+  }
+}
 
 /**
  * Calcula a complexidade determinística de uma tarefa jurídica.

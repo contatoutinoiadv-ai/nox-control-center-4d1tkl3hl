@@ -40,6 +40,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     { title: 'Central NOX', path: '/', category: 'Navegação' },
     { title: 'Sentinela NOX', path: '/sentinela', category: 'Navegação' },
     { title: 'Clientes (Controladoria Jurídica 360º)', path: '/clientes', category: 'Navegação' },
+    { title: 'Produção (Controladoria de Peças)', path: '/producao', category: 'Navegação' },
     { title: 'Central de Prazos', path: '/central-prazos', category: 'Navegação' },
     { title: 'Compromissos & Agenda Autônoma', path: '/compromissos', category: 'Navegação' },
     { title: 'Radar de Alertas', path: '/radar', category: 'Navegação' },
@@ -79,9 +80,22 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               (c.telefone && c.telefone.includes(query)) ||
               (c.email && c.email.toLowerCase().includes(query.toLowerCase())),
           )
-          .slice(0, 5)
+          .slice(0, 4)
       : []
 
+  const prodItems = dataStore.getProductionItems()
+  const filteredProdItems =
+    query.trim().length > 1
+      ? prodItems
+          .filter(
+            (p) =>
+              p.tituloPeca.toLowerCase().includes(query.toLowerCase()) ||
+              (p.clientName && p.clientName.toLowerCase().includes(query.toLowerCase())) ||
+              (p.numeroProcesso && p.numeroProcesso.includes(query)) ||
+              (p.teseDominante && p.teseDominante.toLowerCase().includes(query.toLowerCase())),
+          )
+          .slice(0, 4)
+      : []
   const handleSelectNav = (path: string) => {
     navigate(path)
     onOpenChange(false)
@@ -135,6 +149,60 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                       <span>{item.title}</span>
                     </div>
                     <CornerDownLeft className="w-3.5 h-3.5 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Production Search Results */}
+          {filteredProdItems.length > 0 && (
+            <div>
+              <div className="text-[11px] font-mono uppercase text-purple-400 px-3 py-1 font-semibold flex items-center justify-between">
+                <span>Controladoria de Produção ({filteredProdItems.length})</span>
+                <span className="text-purple-400 font-normal">Enter para inspecionar</span>
+              </div>
+              <div className="space-y-1">
+                {filteredProdItems.map((prod) => (
+                  <button
+                    key={prod.id}
+                    onClick={() => {
+                      navigate(`/producao?selected=${prod.id}`)
+                      onOpenChange(false)
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg hover:bg-slate-800/90 border border-transparent hover:border-purple-500/30 transition-all text-left group"
+                  >
+                    <div className="flex items-start gap-3 min-w-0">
+                      <Badge
+                        className={`text-[9px] font-mono px-1.5 py-0 mt-0.5 ${
+                          prod.nivel === 3
+                            ? 'bg-pink-950 text-pink-300 border-pink-700'
+                            : 'bg-cyan-950 text-cyan-300 border-cyan-700'
+                        }`}
+                      >
+                        NÍVEL {prod.nivel}
+                      </Badge>
+                      <div className="truncate">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-200 font-medium truncate">
+                            {prod.tituloPeca}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400 truncate mt-0.5">
+                          Cliente: {prod.clientName} &bull; Estágio:{' '}
+                          {prod.estagio.replace(/_/g, ' ')}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] uppercase font-mono border-purple-800/60 text-purple-300"
+                      >
+                        Produção
+                      </Badge>
+                    </div>
                   </button>
                 ))}
               </div>

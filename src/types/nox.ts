@@ -151,12 +151,91 @@ export interface ImportBatch {
 export interface AuditLogEntry {
   id: string
   action: string
-  category: 'importacao' | 'revisao' | 'exportacao' | 'sistema' | 'configuracao' | 'lex_tempus'
+  category:
+    | 'importacao'
+    | 'revisao'
+    | 'exportacao'
+    | 'sistema'
+    | 'configuracao'
+    | 'lex_tempus'
+    | 'producao'
   actor: string
   targetId?: string
   details: Record<string, unknown>
   ipAddress?: string
   createdAt: string
+}
+
+// ----------------------------------------------------
+// PRODUÇÃO (Controladoria de Produção de Peças NOX)
+// ----------------------------------------------------
+
+export type ProductionStage =
+  | 'triagem_evidencias'
+  | 'tese_em_definicao'
+  | 'em_redacao'
+  | 'stress_test_adversarial'
+  | 'pronto_protocolo'
+  | 'protocolado'
+
+export type ProductionNivel = 1 | 2 | 3
+
+export interface TriagemEvidenciasCamadas {
+  essencial: number
+  util: number
+  neutro: number
+  perigoso: number
+  dispensavel: number
+  completa: boolean
+  itensDetalhados?: Array<{
+    id: string
+    descricao: string
+    camada: 'essencial' | 'util' | 'neutro' | 'perigoso' | 'dispensavel'
+    observacao?: string
+  }>
+}
+
+export interface StressTestValidation {
+  tecnicaJuridica: boolean // Camada 1: Técnica jurídica
+  coerenciaNarrativa: boolean // Camada 2: Coerência narrativa
+  humanizacao: boolean // Camada 3: Humanização
+  observacoes?: string
+  reprovacoesHistorico?: Array<{
+    data: string
+    motivo: string
+    camadasReprovadas: string[]
+    actor: string
+  }>
+}
+
+export interface ProductionStageHistory {
+  stage: ProductionStage
+  enteredAt: string
+  leftAt?: string
+  durationDays?: number
+  actor: string
+  justification?: string
+}
+
+export interface ProductionItem {
+  id: string
+  clientId: string // Vínculo obrigatório com Clientes
+  clientName?: string
+  clientCode?: string
+  numeroProcesso?: string // Quando já existe
+  tituloPeca: string // Ex: "Contestação — Rogelio Felix da Silva"
+  nivel: ProductionNivel // 1, 2 ou 3 (Oráculo NOX, Nível 3 padrão)
+  estagio: ProductionStage
+  responsavel: string
+  triagemEvidencias: TriagemEvidenciasCamadas
+  teseDominante?: string
+  motivoTravamento?: string
+  dataEntradaEstagioAtual: string // ISO date/datetime pra envelhecimento
+  stressTestAprovado: boolean
+  stressTestDetalhes?: StressTestValidation
+  historicoEstagios?: ProductionStageHistory[]
+  createdAt: string
+  updatedAt: string
 }
 
 // LEX TEMPUS Contract (Versioned v1)

@@ -18,6 +18,7 @@ import SentinelaPage from './pages/SentinelaPage'
 import CentralPrazosPage from './pages/CentralPrazosPage'
 import CompromissosPage from './pages/CompromissosPage'
 import ClientesPage from './pages/ClientesPage'
+import ProducaoPage from './pages/ProducaoPage'
 import NotFound from './pages/NotFound'
 
 const App = () => (
@@ -71,6 +72,7 @@ const App = () => (
                 }
               />
               <Route path="/radar" element={<RadarPage />} />
+              <Route path="/producao" element={<ProducaoPage />} />
               <Route path="/processos" element={<ProcessesPage />} />
               <Route path="/importacoes" element={<ImportsPage />} />
               <Route path="/revisao" element={<ReviewPage />} />

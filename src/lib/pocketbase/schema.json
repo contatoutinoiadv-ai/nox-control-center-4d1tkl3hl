@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-02T05:18:12.567Z",
+  "generatedAt": "2026-09-02T05:31:42.425Z",
   "collections": [
     {
       "name": "users",
@@ -1108,6 +1108,131 @@
         "CREATE INDEX idx_clients_nome ON clients (nome)",
         "CREATE INDEX idx_clients_estagio ON clients (estagio)",
         "CREATE INDEX idx_clients_origem ON clients (origem)"
+      ]
+    },
+    {
+      "name": "production_items",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "client_id",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "client_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "numero_processo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "titulo_peca",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "nivel",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "estagio",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": [
+            "triagem_evidencias",
+            "tese_em_definicao",
+            "em_redacao",
+            "stress_test_adversarial",
+            "pronto_protocolo",
+            "protocolado"
+          ]
+        },
+        {
+          "name": "responsavel",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "triagem_evidencias",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tese_dominante",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "motivo_travamento",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_entrada_estagio_atual",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "stress_test_aprovado",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "stress_test_detalhes",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "historico_estagios",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_prod_client ON production_items (client_id)",
+        "CREATE INDEX idx_prod_estagio ON production_items (estagio)",
+        "CREATE INDEX idx_prod_processo ON production_items (numero_processo)",
+        "CREATE INDEX idx_prod_nivel ON production_items (nivel)"
       ]
     }
   ]

@@ -20,6 +20,7 @@ import {
   ChevronRight,
   RefreshCw,
   Users,
+  Layers,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -70,7 +71,15 @@ export const Layout: React.FC = () => {
       path: '/clientes',
       icon: Users,
       badge: statsClientsCount > 0 ? statsClientsCount : null,
-      badgeVariant: 'cyan',
+      badgeColor: 'bg-emerald-950 text-emerald-400 border-emerald-800',
+    },
+    {
+      name: 'Produção',
+      path: '/producao',
+      icon: Layers,
+      badge:
+        dataStore.getProductionItems().filter((p) => p.estagio !== 'protocolado').length || null,
+      badgeColor: 'bg-purple-950 text-purple-400 border-purple-800',
     },
     {
       name: 'Central de Prazos',

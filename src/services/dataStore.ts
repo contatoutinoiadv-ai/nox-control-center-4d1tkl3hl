@@ -6,7 +6,13 @@ import {
   NoxClient,
   ClientGeneratedDoc,
   ClientStage,
+  ProductionItem,
+  ProductionStage,
+  ProductionNivel,
+  TriagemEvidenciasCamadas,
+  StressTestValidation,
 } from '@/types/nox'
+import { classificarNivelProducao } from '@/services/complexityService'
 import { generateFullSyntheticDataset, INITIAL_BATCH, INITIAL_AUDIT_LOGS } from '@/data/mockData'
 import {
   SentinelaCommunication,
@@ -47,6 +53,7 @@ const STORAGE_KEYS = {
   INCIDENTS: 'nox_sentinela_incidents_v1',
   DECISION_MEMORY: 'nox_sentinela_decision_memory_v1',
   CLIENTS: 'nox_control_center_clients_v1',
+  PRODUCTION: 'nox_control_center_production_v1',
 }
 
 export interface AppSettings {
@@ -94,6 +101,7 @@ export class NoxDataStore {
   private incidents: IncidentCrisisRoom[] = []
   private decisionMemory: DecisionMemoryItem[] = []
   private clients: NoxClient[] = []
+  private productionItems: ProductionItem[] = []
   private settings: AppSettings = DEFAULT_SETTINGS
   private listeners: Set<() => void> = new Set()
 
@@ -165,6 +173,13 @@ export class NoxDataStore {
       } else {
         this.clients = this.generateInitialClients()
       }
+
+      const storedProd = localStorage.getItem(STORAGE_KEYS.PRODUCTION)
+      if (storedProd) {
+        this.productionItems = JSON.parse(storedProd)
+      } else {
+        this.productionItems = this.generateInitialProductionItems(this.clients)
+      }
     } catch {
       this.records = []
       this.imports = []
@@ -177,8 +192,308 @@ export class NoxDataStore {
       this.incidents = []
       this.decisionMemory = []
       this.clients = this.generateInitialClients()
+      this.productionItems = this.generateInitialProductionItems(this.clients)
       this.settings = DEFAULT_SETTINGS
     }
+  }
+
+  private generateInitialProductionItems(clients: NoxClient[]): ProductionItem[] {
+    const now = new Date()
+    const dDaysAgo = (days: number) => new Date(now.getTime() - days * 86400000).toISOString()
+
+    const cli1 = clients.find((c) => c.clientCode === 'CLI-2026-001') || clients[0]
+    const cli2 = clients.find((c) => c.clientCode === 'CLI-2026-002') || clients[1]
+    const cli3 = clients.find((c) => c.clientCode === 'CLI-2026-003') || clients[2]
+    const cli4 = clients.find((c) => c.clientCode === 'CLI-2026-004') || clients[3]
+
+    const initial: ProductionItem[] = []
+
+    if (cli1) {
+      initial.push({
+        id: 'prod-item-001',
+        clientId: cli1.id,
+        clientName: cli1.nome,
+        clientCode: cli1.clientCode,
+        numeroProcesso: cli1.processosVinculados[0] || '1045230-89.2026.8.26.0100',
+        tituloPeca: `Petição Inicial / Tutela de Urgência — ${cli1.nome}`,
+        nivel: 3, // Litígio bancário => Nível 3 automático
+        estagio: 'tese_em_definicao',
+        responsavel: 'Higor Utinoi de Oliveira',
+        triagemEvidencias: {
+          essencial: 4,
+          util: 2,
+          neutro: 1,
+          perigoso: 1,
+          dispensavel: 3,
+          completa: true,
+          itensDetalhados: [
+            {
+              id: 'tri-1',
+              descricao: 'Extrato bancário demonstrando débito abusivo não autorizado',
+              camada: 'essencial',
+            },
+            {
+              id: 'tri-2',
+              descricao: 'Comprovante de negativação indevida nos órgãos SPC/SERASA',
+              camada: 'essencial',
+            },
+            {
+              id: 'tri-3',
+              descricao: 'Contrato de adesão original com cláusulas leoninas',
+              camada: 'essencial',
+            },
+            {
+              id: 'tri-4',
+              descricao: 'Protocolos de atendimento no SAC bancário sem resolução',
+              camada: 'essencial',
+            },
+            {
+              id: 'tri-5',
+              descricao: 'Troca de e-mails com a ouvidoria da instituição',
+              camada: 'util',
+            },
+            { id: 'tri-6', descricao: 'Comprovante de renda familiar atualizado', camada: 'util' },
+            {
+              id: 'tri-7',
+              descricao: 'Declaração de imposto de renda ano anterior',
+              camada: 'neutro',
+            },
+            {
+              id: 'tri-8',
+              descricao: 'Notificação prévia com aceite parcial do autor (atenção)',
+              camada: 'perigoso',
+              observacao: 'Mitigar na fundamentação inicial',
+            },
+            {
+              id: 'tri-9',
+              descricao: 'Comprovantes de endereço antigos repetidos',
+              camada: 'dispensavel',
+            },
+          ],
+        },
+        teseDominante:
+          'Abusividade das tarifas e desvio produtivo do consumidor em litígio bancário',
+        motivoTravamento: 'Aguardando fechamento do eixo narrativo de dano moral reflexo',
+        dataEntradaEstagioAtual: dDaysAgo(6), // 6 dias parado em Tese em Definição (alerta de gargalo)
+        stressTestAprovado: false,
+        stressTestDetalhes: {
+          tecnicaJuridica: false,
+          coerenciaNarrativa: false,
+          humanizacao: false,
+          observacoes: 'Aguardando redação para submissão ao stress-test adversarial',
+        },
+        historicoEstagios: [
+          {
+            stage: 'triagem_evidencias',
+            enteredAt: dDaysAgo(10),
+            leftAt: dDaysAgo(6),
+            durationDays: 4,
+            actor: 'Higor Utinoi de Oliveira',
+            justification: 'Triagem de 5 camadas finalizada com sucesso',
+          },
+          {
+            stage: 'tese_em_definicao',
+            enteredAt: dDaysAgo(6),
+            actor: 'Higor Utinoi de Oliveira',
+          },
+        ],
+        createdAt: dDaysAgo(10),
+        updatedAt: dDaysAgo(6),
+      })
+    }
+
+    if (cli2) {
+      initial.push({
+        id: 'prod-item-002',
+        clientId: cli2.id,
+        clientName: cli2.nome,
+        clientCode: cli2.clientCode,
+        numeroProcesso: cli2.processosVinculados[0] || '0018492-44.2026.8.26.0001',
+        tituloPeca: `Ação Indenizatória por Extravio de Bagagem — ${cli2.nome}`,
+        nivel: 3, // Companhia aérea / grande porte => Nível 3
+        estagio: 'em_redacao',
+        responsavel: 'Higor Utinoi de Oliveira',
+        triagemEvidencias: {
+          essencial: 5,
+          util: 3,
+          neutro: 0,
+          perigoso: 0,
+          dispensavel: 2,
+          completa: true,
+        },
+        teseDominante:
+          'Inaplicabilidade da Convenção de Montreal para danos morais (Tema 210 STF) e falha na assistência material',
+        motivoTravamento: '',
+        dataEntradaEstagioAtual: dDaysAgo(2),
+        stressTestAprovado: false,
+        stressTestDetalhes: {
+          tecnicaJuridica: false,
+          coerenciaNarrativa: false,
+          humanizacao: false,
+        },
+        historicoEstagios: [
+          {
+            stage: 'triagem_evidencias',
+            enteredAt: dDaysAgo(5),
+            leftAt: dDaysAgo(3),
+            durationDays: 2,
+            actor: 'Higor Utinoi de Oliveira',
+          },
+          {
+            stage: 'tese_em_definicao',
+            enteredAt: dDaysAgo(3),
+            leftAt: dDaysAgo(2),
+            durationDays: 1,
+            actor: 'Higor Utinoi de Oliveira',
+          },
+          { stage: 'em_redacao', enteredAt: dDaysAgo(2), actor: 'Higor Utinoi de Oliveira' },
+        ],
+        createdAt: dDaysAgo(5),
+        updatedAt: dDaysAgo(2),
+      })
+    }
+
+    if (cli3) {
+      initial.push({
+        id: 'prod-item-003',
+        clientId: cli3.id,
+        clientName: cli3.nome,
+        clientCode: cli3.clientCode,
+        numeroProcesso: cli3.processosVinculados[0] || '5001290-77.2026.8.26.0200',
+        tituloPeca: `Contestação Trabalhista — ${cli3.nome}`,
+        nivel: 2,
+        estagio: 'stress_test_adversarial',
+        responsavel: 'Higor Utinoi de Oliveira',
+        triagemEvidencias: {
+          essencial: 6,
+          util: 4,
+          neutro: 2,
+          perigoso: 1,
+          dispensavel: 1,
+          completa: true,
+        },
+        teseDominante:
+          'Inexistência de periculosidade habitual e validade dos registros de ponto por telemetria',
+        motivoTravamento:
+          'Necessária validação da camada de humanização e adequação de jurisprudência do TRT',
+        dataEntradaEstagioAtual: dDaysAgo(3),
+        stressTestAprovado: false,
+        stressTestDetalhes: {
+          tecnicaJuridica: true,
+          coerenciaNarrativa: true,
+          humanizacao: false, // Bloqueante!
+          observacoes:
+            'Ajustar tom da narrativa em relação ao autor para demonstrar cumprimento integral das NRs sem desumanizar a rotina.',
+          reprovacoesHistorico: [
+            {
+              data: dDaysAgo(1),
+              motivo: 'Voltou para redação técnica: Camada de Humanização reprovada',
+              camadasReprovadas: ['humanizacao'],
+              actor: 'Revisor Sênior NOX',
+            },
+          ],
+        },
+        historicoEstagios: [
+          {
+            stage: 'triagem_evidencias',
+            enteredAt: dDaysAgo(8),
+            leftAt: dDaysAgo(6),
+            durationDays: 2,
+            actor: 'Higor Utinoi de Oliveira',
+          },
+          {
+            stage: 'tese_em_definicao',
+            enteredAt: dDaysAgo(6),
+            leftAt: dDaysAgo(5),
+            durationDays: 1,
+            actor: 'Higor Utinoi de Oliveira',
+          },
+          {
+            stage: 'em_redacao',
+            enteredAt: dDaysAgo(5),
+            leftAt: dDaysAgo(3),
+            durationDays: 2,
+            actor: 'Higor Utinoi de Oliveira',
+          },
+          {
+            stage: 'stress_test_adversarial',
+            enteredAt: dDaysAgo(3),
+            actor: 'Higor Utinoi de Oliveira',
+          },
+        ],
+        createdAt: dDaysAgo(8),
+        updatedAt: dDaysAgo(1),
+      })
+    }
+
+    if (cli4) {
+      initial.push({
+        id: 'prod-item-004',
+        clientId: cli4.id,
+        clientName: cli4.nome,
+        clientCode: cli4.clientCode,
+        numeroProcesso: '0809122-30.2026.8.12.0001',
+        tituloPeca: `Notificação Extrajudicial & Minuta de Rescisão — ${cli4.nome}`,
+        nivel: 3, // Litígio de grande maquinário agrícola
+        estagio: 'pronto_protocolo',
+        responsavel: 'Higor Utinoi de Oliveira',
+        triagemEvidencias: {
+          essencial: 4,
+          util: 3,
+          neutro: 1,
+          perigoso: 0,
+          dispensavel: 0,
+          completa: true,
+        },
+        teseDominante:
+          'Vício redibitório oculto do maquinário e quebra da boa-fé objetiva pré-contratual',
+        motivoTravamento: '',
+        dataEntradaEstagioAtual: dDaysAgo(1),
+        stressTestAprovado: true,
+        stressTestDetalhes: {
+          tecnicaJuridica: true,
+          coerenciaNarrativa: true,
+          humanizacao: true,
+          observacoes:
+            'Stress-test de 3 camadas aprovado com nota máxima. Peça liberada para ato de protocolo.',
+        },
+        historicoEstagios: [
+          {
+            stage: 'triagem_evidencias',
+            enteredAt: dDaysAgo(7),
+            leftAt: dDaysAgo(5),
+            durationDays: 2,
+            actor: 'Higor Utinoi de Oliveira',
+          },
+          {
+            stage: 'tese_em_definicao',
+            enteredAt: dDaysAgo(5),
+            leftAt: dDaysAgo(4),
+            durationDays: 1,
+            actor: 'Higor Utinoi de Oliveira',
+          },
+          {
+            stage: 'em_redacao',
+            enteredAt: dDaysAgo(4),
+            leftAt: dDaysAgo(2),
+            durationDays: 2,
+            actor: 'Higor Utinoi de Oliveira',
+          },
+          {
+            stage: 'stress_test_adversarial',
+            enteredAt: dDaysAgo(2),
+            leftAt: dDaysAgo(1),
+            durationDays: 1,
+            actor: 'Higor Utinoi de Oliveira',
+          },
+          { stage: 'pronto_protocolo', enteredAt: dDaysAgo(1), actor: 'Higor Utinoi de Oliveira' },
+        ],
+        createdAt: dDaysAgo(7),
+        updatedAt: dDaysAgo(1),
+      })
+    }
+
+    return initial
   }
 
   private generateInitialClients(): NoxClient[] {
@@ -398,6 +713,426 @@ export class NoxDataStore {
       /* intentionally ignored */
     }
     this.notify()
+  }
+
+  private saveProductionItems() {
+    try {
+      localStorage.setItem(STORAGE_KEYS.PRODUCTION, JSON.stringify(this.productionItems))
+    } catch {
+      /* intentionally ignored */
+    }
+    this.notify()
+  }
+
+  // ================= Produção NOX Getters and Operations =================
+
+  public getProductionItems(): ProductionItem[] {
+    return [...this.productionItems]
+  }
+
+  public getProductionItemById(id: string): ProductionItem | undefined {
+    return this.productionItems.find((p) => p.id === id)
+  }
+
+  public getProductionItemsByClientId(clientId: string): ProductionItem[] {
+    return this.productionItems.filter((p) => p.clientId === clientId)
+  }
+
+  public addProductionItem(
+    itemData: {
+      clientId: string
+      numeroProcesso?: string
+      tituloPeca: string
+      nivel?: ProductionNivel
+      responsavel?: string
+      triagemEvidencias?: Partial<TriagemEvidenciasCamadas>
+      teseDominante?: string
+      motivoTravamento?: string
+    },
+    actor = 'Operador NOX',
+  ): { success: boolean; item?: ProductionItem; error?: string } {
+    // 1. Validação estrita: vínculo de cliente é obrigatório
+    const client = this.getClientById(itemData.clientId)
+    if (!client) {
+      return {
+        success: false,
+        error:
+          'Vínculo de cliente obrigatório. Selecione um cliente cadastrado no módulo Clientes.',
+      }
+    }
+
+    if (!itemData.tituloPeca || !itemData.tituloPeca.trim()) {
+      return {
+        success: false,
+        error: 'Título da peça é obrigatório.',
+      }
+    }
+
+    // 2. Classificação de Nível (Nível 3 padrão; sensor de litigante)
+    const contextText = `${itemData.tituloPeca} ${client.nome} ${client.demanda} ${client.descricaoCaso || ''} ${itemData.numeroProcesso || ''}`
+    const classif = classificarNivelProducao(contextText, itemData.nivel)
+    const nivelFinal: ProductionNivel = classif.nivel
+
+    const nowIso = new Date().toISOString()
+    const id = `prod_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+
+    const defaultTriagem: TriagemEvidenciasCamadas = {
+      essencial: itemData.triagemEvidencias?.essencial || 0,
+      util: itemData.triagemEvidencias?.util || 0,
+      neutro: itemData.triagemEvidencias?.neutro || 0,
+      perigoso: itemData.triagemEvidencias?.perigoso || 0,
+      dispensavel: itemData.triagemEvidencias?.dispensavel || 0,
+      completa: itemData.triagemEvidencias?.completa ?? false,
+      itensDetalhados: itemData.triagemEvidencias?.itensDetalhados || [],
+    }
+
+    const newItem: ProductionItem = {
+      id,
+      clientId: client.id,
+      clientName: client.nome,
+      clientCode: client.clientCode,
+      numeroProcesso: itemData.numeroProcesso || client.processosVinculados[0] || undefined,
+      tituloPeca: itemData.tituloPeca.trim(),
+      nivel: nivelFinal,
+      estagio: 'triagem_evidencias',
+      responsavel:
+        itemData.responsavel ||
+        client.responsavel ||
+        this.settings.lawyerName ||
+        'Higor Utinoi de Oliveira',
+      triagemEvidencias: defaultTriagem,
+      teseDominante: itemData.teseDominante || '',
+      motivoTravamento: itemData.motivoTravamento || '',
+      dataEntradaEstagioAtual: nowIso,
+      stressTestAprovado: false,
+      stressTestDetalhes: {
+        tecnicaJuridica: false,
+        coerenciaNarrativa: false,
+        humanizacao: false,
+      },
+      historicoEstagios: [
+        {
+          stage: 'triagem_evidencias',
+          enteredAt: nowIso,
+          actor,
+          justification: 'Item inserido na esteira de produção',
+        },
+      ],
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    }
+
+    this.productionItems.unshift(newItem)
+    this.saveProductionItems()
+
+    // Registrar no audit_logs
+    this.logAction('ITEM_PRODUCAO_CRIADO', 'producao', actor, newItem.id, {
+      titulo_peca: newItem.tituloPeca,
+      client_id: client.id,
+      client_code: client.clientCode,
+      cliente: client.nome,
+      nivel: newItem.nivel,
+      reclassificado_automatico: classif.reclassificadoAutomatico,
+      motivo_nivel: classif.motivo,
+      estagio_inicial: 'triagem_evidencias',
+    })
+
+    // Sincronizar em background com PocketBase
+    this.syncProductionItemToPocketBase(newItem).catch((e) =>
+      console.warn('Background sync production item error:', e),
+    )
+
+    return { success: true, item: newItem }
+  }
+
+  public updateProductionItem(
+    id: string,
+    updates: Partial<ProductionItem>,
+    actor = 'Operador NOX',
+  ): boolean {
+    const item = this.productionItems.find((p) => p.id === id)
+    if (!item) return false
+
+    // Se o cliente for alterado, validar
+    if (updates.clientId && updates.clientId !== item.clientId) {
+      const newCli = this.getClientById(updates.clientId)
+      if (!newCli) return false
+      item.clientId = newCli.id
+      item.clientName = newCli.nome
+      item.clientCode = newCli.clientCode
+    }
+
+    // Reavaliar sensor de litigante se titulo mudar ou nivel for omitido
+    if (updates.tituloPeca && !updates.nivel) {
+      const contextText = `${updates.tituloPeca} ${item.clientName || ''} ${updates.numeroProcesso || item.numeroProcesso || ''}`
+      const classif = classificarNivelProducao(contextText, item.nivel)
+      updates.nivel = classif.nivel
+    }
+
+    Object.assign(item, updates, { updatedAt: new Date().toISOString() })
+    this.saveProductionItems()
+
+    this.logAction('ITEM_PRODUCAO_ATUALIZADO', 'producao', actor, item.id, {
+      titulo: item.tituloPeca,
+      campos_alterados: Object.keys(updates),
+    })
+
+    this.syncProductionItemToPocketBase(item).catch((e) =>
+      console.warn('Background sync production item error:', e),
+    )
+
+    return true
+  }
+
+  /**
+   * Avanço MANUAL de estágio no Pipeline.
+   * Mudança de estágio é SEMPRE manual — o sistema nunca avança sozinho.
+   */
+  public advanceProductionStage(
+    id: string,
+    targetStage: ProductionStage,
+    actor = 'Operador NOX',
+    justification?: string,
+  ): { success: boolean; error?: string } {
+    const item = this.productionItems.find((p) => p.id === id)
+    if (!item) return { success: false, error: 'Item de produção não encontrado.' }
+
+    const oldStage = item.estagio
+    if (oldStage === targetStage) return { success: true }
+
+    const nowIso = new Date().toISOString()
+    const nowDate = new Date(nowIso)
+    const prevDate = new Date(item.dataEntradaEstagioAtual)
+    const durationDays = Math.max(
+      0,
+      Math.round((nowDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24)),
+    )
+
+    // Fechar estágio anterior no histórico
+    const history = item.historicoEstagios || []
+    if (history.length > 0) {
+      const last = history[history.length - 1]
+      if (last && !last.leftAt) {
+        last.leftAt = nowIso
+        last.durationDays = durationDays
+      }
+    }
+
+    // Adicionar novo estágio
+    history.push({
+      stage: targetStage,
+      enteredAt: nowIso,
+      actor,
+      justification,
+    })
+
+    item.estagio = targetStage
+    item.dataEntradaEstagioAtual = nowIso
+    item.historicoEstagios = history
+    item.updatedAt = nowIso
+
+    // Se saiu de um estágio de travamento ou resolveu, limpar motivo
+    if (justification?.toLowerCase().includes('resolvido')) {
+      item.motivoTravamento = ''
+    }
+
+    this.saveProductionItems()
+
+    this.logAction('ESTAGIO_PRODUCAO_ALTERADO', 'producao', actor, item.id, {
+      titulo_peca: item.tituloPeca,
+      estagio_anterior: oldStage,
+      estagio_novo: targetStage,
+      dias_no_estagio_anterior: durationDays,
+      justificativa: justification || 'Avanço manual de produção',
+    })
+
+    this.syncProductionItemToPocketBase(item).catch((e) =>
+      console.warn('Background sync production item error:', e),
+    )
+
+    return { success: true }
+  }
+
+  /**
+   * Atualiza a triagem de evidências (5 camadas: essencial, util, neutro, perigoso, dispensavel)
+   */
+  public updateTriagemEvidencias(
+    id: string,
+    triagem: TriagemEvidenciasCamadas,
+    actor = 'Operador NOX',
+  ): boolean {
+    const item = this.productionItems.find((p) => p.id === id)
+    if (!item) return false
+
+    item.triagemEvidencias = { ...triagem }
+    item.updatedAt = new Date().toISOString()
+    this.saveProductionItems()
+
+    this.logAction('TRIAGEM_EVIDENCIAS_MARCADA', 'producao', actor, item.id, {
+      titulo_peca: item.tituloPeca,
+      essencial: triagem.essencial,
+      util: triagem.util,
+      neutro: triagem.neutro,
+      perigoso: triagem.perigoso,
+      dispensavel: triagem.dispensavel,
+      completa: triagem.completa,
+    })
+
+    this.syncProductionItemToPocketBase(item).catch((e) =>
+      console.warn('Background sync production item error:', e),
+    )
+
+    return true
+  }
+
+  /**
+   * Avalia as 3 camadas de stress-test adversarial (técnica jurídica, coerência narrativa, humanização).
+   * Se alguma reprovar, grava motivo e permite retornar pra redação.
+   */
+  public evaluateStressTest(
+    id: string,
+    validation: {
+      tecnicaJuridica: boolean
+      coerenciaNarrativa: boolean
+      humanizacao: boolean
+      observacoes?: string
+      retornarParaRedacaoSeFalhar?: boolean
+    },
+    actor = 'Operador NOX',
+  ): { aprovado: boolean; camadasPendentes: string[] } {
+    const item = this.productionItems.find((p) => p.id === id)
+    if (!item) return { aprovado: false, camadasPendentes: [] }
+
+    const camadasPendentes: string[] = []
+    if (!validation.tecnicaJuridica) camadasPendentes.push('Técnica Jurídica')
+    if (!validation.coerenciaNarrativa) camadasPendentes.push('Coerência Narrativa')
+    if (!validation.humanizacao) camadasPendentes.push('Humanização')
+
+    const aprovado = camadasPendentes.length === 0
+    const nowIso = new Date().toISOString()
+
+    const detalhes: StressTestValidation = {
+      tecnicaJuridica: validation.tecnicaJuridica,
+      coerenciaNarrativa: validation.coerenciaNarrativa,
+      humanizacao: validation.humanizacao,
+      observacoes: validation.observacoes,
+      reprovacoesHistorico: item.stressTestDetalhes?.reprovacoesHistorico || [],
+    }
+
+    if (!aprovado) {
+      detalhes.reprovacoesHistorico?.unshift({
+        data: nowIso,
+        motivo: validation.observacoes || 'Camadas pendentes no Stress-Test',
+        camadasReprovadas: camadasPendentes,
+        actor,
+      })
+    }
+
+    item.stressTestAprovado = aprovado
+    item.stressTestDetalhes = detalhes
+    item.updatedAt = nowIso
+
+    // Se reprovado e solicitado retorno pra redação
+    if (
+      !aprovado &&
+      validation.retornarParaRedacaoSeFalhar &&
+      item.estagio === 'stress_test_adversarial'
+    ) {
+      this.advanceProductionStage(
+        item.id,
+        'em_redacao',
+        actor,
+        `Retorno de Stress-Test Adversarial: ${camadasPendentes.join(', ')} reprovada(s).`,
+      )
+    } else {
+      this.saveProductionItems()
+    }
+
+    this.logAction(
+      aprovado ? 'STRESS_TEST_APROVADO' : 'STRESS_TEST_REPROVADO',
+      'producao',
+      actor,
+      item.id,
+      {
+        titulo_peca: item.tituloPeca,
+        aprovado,
+        camadasPendentes,
+        observacoes: validation.observacoes,
+      },
+    )
+
+    this.syncProductionItemToPocketBase(item).catch((e) =>
+      console.warn('Background sync production item error:', e),
+    )
+
+    return { aprovado, camadasPendentes }
+  }
+
+  public deleteProductionItem(id: string, actor = 'Operador NOX'): boolean {
+    const idx = this.productionItems.findIndex((p) => p.id === id)
+    if (idx === -1) return false
+
+    const item = this.productionItems[idx]
+    this.productionItems.splice(idx, 1)
+    this.saveProductionItems()
+
+    this.logAction('ITEM_PRODUCAO_EXCLUIDO', 'producao', actor, id, {
+      titulo_peca: item.tituloPeca,
+      cliente: item.clientName,
+    })
+
+    return true
+  }
+
+  private async syncProductionItemToPocketBase(item: ProductionItem): Promise<void> {
+    try {
+      const pb = (await import('@/lib/pocketbase/client')).default
+      // Verificar se existe
+      try {
+        const existing = await pb.collection('production_items').getOne(item.id)
+        if (existing) {
+          await pb.collection('production_items').update(item.id, {
+            client_id: item.clientId,
+            client_name: item.clientName,
+            numero_processo: item.numeroProcesso,
+            titulo_peca: item.tituloPeca,
+            nivel: item.nivel,
+            estagio: item.estagio,
+            responsavel: item.responsavel,
+            triagem_evidencias: item.triagemEvidencias,
+            tese_dominante: item.teseDominante,
+            motivo_travamento: item.motivoTravamento,
+            data_entrada_estagio_atual: item.dataEntradaEstagioAtual,
+            stress_test_aprovado: item.stressTestAprovado,
+            stress_test_detalhes: item.stressTestDetalhes,
+            historico_estagios: item.historicoEstagios,
+          })
+          return
+        }
+      } catch (_) {
+        // Not found, create
+      }
+
+      await pb.collection('production_items').create({
+        id: item.id.replace(/[^a-z0-9_]/gi, '').slice(0, 15),
+        client_id: item.clientId,
+        client_name: item.clientName,
+        numero_processo: item.numeroProcesso,
+        titulo_peca: item.tituloPeca,
+        nivel: item.nivel,
+        estagio: item.estagio,
+        responsavel: item.responsavel,
+        triagem_evidencias: item.triagemEvidencias,
+        tese_dominante: item.teseDominante,
+        motivo_travamento: item.motivoTravamento,
+        data_entrada_estagio_atual: item.dataEntradaEstagioAtual,
+        stress_test_aprovado: item.stressTestAprovado,
+        stress_test_detalhes: item.stressTestDetalhes,
+        historico_estagios: item.historicoEstagios,
+      })
+    } catch {
+      // Ignora falha de sync local offline
+    }
   }
 
   // ================= Clientes NOX Getters and Operations =================
@@ -1538,6 +2273,7 @@ export class NoxDataStore {
     this.incidents = []
     this.decisionMemory = []
     this.clients = []
+    this.productionItems = []
 
     try {
       localStorage.removeItem(STORAGE_KEYS.RECORDS)
@@ -1549,6 +2285,7 @@ export class NoxDataStore {
       localStorage.removeItem(STORAGE_KEYS.INCIDENTS)
       localStorage.removeItem(STORAGE_KEYS.DECISION_MEMORY)
       localStorage.removeItem(STORAGE_KEYS.CLIENTS)
+      localStorage.removeItem(STORAGE_KEYS.PRODUCTION)
     } catch {
       /* ignore */
     }
@@ -1560,6 +2297,8 @@ export class NoxDataStore {
     this.clearAllData()
     this.clients = this.generateInitialClients()
     this.saveClients()
+    this.productionItems = this.generateInitialProductionItems(this.clients)
+    this.saveProductionItems()
   }
 }
 
