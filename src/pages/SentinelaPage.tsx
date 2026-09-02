@@ -364,8 +364,13 @@ export const SentinelaHub: React.FC = () => {
   }
 
   // Atualiza ou mescla publicações recebidas da ComunicaAPI mantendo o estado local
+  // E sincroniza com dataStore (que persiste em localStorage/PocketBase e converte para NoxRecords para ProcessesPage)
   const setDjenCommunicationsFromApi = (newItems: SentinelaCommunication[], append = false) => {
     const safeList = Array.isArray(newItems) ? newItems.filter(Boolean) : []
+    
+    // Persiste no dataStore (gerando records sincronizados para a tela de Processos)
+    dataStore.addCommunications(safeList)
+
     if (!append) {
       setCommunications(safeList)
     } else {
