@@ -1,0 +1,383 @@
+{
+  "generatedAt": "2026-09-02T00:15:13.053Z",
+  "collections": [
+    {
+      "name": "users",
+      "type": "auth",
+      "apiRules": {
+        "list": "id = @request.auth.id",
+        "view": "id = @request.auth.id",
+        "create": "",
+        "update": "id = @request.auth.id",
+        "delete": "id = @request.auth.id"
+      },
+      "fields": [
+        {
+          "name": "name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "avatar",
+          "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_tokenKey__pb_users_auth_` ON `users` (`tokenKey`)",
+        "CREATE UNIQUE INDEX `idx_email__pb_users_auth_` ON `users` (`email`) WHERE `email` != ''"
+      ]
+    },
+    {
+      "name": "imports",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "filename",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "hash",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "encoding",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "delimiter",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "raw_content",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "total_rows",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "accepted_count",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "quarantined_count",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "rejected_count",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "mapping_applied",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "stats",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_imports_hash ON imports (hash)",
+        "CREATE INDEX idx_imports_created ON imports (created DESC)"
+      ]
+    },
+    {
+      "name": "records",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "record_code",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "numero_processo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tribunal",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "orgao_julgador",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "classe_judicial",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "assunto",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "partes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["novo", "em_revisao", "processado", "quarentena", "resolvido"]
+        },
+        {
+          "name": "severity",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["informativo", "medio", "alto", "critico"]
+        },
+        {
+          "name": "alert_type",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["operacional", "qualidade_dado", "importacao", "futuro_lex_tempus"]
+        },
+        {
+          "name": "alert_title",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "alert_description",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "priority",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["baixa", "media", "alta", "urgente"]
+        },
+        {
+          "name": "responsible",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tags",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "notes",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "raw_source_row",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "normalized_data",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "validation_errors",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "source_batch_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "source_row_index",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_records_status ON records (status)",
+        "CREATE INDEX idx_records_severity ON records (severity)",
+        "CREATE INDEX idx_records_tribunal ON records (tribunal)",
+        "CREATE INDEX idx_records_code ON records (record_code)"
+      ]
+    },
+    {
+      "name": "audit_logs",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "action",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "category",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": [
+            "importacao",
+            "revisao",
+            "exportacao",
+            "sistema",
+            "configuracao",
+            "lex_tempus"
+          ]
+        },
+        {
+          "name": "actor",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "target_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "details",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "ip_address",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_audit_created ON audit_logs (created DESC)",
+        "CREATE INDEX idx_audit_category ON audit_logs (category)"
+      ]
+    }
+  ]
+}
