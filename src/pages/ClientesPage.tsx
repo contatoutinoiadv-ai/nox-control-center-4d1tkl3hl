@@ -765,8 +765,8 @@ export const ClientesPage: React.FC = () => {
           >
             <UserPlus className="w-4 h-4" />+ Novo Cliente Manual
           </Button>
-          <Link
-            to="/intake"
+          <a
+            href="#/intake/"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-cyan-300 text-xs font-mono transition-colors"
@@ -774,7 +774,7 @@ export const ClientesPage: React.FC = () => {
             <Globe className="w-3.5 h-3.5 text-cyan-400" />
             <span>Formulário /intake</span>
             <ArrowUpRight className="w-3.5 h-3.5 text-slate-500" />
-          </Link>
+          </a>
         </div>
       </div>
 
