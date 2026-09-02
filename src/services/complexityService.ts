@@ -82,8 +82,8 @@ export function calcularComplexidadeTarefa(task: SentinelaTask): ComplexidadeRes
 
   // 1. Identificar Prazos Fatais concorrentes no mesmo dia
   let temPrazoConcorrenteNoMesmoDia = false
-  if (task.legalDeadlineDate) {
-    const todosPrazos = dataStore.getCommunications()
+  if (task.legalDeadlineDate && dataStore && typeof dataStore.getCommunications === 'function') {
+    const todosPrazos = dataStore.getCommunications() || []
     const taskDateOnly = task.legalDeadlineDate.split('T')[0]
     const concorrentes = todosPrazos.filter((c) => {
       const commDate = c.deadlineCalculated?.finalDeadlineDate?.split('T')[0]
@@ -290,23 +290,47 @@ let isSubscribed = false
 
 export function initComplexityAutoClassifier(): void {
   if (isSubscribed) return
-  isSubscribed = true
 
   const runClassifier = () => {
-    const tasks = dataStore.getTasks()
+    if (!dataStore || typeof dataStore.getTasks !== 'function') return
+    const tasks = dataStore.getTasks() || []
     for (const task of tasks) {
       const resultado = calcularComplexidadeTarefa(task)
       complexidadeCache.set(task.id, resultado)
     }
   }
 
-  // Executa uma vez no bootstrap
-  runClassifier()
-
-  // Reavalia automaticamente sempre que o dataStore mudar (criar ou atualizar tarefa/prazos)
-  dataStore.subscribe(() => {
+  // Se dataStore já estiver disponível e inicializado, subscreve imediatamente
+  if (dataStore && typeof dataStore.subscribe === 'function') {
+    isSubscribed = true
     runClassifier()
-  })
+    dataStore.subscribe(() => {
+      runClassifier()
+    })
+  } else {
+    // Se dataStore ainda estiver em inicialização (circular dependency), adia com microtask/setTimeout
+    if (typeof queueMicrotask === 'function') {
+      queueMicrotask(() => {
+        if (dataStore && typeof dataStore.subscribe === 'function' && !isSubscribed) {
+          isSubscribed = true
+          runClassifier()
+          dataStore.subscribe(() => {
+            runClassifier()
+          })
+        }
+      })
+    } else {
+      setTimeout(() => {
+        if (dataStore && typeof dataStore.subscribe === 'function' && !isSubscribed) {
+          isSubscribed = true
+          runClassifier()
+          dataStore.subscribe(() => {
+            runClassifier()
+          })
+        }
+      }, 0)
+    }
+  }
 }
 
 /**
