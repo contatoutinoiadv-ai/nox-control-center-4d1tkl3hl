@@ -56,7 +56,7 @@ export const SYNTHETIC_RECORDS: NoxRecord[] = [
     alertDescription:
       'Bloqueio emergencial de contas transitórias registrado no diário de justiça com prazo fatal de contestação.',
     priority: 'urgente',
-    responsible: 'Dra. Mariana Rios',
+    responsible: 'Higor Utinoi de Oliveira',
     tags: ['Tutela Antecipada', 'Risco Financeiro', 'DJE-Capital'],
     notes: [
       {
@@ -127,14 +127,14 @@ export const SYNTHETIC_RECORDS: NoxRecord[] = [
     alertDescription:
       'Decisão concede suspensão de exigibilidade de crédito tributário com repercussão para 14 associadas.',
     priority: 'urgente',
-    responsible: 'Dr. Lucas Silveira',
+    responsible: 'Higor Utinoi de Oliveira',
     tags: ['Tributário', 'Liminar Deferida', 'MS Coletivo'],
     notes: [
       {
-        id: 'n2',
-        author: 'Dr. Lucas Silveira',
-        text: 'Notificado comitê fiscal para providenciar provisão.',
-        createdAt: '2026-09-01T13:15:00Z',
+        id: 'n_02_1',
+        author: 'Higor Utinoi de Oliveira',
+        text: 'Alinhado com o cliente: providências adotadas tempestivamente.',
+        createdAt: '2026-09-01T13:10:00Z',
       },
     ],
     history: [
@@ -191,7 +191,7 @@ export const SYNTHETIC_RECORDS: NoxRecord[] = [
     alertDescription:
       'Designada audiência de instrução com obrigatoriedade de comparecimento das testemunhas da reclamada.',
     priority: 'media',
-    responsible: 'Dra. Camila Duarte',
+    responsible: 'Higor Utinoi de Oliveira',
     tags: ['Trabalhista', 'Audiência Marcada', 'Rito Ordinário'],
     notes: [],
     history: [
@@ -248,7 +248,7 @@ export const SYNTHETIC_RECORDS: NoxRecord[] = [
     alertDescription:
       'Decisão executiva determinou indisponibilidade via CNIB de loteamento no Recreio dos Bandeirantes.',
     priority: 'urgente',
-    responsible: 'Dr. Roberto Vasconcelos',
+    responsible: 'Higor Utinoi de Oliveira',
     tags: ['Execução Fiscal', 'CNIB', 'Penhora'],
     notes: [],
     history: [
@@ -305,7 +305,7 @@ export const SYNTHETIC_RECORDS: NoxRecord[] = [
     alertDescription:
       'Despacho intimando exequente a indicar novos bens passíveis de penhora em prazo preclusivo.',
     priority: 'alta',
-    responsible: 'Dra. Mariana Rios',
+    responsible: 'Higor Utinoi de Oliveira',
     tags: ['SISBAJUD', 'Cumprimento Sentença', 'Prazo Preclusivo'],
     notes: [],
     history: [
@@ -362,7 +362,7 @@ export const SYNTHETIC_RECORDS: NoxRecord[] = [
     alertDescription:
       'O campo num_processo_cnj veio com máscara inconsistente e falta o dígito verificador.',
     priority: 'alta',
-    responsible: 'Operador de Qualidade',
+    responsible: 'Higor Utinoi de Oliveira',
     tags: ['Dado Inválido', 'Quarentena', 'CNJ Inconsistente'],
     notes: [
       {
@@ -439,7 +439,7 @@ export const SYNTHETIC_RECORDS: NoxRecord[] = [
     alertDescription:
       'Registro com potencial enquadramento no LEX TEMPUS quando módulo preditivo for ativado.',
     priority: 'baixa',
-    responsible: 'Dr. Lucas Silveira',
+    responsible: 'Higor Utinoi de Oliveira',
     tags: ['Previdenciário', 'Tema STF', 'LEX TEMPUS Ready'],
     notes: [],
     history: [
@@ -496,7 +496,7 @@ export const SYNTHETIC_RECORDS: NoxRecord[] = [
     alertDescription:
       'Ciência tácita aberta há 7 dias com contagem automática de prazo para apresentação de contestação.',
     priority: 'media',
-    responsible: 'Dra. Mariana Rios',
+    responsible: 'Higor Utinoi de Oliveira',
     tags: ['Consumidor', 'PROJUDI', 'Ciência Tácita'],
     notes: [],
     history: [
@@ -553,7 +553,7 @@ export const SYNTHETIC_RECORDS: NoxRecord[] = [
     alertDescription:
       'Publicação do edital de convocação com prazo estrito de 15 dias para impugnação da relação nominal.',
     priority: 'urgente',
-    responsible: 'Dr. Roberto Vasconcelos',
+    responsible: 'Higor Utinoi de Oliveira',
     tags: ['Recuperação Judicial', 'AGC', 'Impacto Corporativo'],
     notes: [],
     history: [
@@ -610,28 +610,28 @@ export const SYNTHETIC_RECORDS: NoxRecord[] = [
     alertDescription:
       'Transação firmada entre as partes, processo arquivado definitivamente com baixa na distribuição.',
     priority: 'baixa',
-    responsible: 'Dra. Camila Duarte',
-    tags: ['Acordo', 'Extinto com Resolução', 'Arquivado'],
+    responsible: 'Higor Utinoi de Oliveira',
+    tags: ['TRT15', 'Trabalhista', 'Acordo Homologado'],
     notes: [
       {
-        id: 'n3',
-        author: 'Dra. Camila Duarte',
-        text: 'Custas finais recolhidas e comprovadas nos autos.',
+        id: 'n_10_1',
+        author: 'Higor Utinoi de Oliveira',
+        text: 'Acordo homologado em audiência. Aguardando guias de depósito.',
         createdAt: '2026-09-01T14:10:00Z',
       },
     ],
     history: [
       {
-        id: 'h11',
+        id: 'h_10_1',
         timestamp: '2026-09-01T11:55:00Z',
         actor: 'Sentinela Importer',
-        action: 'Registro importado',
+        action: 'Carga inicial do lote de sincronização',
       },
       {
-        id: 'h12',
+        id: 'h_10_2',
         timestamp: '2026-09-01T14:10:00Z',
-        actor: 'Dra. Camila Duarte',
-        action: 'Status alterado para Resolvido',
+        actor: 'Higor Utinoi de Oliveira',
+        action: 'Status alterado de "processado" para "resolvido"',
       },
     ],
     rawSourceRow: {
@@ -700,13 +700,7 @@ export function generateFullSyntheticDataset(): NoxRecord[] {
     'importacao',
     'futuro_lex_tempus',
   ]
-  const responsibles = [
-    'Dra. Mariana Rios',
-    'Dr. Lucas Silveira',
-    'Dr. Roberto Vasconcelos',
-    'Dra. Camila Duarte',
-    'Operador de Qualidade',
-  ]
+  const responsibles = ['Higor Utinoi de Oliveira']
 
   for (let i = 11; i <= 42; i++) {
     const code = `SNT-90${i < 10 ? '0' + i : i}`
@@ -859,7 +853,7 @@ export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
     id: 'aud_003',
     action: 'STATUS_ALTERADO_REVISAO',
     category: 'revisao',
-    actor: 'Dr. Lucas Silveira',
+    actor: 'Higor Utinoi de Oliveira',
     targetId: 'SNT-9022',
     details: {
       status_anterior: 'novo',

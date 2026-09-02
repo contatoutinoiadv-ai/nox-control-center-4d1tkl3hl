@@ -133,6 +133,16 @@ export interface LexTempusResultV1 {
   }>
 }
 
+export interface LawyerProfile {
+  nome: string
+  oab: string
+  uf: string
+  email: string
+  telefone?: string
+  escritorio?: string
+  cargo?: string
+}
+
 export interface NoxSystemStats {
   totalMonitored: number
   criticalAlerts: number

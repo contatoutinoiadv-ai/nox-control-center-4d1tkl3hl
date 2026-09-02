@@ -48,6 +48,12 @@ export interface AppSettings {
   lexTempusFeatureFlag: boolean
   strictCnjValidation: boolean
   defaultResponsible: string
+  lawyerName: string
+  lawyerOab: string
+  lawyerUf: string
+  lawyerEmail: string
+  lawyerPhone: string
+  officeName: string
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -57,7 +63,13 @@ const DEFAULT_SETTINGS: AppSettings = {
   refreshIntervalSeconds: 15,
   lexTempusFeatureFlag: false,
   strictCnjValidation: true,
-  defaultResponsible: 'Dra. Mariana Rios',
+  defaultResponsible: 'Higor Utinoi de Oliveira',
+  lawyerName: 'Higor Utinoi de Oliveira',
+  lawyerOab: 'OAB/MS 15.400',
+  lawyerUf: 'MS',
+  lawyerEmail: 'contato@utinoiadvocacia.com.br',
+  lawyerPhone: '(67) 3000-0000',
+  officeName: 'Higor Utinói Advocacia',
 }
 
 export class NoxDataStore {
@@ -668,14 +680,17 @@ export class NoxDataStore {
   public approveCommunicationDeadline(
     commId: string,
     customMemorial: DeadlineMemorial,
-    actor = 'Dra. Mariana Rios',
+    actor?: string,
   ): { task: SentinelaTask; event: AgendaEvent } | null {
     const comm = this.communications.find((c) => c.id === commId)
     if (!comm) return null
 
+    const defaultLawyer = this.settings.lawyerName || 'Higor Utinoi de Oliveira'
+    const actualActor = actor || defaultLawyer
+
     comm.status = 'PRAZO_TAREFA_AGENDA'
     comm.deadlineCalculated = customMemorial
-    comm.custody.reviewedBy = actor
+    comm.custody.reviewedBy = actualActor
     comm.custody.reviewedAt = new Date().toISOString()
 
     // Create Synchronized Task
@@ -687,7 +702,7 @@ export class NoxDataStore {
       status: 'A_FAZER',
       priority:
         comm.urgencyLevel === 'critica' || comm.urgencyLevel === 'alta' ? 'URGENTE' : 'MEDIA',
-      responsible: comm.assignedTo || 'Dra. Mariana Rios',
+      responsible: comm.assignedTo || defaultLawyer,
       collaborators: [],
       estimatedHours: 6,
       startDate: new Date().toISOString().split('T')[0],
@@ -707,7 +722,7 @@ export class NoxDataStore {
       comments: [
         {
           id: `c_${Date.now()}`,
-          author: actor,
+          author: actualActor,
           text: 'Prazo homologado pelo Motor de Verdade Temporal.',
           createdAt: new Date().toISOString(),
         },
@@ -728,8 +743,8 @@ export class NoxDataStore {
       isAllDay: true,
       isVirtual: false,
       processNumber: comm.numeroProcesso,
-      responsible: comm.assignedTo || actor,
-      participants: [actor],
+      responsible: comm.assignedTo || actualActor,
+      participants: [actualActor],
       tribunal: comm.tribunal,
       communicationId: comm.id,
       deadlineId: customMemorial.id,
@@ -750,7 +765,7 @@ export class NoxDataStore {
       id: `step_${Date.now()}`,
       stage: 'PRAZO_TAREFA_AGENDA',
       timestamp: new Date().toISOString(),
-      actor,
+      actor: actualActor,
       actorRole: 'ADVOGADO_SENIOR',
       sourceConfidence: 1.0,
       actionSummary: `Prazo homologado para ${customMemorial.finalDeadlineDate}. Tarefa #${taskId} e Agenda #${eventId} geradas sincronizadamente.`,
@@ -764,13 +779,12 @@ export class NoxDataStore {
     this.saveTasks()
     this.saveAgenda()
 
-    this.logAction('PRAZO_HOMOLOGADO_E_DISTRIBUIDO', 'revisao', actor, comm.id, {
+    this.logAction('PRAZO_HOMOLOGADO_E_DISTRIBUIDO', 'revisao', actualActor, comm.id, {
       fatalDate: customMemorial.finalDeadlineDate,
       internalDate: customMemorial.internalDeadlineDate,
       taskId,
       eventId,
     })
-
     return { task: newTask, event: newEvent }
   }
 
@@ -887,6 +901,50 @@ export class NoxDataStore {
     this.notify()
   }
 
+  public getLawyerProfile(): {
+    nome: string
+    oab: string
+    uf: string
+    email: string
+    telefone: string
+    escritorio: string
+    cargo: string
+  } {
+    return {
+      nome: this.settings.lawyerName || 'Higor Utinoi de Oliveira',
+      oab: this.settings.lawyerOab || 'OAB/MS 15.400',
+      uf: this.settings.lawyerUf || 'MS',
+      email: this.settings.lawyerEmail || 'contato@utinoiadvocacia.com.br',
+      telefone: this.settings.lawyerPhone || '(67) 3000-0000',
+      escritorio: this.settings.officeName || 'Higor Utinói Advocacia',
+      cargo: 'Advogado Titular / Responsável Técnico',
+    }
+  }
+
+  public updateLawyerProfile(
+    profile: Partial<{
+      nome: string
+      oab: string
+      uf: string
+      email: string
+      telefone: string
+      escritorio: string
+    }>,
+  ) {
+    const updates: Partial<AppSettings> = {}
+    if (profile.nome !== undefined) {
+      updates.lawyerName = profile.nome
+      updates.defaultResponsible = profile.nome
+    }
+    if (profile.oab !== undefined) updates.lawyerOab = profile.oab
+    if (profile.uf !== undefined) updates.lawyerUf = profile.uf
+    if (profile.email !== undefined) updates.lawyerEmail = profile.email
+    if (profile.telefone !== undefined) updates.lawyerPhone = profile.telefone
+    if (profile.escritorio !== undefined) updates.officeName = profile.escritorio
+
+    this.saveSettings(updates)
+  }
+
   public getDecisionMemory(): DecisionMemoryItem[] {
     return [...this.decisionMemory]
   }
@@ -940,6 +998,7 @@ export class NoxDataStore {
 
   public getDailyBriefing(): DailyBriefingData {
     const todayStr = new Date().toISOString().split('T')[0]
+    const defaultLawyer = this.settings.lawyerName || 'Higor Utinoi de Oliveira'
     return {
       date: todayStr,
       urgentDeadlinesToday: [
@@ -947,7 +1006,7 @@ export class NoxDataStore {
           id: 'dead-101',
           process: '1004523-88.2025.8.26.0100',
           title: 'Apelação Cível TJSP (Fase de Elaboração)',
-          responsible: 'Dra. Mariana Rios',
+          responsible: defaultLawyer,
           hoursLeft: 14,
         },
       ],
@@ -955,16 +1014,16 @@ export class NoxDataStore {
         {
           id: 'agenda-102',
           time: '14:30',
-          title: 'Audiência de Instrução e Julgamento (Zoom TRT2)',
+          title: 'Audiência de Instrução e Julgamento (Zoom TRT24)',
           type: 'AUDIENCIA',
-          responsible: 'Dr. Lucas Viana',
+          responsible: defaultLawyer,
         },
         {
           id: 'agenda-103',
           time: '10:00',
           title: 'Reunião de Alinhamento Estratégico com Diretoria',
           type: 'REUNIAO',
-          responsible: 'Dr. Roberto Mendes',
+          responsible: defaultLawyer,
         },
       ],
       pendingReviewsCount: this.communications.filter(
@@ -973,23 +1032,23 @@ export class NoxDataStore {
       highRiskAlertsCount: this.records.filter((r) => r.severity === 'critico').length,
       captureHealthStatus: 'ESTAVEL',
       bottlenecks: [
-        'Dr. Lucas Viana atingiu 115% de capacidade com 7 compromissos e 11 tarefas ativas.',
-        'Tarefa #task-103 bloqueada por laudo pericial contábil de terceiro.',
+        `${defaultLawyer} possui audiências de instrução e prazos concentrados nos próximos 3 dias.`,
+        'Tarefa #task-103 aguarda manifestação de terceiro (laudo pericial).',
       ],
       explainableRecommendations: [
-        {
-          title: 'Redistribuir 2 tarefas do Dr. Lucas Viana para Dr. Roberto',
-          reason:
-            'Lucas está com risco de sobrecarga (115%) enquanto Roberto possui 55% de tempo disponível.',
-          suggestedAction: 'Abrir Gêmeo Operacional e confirmar sugestão.',
-          targetRoute: '/sentinela/saude',
-        },
         {
           title: 'Homologar prazo ambíguo em comm-103 (Despacho sobre Laudo)',
           reason:
             'Prazo pode vencer em 5 dias ou 15 dias conforme Art. 218 § 3º ou Art. 477 § 1º CPC.',
           suggestedAction: 'Abrir Triagem Sentinela e validar memorial.',
           targetRoute: '/sentinela/triagem',
+        },
+        {
+          title: 'Conferir suspensões forenses de Campo Grande / TJMS',
+          reason:
+            'Prevenção de preclusão de prazos em comarcas com feriados municipais no calendário.',
+          suggestedAction: 'Acessar Central de Prazos e validar calendário.',
+          targetRoute: '/prazos',
         },
       ],
     }
