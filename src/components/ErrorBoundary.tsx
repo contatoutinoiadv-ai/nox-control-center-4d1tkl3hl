@@ -14,16 +14,34 @@ interface State {
   hasError: boolean
   error: Error | null
   errorInfo: ErrorInfo | null
+  retryCount: number
+  remountKey: number
+}
+
+function isDomRemoveChildError(error: Error | null | unknown): boolean {
+  if (!error) return false
+  const err = error as { name?: string; message?: string }
+  const message = String(err.message || '')
+  const name = String(err.name || '')
+
+  return (
+    (name === 'NotFoundError' || message.includes('NotFoundError')) &&
+    (message.includes('removeChild') || message.includes('not a child of this node'))
+  )
 }
 
 export class ErrorBoundary extends Component<Props, State> {
+  private retryTimeoutId: ReturnType<typeof setTimeout> | null = null
+
   public state: State = {
     hasError: false,
     error: null,
     errorInfo: null,
+    retryCount: 0,
+    remountKey: 0,
   }
 
-  public static getDerivedStateFromError(error: Error): State {
+  public static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error, errorInfo: null }
   }
 
@@ -34,10 +52,44 @@ export class ErrorBoundary extends Component<Props, State> {
       errorInfo,
     )
     this.setState({ error, errorInfo })
+
+    // Auto-recovery específico para o conflito de DOM (Google Tradutor vs React removeChild)
+    if (isDomRemoveChildError(error) && this.state.retryCount < 2) {
+      console.warn(
+        `[ErrorBoundary - ${this.props.moduleName || 'Global'}] Conflito de DOM detectado (Google Tradutor / removeChild). Tentando recuperação automática limpa (tentativa ${this.state.retryCount + 1}/2)...`,
+      )
+      if (this.retryTimeoutId) {
+        clearTimeout(this.retryTimeoutId)
+      }
+      this.retryTimeoutId = setTimeout(() => {
+        this.setState((prev) => ({
+          hasError: false,
+          error: null,
+          errorInfo: null,
+          retryCount: prev.retryCount + 1,
+          remountKey: prev.remountKey + 1,
+        }))
+      }, 50)
+    }
+  }
+
+  public componentWillUnmount() {
+    if (this.retryTimeoutId) {
+      clearTimeout(this.retryTimeoutId)
+    }
   }
 
   private handleReset = () => {
-    this.setState({ hasError: false, error: null, errorInfo: null })
+    if (this.retryTimeoutId) {
+      clearTimeout(this.retryTimeoutId)
+    }
+    this.setState((prev) => ({
+      hasError: false,
+      error: null,
+      errorInfo: null,
+      retryCount: 0,
+      remountKey: prev.remountKey + 1,
+    }))
     if (this.props.onReset) {
       this.props.onReset()
     }
@@ -103,7 +155,7 @@ export class ErrorBoundary extends Component<Props, State> {
       )
     }
 
-    return this.props.children
+    return <React.Fragment key={this.state.remountKey}>{this.props.children}</React.Fragment>
   }
 }
 
