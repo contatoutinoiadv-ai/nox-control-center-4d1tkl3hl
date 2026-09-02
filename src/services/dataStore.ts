@@ -962,6 +962,62 @@ export class NoxDataStore {
     return { success: true, item: newItem }
   }
 
+  private async syncClientToPocketBase(client: NoxClient): Promise<void> {
+    try {
+      const pb = (await import('@/lib/pocketbase/client')).default
+      const payload: Record<string, any> = {
+        client_code: client.clientCode,
+        protocolo: client.protocolo || '',
+        nome: client.nome,
+        cpf: client.cpf || '',
+        rg: client.rg || '',
+        telefone: client.telefone || '',
+        email: client.email || '',
+        endereco: client.endereco || '',
+        profissao: client.profissao || '',
+        nacionalidade: client.nacionalidade || 'brasileiro(a)',
+        estado_civil: client.estadoCivil || 'solteiro(a)',
+        demanda: client.demanda || 'outro',
+        descricao_caso: client.descricaoCaso || '',
+        origem: client.origem || 'manual',
+        estagio: client.estagio || 'novo',
+        docs_gerados: client.docsGerados || [],
+        processos_vinculados: client.processosVinculados || [],
+        obs: client.obs || '',
+        responsavel: client.responsavel || 'Higor Utinoi de Oliveira',
+      }
+
+      try {
+        const existing = await pb.collection('clients').getOne(client.id)
+        if (existing) {
+          await pb.collection('clients').update(client.id, payload)
+          return
+        }
+      } catch (_) {
+        // Not found by ID, try find by client_code or create
+      }
+
+      try {
+        const byCode = await pb
+          .collection('clients')
+          .getFirstListItem(`client_code="${client.clientCode}"`)
+        if (byCode) {
+          await pb.collection('clients').update(byCode.id, payload)
+          return
+        }
+      } catch (_) {
+        // Not found by code
+      }
+
+      await pb.collection('clients').create({
+        id: client.id.replace(/[^a-z0-9_]/gi, '').slice(0, 15),
+        ...payload,
+      })
+    } catch (err) {
+      console.warn('PocketBase syncClient background warning:', err)
+    }
+  }
+
   public updateProductionItem(
     id: string,
     updates: Partial<ProductionItem>,
@@ -1334,6 +1390,10 @@ export class NoxDataStore {
       },
     )
 
+    this.syncClientToPocketBase(newClient).catch((e) =>
+      console.warn('Background sync create client error:', e),
+    )
+
     return newClient
   }
 
@@ -1359,6 +1419,10 @@ export class NoxDataStore {
       })
     }
 
+    this.syncClientToPocketBase(cli).catch((e) =>
+      console.warn('Background sync update client error:', e),
+    )
+
     return true
   }
 
@@ -1377,6 +1441,10 @@ export class NoxDataStore {
       estagio_anterior: oldStage,
       estagio_novo: newStage,
     })
+
+    this.syncClientToPocketBase(cli).catch((e) =>
+      console.warn('Background sync update client stage error:', e),
+    )
 
     return true
   }

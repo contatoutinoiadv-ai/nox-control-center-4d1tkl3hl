@@ -33,6 +33,8 @@ import {
   Globe,
   MessageSquare,
   UserCheck,
+  Edit,
+  Save,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -279,6 +281,26 @@ export const ClientesPage: React.FC = () => {
     obs: '',
   })
 
+  // Modal e Formulário de Edição de Cadastro
+  const [editClientModalOpen, setEditClientModalOpen] = useState(false)
+  const [clientToEdit, setClientToEdit] = useState<NoxClient | null>(null)
+  const [editFormData, setEditFormData] = useState({
+    nome: '',
+    cpf: '',
+    rg: '',
+    telefone: '',
+    email: '',
+    endereco: '',
+    profissao: '',
+    nacionalidade: 'brasileiro(a)',
+    estadoCivil: 'solteiro(a)',
+    demanda: 'consumidor' as ClientDemandArea,
+    descricaoCaso: '',
+    origem: 'manual' as ClientOrigin,
+    estagio: 'novo' as ClientStage,
+    obs: '',
+  })
+
   // Sincronização reativa com dataStore
   useEffect(() => {
     const syncAll = () => {
@@ -420,6 +442,76 @@ export const ClientesPage: React.FC = () => {
       presencial: list.filter((c) => c && c.origem === 'presencial').length,
     }
   }, [clients])
+
+  // Abrir Modal de Edição de Cadastro com todos os dados existentes vinculados
+  const handleOpenEditClient = (client: NoxClient, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation()
+    }
+    setClientToEdit(client)
+    setEditFormData({
+      nome: client.nome || '',
+      cpf: client.cpf || '',
+      rg: client.rg || '',
+      telefone: client.telefone || '',
+      email: client.email || '',
+      endereco: client.endereco || '',
+      profissao: client.profissao || '',
+      nacionalidade: client.nacionalidade || 'brasileiro(a)',
+      estadoCivil: client.estadoCivil || 'solteiro(a)',
+      demanda: (client.demanda || 'outro') as ClientDemandArea,
+      descricaoCaso: client.descricaoCaso || '',
+      origem: (client.origem || 'manual') as ClientOrigin,
+      estagio: (client.estagio || 'novo') as ClientStage,
+      obs: client.obs || '',
+    })
+    setEditClientModalOpen(true)
+  }
+
+  // Salvar Edição de Cadastro no mesmo registro
+  const handleUpdateClient = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!clientToEdit) return
+
+    if (!editFormData.nome.trim()) {
+      toast.error('Informe o nome do cliente.')
+      return
+    }
+
+    const ok = dataStore.updateClient(
+      clientToEdit.id,
+      {
+        nome: editFormData.nome.trim(),
+        cpf: editFormData.cpf.trim() || undefined,
+        rg: editFormData.rg.trim() || undefined,
+        telefone: editFormData.telefone.trim() || undefined,
+        email: editFormData.email.trim() || undefined,
+        endereco: editFormData.endereco.trim() || undefined,
+        profissao: editFormData.profissao.trim() || undefined,
+        nacionalidade: editFormData.nacionalidade.trim() || 'brasileiro(a)',
+        estadoCivil: editFormData.estadoCivil.trim() || 'solteiro(a)',
+        demanda: editFormData.demanda,
+        descricaoCaso: editFormData.descricaoCaso.trim() || undefined,
+        origem: editFormData.origem,
+        estagio: editFormData.estagio,
+        obs: editFormData.obs.trim() || undefined,
+      },
+      'Operador NOX',
+    )
+
+    if (ok) {
+      toast.success(`Cadastro de ${editFormData.nome.trim()} atualizado com sucesso!`, {
+        description: `Código: ${clientToEdit.clientCode}`,
+      })
+      setEditClientModalOpen(false)
+      const fresh = dataStore.getClientById(clientToEdit.id)
+      if (fresh && selectedClient?.id === clientToEdit.id) {
+        setSelectedClient(fresh)
+      }
+    } else {
+      toast.error('Não foi possível atualizar o cliente.')
+    }
+  }
 
   // Criar Cliente Manualmente
   const handleCreateClient = (e: React.FormEvent) => {
@@ -1048,13 +1140,20 @@ export const ClientesPage: React.FC = () => {
                             </p>
                           )}
 
-                          {/* Connected Items Count Footer */}
+                          {/* Connected Items Count Footer & Quick Edit */}
                           <div className="mt-2 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] font-mono text-slate-500">
-                            <span>{procsCount} proc.</span>
                             <span>
-                              {docsCount} doc
-                              {docsCount !== 1 ? 's' : ''}
+                              {procsCount} proc. • {docsCount} doc{docsCount !== 1 ? 's' : ''}
                             </span>
+                            <button
+                              type="button"
+                              onClick={(e) => handleOpenEditClient(client, e)}
+                              className="text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1 font-sans font-medium"
+                              title="Editar cadastro deste cliente"
+                            >
+                              <Edit className="w-3 h-3" />
+                              Editar
+                            </button>
                           </div>
                         </div>
                       )
@@ -1155,6 +1254,16 @@ export const ClientesPage: React.FC = () => {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={(e) => handleOpenEditClient(client, e)}
+                      className="h-8 text-xs bg-slate-900 border-slate-700 text-slate-300 hover:text-cyan-300 hover:border-cyan-500/50 gap-1"
+                    >
+                      <Edit className="w-3.5 h-3.5 text-cyan-400" />
+                      Editar cadastro
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
                       className="h-8 text-xs bg-slate-900 border-slate-700 text-slate-300 hover:text-cyan-300"
                     >
                       Abrir Ficha 360º <ChevronRight className="w-3.5 h-3.5 ml-1" />
@@ -1220,22 +1329,33 @@ export const ClientesPage: React.FC = () => {
                 </h2>
               </div>
 
-              {/* Seletor Manual de Estágio na Header */}
-              <div className="flex items-center gap-2 mr-6 shrink-0">
-                <span className="text-[11px] font-mono text-slate-400">Estágio:</span>
-                <select
-                  value={selectedClient.estagio}
-                  onChange={(e) =>
-                    handleStageChange(selectedClient.id, e.target.value as ClientStage)
-                  }
-                  className="h-8 bg-slate-900 border border-slate-700 rounded-md px-2.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500"
+              {/* Seletor Manual de Estágio e Botão de Edição na Header */}
+              <div className="flex items-center gap-3 mr-6 shrink-0 flex-wrap">
+                <Button
+                  size="sm"
+                  onClick={(e) => handleOpenEditClient(selectedClient, e)}
+                  className="h-8 bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/40 text-xs font-semibold gap-1.5 shadow-sm"
                 >
-                  {Object.entries(STAGE_CONFIG).map(([key, val]) => (
-                    <option key={key} value={key}>
-                      {val.label}
-                    </option>
-                  ))}
-                </select>
+                  <Edit className="w-3.5 h-3.5 text-cyan-400" />
+                  Editar Cadastro
+                </Button>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-mono text-slate-400">Estágio:</span>
+                  <select
+                    value={selectedClient.estagio}
+                    onChange={(e) =>
+                      handleStageChange(selectedClient.id, e.target.value as ClientStage)
+                    }
+                    className="h-8 bg-slate-900 border border-slate-700 rounded-md px-2.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500"
+                  >
+                    {Object.entries(STAGE_CONFIG).map(([key, val]) => (
+                      <option key={key} value={key}>
+                        {val.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -1287,6 +1407,28 @@ export const ClientesPage: React.FC = () => {
               {/* TAB 1: DADOS CADASTRAIS */}
               {/* ============================================================== */}
               <TabsContent value="cadastrais" className="flex-1 overflow-y-auto p-5 space-y-4 m-0">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-800/60">
+                  <div>
+                    <h3 className="text-xs font-mono font-bold text-slate-200 uppercase flex items-center gap-2">
+                      <UserCheck className="w-4 h-4 text-cyan-400" />
+                      Dados Cadastrais do Cliente
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      Informações qualificatórias e dados para preenchimento de procurações e peças
+                      processuais.
+                    </p>
+                  </div>
+
+                  <Button
+                    size="sm"
+                    onClick={(e) => handleOpenEditClient(selectedClient, e)}
+                    className="h-8 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs gap-1.5 shadow-sm"
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                    Editar Cadastro
+                  </Button>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                   <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800">
                     <span className="text-[10px] font-mono text-slate-500 uppercase">
@@ -2125,6 +2267,234 @@ export const ClientesPage: React.FC = () => {
               Confirmar Vínculo
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* MODAL 4: EDITAR CADASTRO DE CLIENTE (DADOS POPULADOS DO CLIENTE) */}
+      {/* ========================================================================= */}
+      <Dialog open={editClientModalOpen} onOpenChange={setEditClientModalOpen}>
+        <DialogContent className="max-w-2xl bg-slate-950 border border-slate-800 text-slate-100 max-h-[90vh] overflow-y-auto shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-white flex items-center gap-2">
+              <Edit className="w-5 h-5 text-cyan-400" />
+              Editar Cadastro do Cliente: {clientToEdit?.nome || ''}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-400 font-mono">
+              Código: {clientToEdit?.clientCode} • Atualize os dados cadastrais mantendo o histórico
+              e vínculo de processos.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleUpdateClient} className="space-y-4 pt-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs text-slate-300 font-semibold">Nome Completo *</Label>
+                <Input
+                  required
+                  value={editFormData.nome}
+                  onChange={(e) => setEditFormData({ ...editFormData, nome: e.target.value })}
+                  placeholder="Ex: João da Silva Souza"
+                  className="bg-slate-900 border-slate-700 text-xs text-slate-100 focus-visible:ring-cyan-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-300 font-semibold">CPF ou CNPJ</Label>
+                <Input
+                  value={editFormData.cpf}
+                  onChange={(e) => setEditFormData({ ...editFormData, cpf: e.target.value })}
+                  placeholder="000.000.000-00"
+                  className="bg-slate-900 border-slate-700 text-xs text-slate-100 font-mono focus-visible:ring-cyan-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-300 font-semibold">RG / Órgão Emissor</Label>
+                <Input
+                  value={editFormData.rg}
+                  onChange={(e) => setEditFormData({ ...editFormData, rg: e.target.value })}
+                  placeholder="00.000.000-0 SSP/MS"
+                  className="bg-slate-900 border-slate-700 text-xs text-slate-100 font-mono focus-visible:ring-cyan-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-300 font-semibold">Telefone / WhatsApp</Label>
+                <Input
+                  value={editFormData.telefone}
+                  onChange={(e) => setEditFormData({ ...editFormData, telefone: e.target.value })}
+                  placeholder="(67) 90000-0000"
+                  className="bg-slate-900 border-slate-700 text-xs text-slate-100 font-mono focus-visible:ring-cyan-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-300 font-semibold">E-mail</Label>
+                <Input
+                  type="email"
+                  value={editFormData.email}
+                  onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                  placeholder="cliente@email.com"
+                  className="bg-slate-900 border-slate-700 text-xs text-slate-100 focus-visible:ring-cyan-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-300 font-semibold">Profissão</Label>
+                <Input
+                  value={editFormData.profissao}
+                  onChange={(e) => setEditFormData({ ...editFormData, profissao: e.target.value })}
+                  placeholder="Ex: Engenheiro civil"
+                  className="bg-slate-900 border-slate-700 text-xs text-slate-100 focus-visible:ring-cyan-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-300 font-semibold">Nacionalidade</Label>
+                <Input
+                  value={editFormData.nacionalidade}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, nacionalidade: e.target.value })
+                  }
+                  placeholder="Ex: brasileiro(a)"
+                  className="bg-slate-900 border-slate-700 text-xs text-slate-100 focus-visible:ring-cyan-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-300 font-semibold">Estado Civil</Label>
+                <select
+                  value={editFormData.estadoCivil}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, estadoCivil: e.target.value })
+                  }
+                  className="w-full h-9 bg-slate-900 border border-slate-700 rounded-md px-3 text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="solteiro(a)">Solteiro(a)</option>
+                  <option value="casado(a)">Casado(a)</option>
+                  <option value="uniao_estavel">União Estável</option>
+                  <option value="divorciado(a)">Divorciado(a)</option>
+                  <option value="viuvo(a)">Viúvo(a)</option>
+                  <option value="separado(a)">Separado(a)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-300 font-semibold">Área da Demanda</Label>
+                <select
+                  value={editFormData.demanda}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      demanda: e.target.value as ClientDemandArea,
+                    })
+                  }
+                  className="w-full h-9 bg-slate-900 border border-slate-700 rounded-md px-3 text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="consumidor">Consumidor</option>
+                  <option value="trabalhista">Trabalhista</option>
+                  <option value="civel">Cível</option>
+                  <option value="criminal">Criminal</option>
+                  <option value="bancario">Bancário</option>
+                  <option value="imobiliario">Imobiliário</option>
+                  <option value="tributario">Tributário</option>
+                  <option value="familia">Família e Sucessões</option>
+                  <option value="previdenciario">Previdenciário</option>
+                  <option value="outro">Outro</option>
+                </select>
+              </div>
+
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs text-slate-300 font-semibold">Endereço Completo</Label>
+                <Input
+                  value={editFormData.endereco}
+                  onChange={(e) => setEditFormData({ ...editFormData, endereco: e.target.value })}
+                  placeholder="Rua, Número, Bairro, Cidade - UF"
+                  className="bg-slate-900 border-slate-700 text-xs text-slate-100 focus-visible:ring-cyan-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-300 font-semibold">Origem do Cadastro</Label>
+                <select
+                  value={editFormData.origem}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, origem: e.target.value as ClientOrigin })
+                  }
+                  className="w-full h-9 bg-slate-900 border border-slate-700 rounded-md px-3 text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="manual">Cadastro Manual / Telefone</option>
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="indicacao">Indicação</option>
+                  <option value="presencial">Presencial no Escritório</option>
+                  <option value="intake_site">Intake Site</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-300 font-semibold">Estágio</Label>
+                <select
+                  value={editFormData.estagio}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, estagio: e.target.value as ClientStage })
+                  }
+                  className="w-full h-9 bg-slate-900 border border-slate-700 rounded-md px-3 text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="novo">Novo</option>
+                  <option value="em_atendimento">Em Atendimento</option>
+                  <option value="aguardando_documentos">Aguardando Documentos</option>
+                  <option value="ativo">Ativo (Processo em Curso)</option>
+                  <option value="concluido">Concluído</option>
+                  <option value="inativo">Inativo</option>
+                </select>
+              </div>
+
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs text-slate-300 font-semibold">
+                  Descrição do Caso / Narrativa do Cliente
+                </Label>
+                <textarea
+                  rows={3}
+                  value={editFormData.descricaoCaso}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, descricaoCaso: e.target.value })
+                  }
+                  placeholder="Relato dos fatos, pretensão jurídica ou histórico..."
+                  className="w-full bg-slate-900 border border-slate-700 rounded-md p-2.5 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs text-slate-300 font-semibold">Observações Internas</Label>
+                <textarea
+                  rows={2}
+                  value={editFormData.obs}
+                  onChange={(e) => setEditFormData({ ...editFormData, obs: e.target.value })}
+                  placeholder="Anotações internas do escritório..."
+                  className="w-full bg-slate-900 border border-slate-700 rounded-md p-2.5 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditClientModalOpen(false)}
+                className="text-xs border-slate-700 text-slate-300"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs gap-1.5"
+              >
+                <Save className="w-3.5 h-3.5" />
+                Salvar Alterações
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
