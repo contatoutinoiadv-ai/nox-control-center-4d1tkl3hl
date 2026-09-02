@@ -98,11 +98,10 @@ routerAdd(
 
     // Chave pública e URL base do DataJud vindos de segredo/ambiente com fallback seguro para chave pública oficial do CNJ
     // Chave pública oficial do CNJ conforme Wiki pública do DataJud: https://datajud-wiki.cnj.jus.br/api-publica/acesso/
-    const OFICIAL_PUBLIC_API_KEY = 'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
+    const OFICIAL_PUBLIC_API_KEY =
+      'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
     const apiKey =
-      $secrets.get('DATAJUD_API_KEY') ||
-      $os.getenv('DATAJUD_API_KEY') ||
-      OFICIAL_PUBLIC_API_KEY
+      $secrets.get('DATAJUD_API_KEY') || $os.getenv('DATAJUD_API_KEY') || OFICIAL_PUBLIC_API_KEY
 
     let baseUrl =
       $secrets.get('DATAJUD_API_URL') ||

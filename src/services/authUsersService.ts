@@ -258,10 +258,9 @@ export class AuthUsersService {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : '',
+          Authorization: token || '',
         },
       })
-
       if (!res.ok) {
         if (res.status === 401 || res.status === 403) {
           pb.authStore.clear()
@@ -330,7 +329,7 @@ export class AuthUsersService {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: token ? `Bearer ${token}` : '',
+        Authorization: token || '',
       },
     })
 
@@ -355,7 +354,7 @@ export class AuthUsersService {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: token ? `Bearer ${token}` : '',
+        Authorization: token || '',
       },
       body: JSON.stringify(data),
     })
@@ -380,7 +379,7 @@ export class AuthUsersService {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: token ? `Bearer ${token}` : '',
+        Authorization: token || '',
       },
       body: JSON.stringify(data),
     })
@@ -405,7 +404,7 @@ export class AuthUsersService {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: token ? `Bearer ${token}` : '',
+        Authorization: token || '',
       },
     })
 

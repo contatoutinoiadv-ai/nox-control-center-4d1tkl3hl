@@ -160,7 +160,7 @@ class DatajudService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : '',
+          Authorization: token || '',
         },
         body: JSON.stringify({ numero_processo: numeroProcesso }),
       })
@@ -250,7 +250,7 @@ class DatajudService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token}` : '',
+          Authorization: token || '',
         },
         body: JSON.stringify({ apenas_prazos_abertos: apenasPrazosAbertos }),
       })
