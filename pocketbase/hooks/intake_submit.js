@@ -47,11 +47,49 @@ routerAdd('POST', '/api/intake_submit.php', (e) => {
     })
   }
 
-  const telefone = (body.telefone || body.phone || body.whatsapp || '').trim()
-  const email = (body.email || '').trim()
   const cpf = (body.cpf || '').trim()
+  if (!cpf) {
+    return e.json(400, {
+      success: false,
+      error: 'O CPF é obrigatório.',
+    })
+  }
+
   const rg = (body.rg || '').trim()
-  const endereco = (body.endereco || '').trim()
+  if (!rg) {
+    return e.json(400, {
+      success: false,
+      error: 'O RG é obrigatório.',
+    })
+  }
+
+  const telefone = (body.telefone || body.phone || body.whatsapp || '').trim()
+  if (!telefone) {
+    return e.json(400, {
+      success: false,
+      error: 'O telefone/WhatsApp é obrigatório.',
+    })
+  }
+
+  const logradouro = (body.logradouro || '').trim()
+  const numero = (body.numero || '').trim()
+  const bairro = (body.bairro || '').trim()
+  const cidade = (body.cidade || '').trim()
+  const estado = (body.estado || '').trim()
+
+  let endereco = (body.endereco || '').trim()
+  if (!endereco && logradouro) {
+    endereco = `${logradouro}, Nº ${numero || 'S/N'}, ${bairro}, ${cidade} - ${estado}`
+  }
+
+  if (!endereco) {
+    return e.json(400, {
+      success: false,
+      error: 'O endereço completo (logradouro, número, bairro, cidade e estado) é obrigatório.',
+    })
+  }
+
+  const email = (body.email || '').trim()
   const profissao = (body.profissao || '').trim()
   const nacionalidade = (body.nacionalidade || 'brasileiro(a)').trim()
   const estadoCivil = (body.estado_civil || body.estadoCivil || 'solteiro(a)').trim()

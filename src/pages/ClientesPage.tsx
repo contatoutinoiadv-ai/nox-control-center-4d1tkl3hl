@@ -320,32 +320,37 @@ export const ClientesPage: React.FC = () => {
     const now = new Date()
     const in3Days = new Date(now.getTime() + 3 * 86400000)
 
-    for (const cli of clients) {
+    for (const cli of clients || []) {
+      if (!cli || !cli.id) continue
       let fatalCount = 0
       let pendingAudCount = 0
 
       // 1. Processos vinculados ao cliente
-      const clientProcesses = new Set(cli.processosVinculados)
+      const clientProcesses = new Set(
+        Array.isArray(cli.processosVinculados) ? cli.processosVinculados : [],
+      )
 
       // 2. Checar prazos fatais nos próximos 3 dias em Sentinela/Central de Prazos
-      for (const comm of comms) {
+      for (const comm of comms || []) {
+        if (!comm) continue
         const matchesClient =
           (comm.clientId && comm.clientId === cli.id) ||
-          clientProcesses.has(comm.numeroProcesso) ||
+          (comm.numeroProcesso && clientProcesses.has(comm.numeroProcesso)) ||
           (comm.destinatario &&
             cli.nome &&
             comm.destinatario.toLowerCase().includes(cli.nome.toLowerCase()))
 
-        if (matchesClient && comm.deadlineCalculated) {
+        if (matchesClient && comm.deadlineCalculated && comm.deadlineCalculated.finalDeadlineDate) {
           const finalDate = new Date(comm.deadlineCalculated.finalDeadlineDate)
-          if (finalDate >= now && finalDate <= in3Days) {
+          if (!isNaN(finalDate.getTime()) && finalDate >= now && finalDate <= in3Days) {
             fatalCount++
           }
         }
       }
 
       // 3. Checar audiências em Compromissos/Agenda
-      for (const ev of agenda) {
+      for (const ev of agenda || []) {
+        if (!ev) continue
         const matchesClient =
           (ev.clientName &&
             cli.nome &&
@@ -354,7 +359,8 @@ export const ClientesPage: React.FC = () => {
 
         if (
           matchesClient &&
-          (ev.eventType === 'AUDIENCIA' || ev.title.toLowerCase().includes('audiência'))
+          (ev.eventType === 'AUDIENCIA' ||
+            (ev.title && ev.title.toLowerCase().includes('audiência')))
         ) {
           if (ev.status !== 'CONFIRMADO' && ev.status !== 'CONCLUIDO') {
             pendingAudCount++
@@ -363,8 +369,9 @@ export const ClientesPage: React.FC = () => {
       }
 
       // 4. Checar se documentos estão pendentes de geração
+      const docsCount = Array.isArray(cli.docsGerados) ? cli.docsGerados.length : 0
       const pendingDocs =
-        cli.docsGerados.length === 0 && cli.estagio !== 'concluido' && cli.estagio !== 'inativo'
+        docsCount === 0 && cli.estagio !== 'concluido' && cli.estagio !== 'inativo'
 
       if (fatalCount > 0 || pendingAudCount > 0 || pendingDocs) {
         map.set(cli.id, {
@@ -380,17 +387,18 @@ export const ClientesPage: React.FC = () => {
 
   // Filtragem
   const filteredClients = useMemo(() => {
-    return clients.filter((cli) => {
+    return (clients || []).filter((cli) => {
+      if (!cli) return false
       if (originFilter !== 'ALL' && cli.origem !== originFilter) return false
       if (stageFilter !== 'ALL' && cli.estagio !== stageFilter) return false
 
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase()
-        const matchName = cli.nome.toLowerCase().includes(q)
-        const matchCode = cli.clientCode.toLowerCase().includes(q)
+        const matchName = cli.nome ? cli.nome.toLowerCase().includes(q) : false
+        const matchCode = cli.clientCode ? cli.clientCode.toLowerCase().includes(q) : false
         const matchCpf = cli.cpf ? cli.cpf.includes(q) : false
         const matchPhone = cli.telefone ? cli.telefone.includes(q) : false
-        const matchDemanda = cli.demanda.toLowerCase().includes(q)
+        const matchDemanda = cli.demanda ? String(cli.demanda).toLowerCase().includes(q) : false
         const matchDesc = cli.descricaoCaso ? cli.descricaoCaso.toLowerCase().includes(q) : false
 
         return matchName || matchCode || matchCpf || matchPhone || matchDemanda || matchDesc
@@ -402,13 +410,14 @@ export const ClientesPage: React.FC = () => {
 
   // Contadores por Origem
   const originCounts = useMemo(() => {
+    const list = clients || []
     return {
-      all: clients.length,
-      intake_site: clients.filter((c) => c.origem === 'intake_site').length,
-      manual: clients.filter((c) => c.origem === 'manual').length,
-      whatsapp: clients.filter((c) => c.origem === 'whatsapp').length,
-      indicacao: clients.filter((c) => c.origem === 'indicacao').length,
-      presencial: clients.filter((c) => c.origem === 'presencial').length,
+      all: list.length,
+      intake_site: list.filter((c) => c && c.origem === 'intake_site').length,
+      manual: list.filter((c) => c && c.origem === 'manual').length,
+      whatsapp: list.filter((c) => c && c.origem === 'whatsapp').length,
+      indicacao: list.filter((c) => c && c.origem === 'indicacao').length,
+      presencial: list.filter((c) => c && c.origem === 'presencial').length,
     }
   }, [clients])
 
@@ -465,7 +474,8 @@ export const ClientesPage: React.FC = () => {
   // Alterar Estágio Manualmente
   const handleStageChange = (clientId: string, newStage: ClientStage) => {
     dataStore.updateClientStage(clientId, newStage, 'Operador NOX')
-    toast.success(`Estágio alterado para "${STAGE_CONFIG[newStage].label}".`)
+    const stageLabel = STAGE_CONFIG[newStage]?.label || newStage
+    toast.success(`Estágio alterado para "${stageLabel}".`)
   }
 
   // Abrir Gerador de Documento
@@ -578,21 +588,24 @@ export const ClientesPage: React.FC = () => {
   // Processos, Prazos, Compromissos e Timeline para a Ficha 360º do Cliente Selecionado
   const clientProcessesData = useMemo(() => {
     if (!selectedClient) return []
-    const set = new Set(selectedClient.processosVinculados)
+    const procsList = Array.isArray(selectedClient.processosVinculados)
+      ? selectedClient.processosVinculados
+      : []
+    const set = new Set(procsList)
 
     // Unir da tabela records e sentinela_communications
-    const matchedRecords = records.filter(
+    const matchedRecords = (records || []).filter(
       (r) =>
-        set.has(r.numeroProcesso) ||
-        set.has(r.recordCode) ||
-        r.clientId === selectedClient.id ||
+        (r.numeroProcesso && set.has(r.numeroProcesso)) ||
+        (r.recordCode && set.has(r.recordCode)) ||
+        (r.clientId && r.clientId === selectedClient.id) ||
         (selectedClient.cpf && r.partes && r.partes.includes(selectedClient.cpf)),
     )
 
-    const matchedComms = comms.filter(
+    const matchedComms = (comms || []).filter(
       (c) =>
-        set.has(c.numeroProcesso) ||
-        c.clientId === selectedClient.id ||
+        (c.numeroProcesso && set.has(c.numeroProcesso)) ||
+        (c.clientId && c.clientId === selectedClient.id) ||
         (selectedClient.nome &&
           c.destinatario &&
           c.destinatario.toLowerCase().includes(selectedClient.nome.toLowerCase())),
@@ -614,35 +627,37 @@ export const ClientesPage: React.FC = () => {
     >()
 
     for (const r of matchedRecords) {
+      if (!r || !r.numeroProcesso) continue
       processMap.set(r.numeroProcesso, {
         numeroProcesso: r.numeroProcesso,
-        tribunal: r.tribunal,
-        orgao: r.orgaoJulgador,
-        classe: r.classeJudicial,
-        status: r.status,
-        severity: r.severity,
-        assunto: r.assunto,
+        tribunal: r.tribunal || 'TJ',
+        orgao: r.orgaoJulgador || 'Vara',
+        classe: r.classeJudicial || 'Processo Judicial',
+        status: r.status || 'novo',
+        severity: r.severity || 'informativo',
+        assunto: r.assunto || '',
         recordId: r.id,
       })
     }
 
     for (const c of matchedComms) {
+      if (!c || !c.numeroProcesso) continue
       if (!processMap.has(c.numeroProcesso)) {
         processMap.set(c.numeroProcesso, {
           numeroProcesso: c.numeroProcesso,
-          tribunal: c.tribunal,
-          orgao: c.orgaoJulgador,
+          tribunal: c.tribunal || 'TJ',
+          orgao: c.orgaoJulgador || 'Vara',
           classe: c.classeJudicial || 'Processo Judicial',
-          status: c.status,
-          severity: c.urgencyLevel,
-          assunto: c.teorResumido,
+          status: c.status || 'pendente',
+          severity: c.urgencyLevel || 'informativo',
+          assunto: c.teorResumido || '',
         })
       }
     }
 
     // Processos adicionados manualmente que ainda não têm dados no Sentinela
-    for (const p of selectedClient.processosVinculados) {
-      if (!processMap.has(p)) {
+    for (const p of procsList) {
+      if (p && !processMap.has(p)) {
         processMap.set(p, {
           numeroProcesso: p,
           tribunal: 'Em monitoramento',
@@ -661,9 +676,13 @@ export const ClientesPage: React.FC = () => {
   // Prazos e Compromissos filtrados para a Ficha
   const clientAgendaDeadlines = useMemo(() => {
     if (!selectedClient) return { events: [], deadlines: [], tasks: [] }
-    const set = new Set(selectedClient.processosVinculados)
+    const procsList = Array.isArray(selectedClient.processosVinculados)
+      ? selectedClient.processosVinculados
+      : []
+    const set = new Set(procsList)
 
-    const matchedEvents = agenda.filter((ev) => {
+    const matchedEvents = (agenda || []).filter((ev) => {
+      if (!ev) return false
       const matchProc = ev.processNumber && set.has(ev.processNumber)
       const matchClientName =
         ev.clientName &&
@@ -672,19 +691,21 @@ export const ClientesPage: React.FC = () => {
       return matchProc || matchClientName
     })
 
-    const matchedDeadlines = comms
+    const matchedDeadlines = (comms || [])
       .filter((c) => {
-        const matchProc = set.has(c.numeroProcesso)
+        if (!c) return false
+        const matchProc = c.numeroProcesso && set.has(c.numeroProcesso)
         const matchClient =
-          c.clientId === selectedClient.id ||
+          (c.clientId && c.clientId === selectedClient.id) ||
           (c.destinatario &&
             selectedClient.nome &&
             c.destinatario.toLowerCase().includes(selectedClient.nome.toLowerCase()))
-        return (matchProc || matchClient) && c.deadlineCalculated
+        return (matchProc || matchClient) && Boolean(c.deadlineCalculated)
       })
       .map((c) => c.deadlineCalculated!)
 
-    const matchedTasks = tasks.filter((t) => {
+    const matchedTasks = (tasks || []).filter((t) => {
+      if (!t) return false
       const matchProc = t.processNumber && set.has(t.processNumber)
       const matchClient =
         t.clientName &&
@@ -703,18 +724,26 @@ export const ClientesPage: React.FC = () => {
   // Linha do tempo auditada (audit_logs filtrada pelo cliente, ordenada com INTAKE_RECEBIDO em destaque)
   const clientTimeline = useMemo(() => {
     if (!selectedClient) return []
+    const procsList = Array.isArray(selectedClient.processosVinculados)
+      ? selectedClient.processosVinculados
+      : []
 
-    const logs = auditLogs.filter((log) => {
+    const logs = (auditLogs || []).filter((log) => {
+      if (!log) return false
       const matchTarget =
-        log.targetId === selectedClient.id ||
-        log.targetId === selectedClient.clientCode ||
-        log.targetId === selectedClient.protocolo
+        log.targetId &&
+        (log.targetId === selectedClient.id ||
+          log.targetId === selectedClient.clientCode ||
+          log.targetId === selectedClient.protocolo)
 
       const matchDetails =
         log.details &&
         (log.details.client_code === selectedClient.clientCode ||
-          log.details.cliente === selectedClient.nome ||
+          (typeof log.details.cliente === 'string' &&
+            selectedClient.nome &&
+            log.details.cliente.toLowerCase() === selectedClient.nome.toLowerCase()) ||
           (typeof log.details.nome === 'string' &&
+            selectedClient.nome &&
             log.details.nome.toLowerCase() === selectedClient.nome.toLowerCase()) ||
           (typeof log.details.cpf === 'string' &&
             selectedClient.cpf &&
@@ -723,13 +752,17 @@ export const ClientesPage: React.FC = () => {
       const matchProcess =
         log.details &&
         typeof log.details.numero_processo === 'string' &&
-        selectedClient.processosVinculados.includes(log.details.numero_processo)
+        procsList.includes(log.details.numero_processo)
 
-      return matchTarget || matchDetails || matchProcess
+      return Boolean(matchTarget || matchDetails || matchProcess)
     })
 
     // Ordenar: eventos mais antigos primeiro (linha do tempo progressiva) ou mais recentes primeiro
-    return logs.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    return logs.sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+      return timeA - timeB
+    })
   }, [selectedClient, auditLogs])
 
   return (
@@ -907,7 +940,7 @@ export const ClientesPage: React.FC = () => {
                       }`}
                     />
                     <span className="text-xs font-bold text-slate-200 uppercase font-mono tracking-tight">
-                      {cfg.label}
+                      {cfg?.label || stageKey}
                     </span>
                   </div>
                   <Badge
@@ -929,6 +962,17 @@ export const ClientesPage: React.FC = () => {
                       const attention = attentionMap.get(client.id)
                       const originCfg = ORIGIN_CONFIG[client.origem]
                       const OriginIcon = originCfg?.icon || Globe
+                      const procsCount = Array.isArray(client.processosVinculados)
+                        ? client.processosVinculados.length
+                        : 0
+                      const docsCount = Array.isArray(client.docsGerados)
+                        ? client.docsGerados.length
+                        : 0
+                      const clientCreatedDate = client.createdAt ? new Date(client.createdAt) : null
+                      const dateStr =
+                        clientCreatedDate && !isNaN(clientCreatedDate.getTime())
+                          ? clientCreatedDate.toLocaleDateString('pt-BR')
+                          : '—'
 
                       return (
                         <div
@@ -994,9 +1038,7 @@ export const ClientesPage: React.FC = () => {
                               {client.demanda}
                             </Badge>
 
-                            <span className="text-[10px] text-slate-500 font-mono">
-                              {new Date(client.createdAt).toLocaleDateString('pt-BR')}
-                            </span>
+                            <span className="text-[10px] text-slate-500 font-mono">{dateStr}</span>
                           </div>
 
                           {/* Case snippet */}
@@ -1008,10 +1050,10 @@ export const ClientesPage: React.FC = () => {
 
                           {/* Connected Items Count Footer */}
                           <div className="mt-2 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] font-mono text-slate-500">
-                            <span>{client.processosVinculados.length} proc.</span>
+                            <span>{procsCount} proc.</span>
                             <span>
-                              {client.docsGerados.length} doc
-                              {client.docsGerados.length !== 1 ? 's' : ''}
+                              {docsCount} doc
+                              {docsCount !== 1 ? 's' : ''}
                             </span>
                           </div>
                         </div>
@@ -1072,7 +1114,10 @@ export const ClientesPage: React.FC = () => {
                         {client.telefone && <span>📞 {client.telefone}</span>}
                         {client.cpf && <span>CPF {client.cpf}</span>}
                         <span>
-                          Cadastrado em {new Date(client.createdAt).toLocaleDateString('pt-BR')}
+                          Cadastrado em{' '}
+                          {client.createdAt && !isNaN(new Date(client.createdAt).getTime())
+                            ? new Date(client.createdAt).toLocaleDateString('pt-BR')
+                            : '—'}
                         </span>
                       </div>
 
@@ -1158,7 +1203,7 @@ export const ClientesPage: React.FC = () => {
                       STAGE_CONFIG[selectedClient.estagio]?.border || 'border-slate-700'
                     }`}
                   >
-                    {STAGE_CONFIG[selectedClient.estagio]?.label}
+                    {STAGE_CONFIG[selectedClient.estagio]?.label || selectedClient.estagio}
                   </Badge>
                   <Badge
                     variant="outline"
@@ -1166,7 +1211,7 @@ export const ClientesPage: React.FC = () => {
                       ORIGIN_CONFIG[selectedClient.origem]?.badgeClass || 'text-slate-400'
                     }`}
                   >
-                    {ORIGIN_CONFIG[selectedClient.origem]?.label}
+                    {ORIGIN_CONFIG[selectedClient.origem]?.label || selectedClient.origem}
                   </Badge>
                 </div>
                 <h2 className="text-lg font-bold text-white mt-1.5 truncate flex items-center gap-2">
@@ -1223,7 +1268,10 @@ export const ClientesPage: React.FC = () => {
                     className="data-[state=active]:bg-cyan-950/80 data-[state=active]:text-cyan-300 text-slate-400 text-xs font-mono rounded-t-lg"
                   >
                     <FileText className="w-3.5 h-3.5 mr-1.5" /> Documentos (
-                    {selectedClient.docsGerados.length})
+                    {Array.isArray(selectedClient.docsGerados)
+                      ? selectedClient.docsGerados.length
+                      : 0}
+                    )
                   </TabsTrigger>
                   <TabsTrigger
                     value="timeline"
@@ -1599,10 +1647,15 @@ export const ClientesPage: React.FC = () => {
                 {/* Lista de Documentos já gerados */}
                 <div className="space-y-2">
                   <div className="text-[11px] font-mono text-cyan-400 uppercase font-semibold">
-                    Documentos Emitidos ({selectedClient.docsGerados.length})
+                    Documentos Emitidos (
+                    {Array.isArray(selectedClient.docsGerados)
+                      ? selectedClient.docsGerados.length
+                      : 0}
+                    )
                   </div>
 
-                  {selectedClient.docsGerados.length === 0 ? (
+                  {!Array.isArray(selectedClient.docsGerados) ||
+                  selectedClient.docsGerados.length === 0 ? (
                     <div className="p-6 text-center rounded-lg border border-dashed border-slate-800 text-xs text-slate-500 italic">
                       Nenhum documento gerado para este cliente ainda. Clique em um dos modelos
                       acima.
@@ -1720,7 +1773,11 @@ export const ClientesPage: React.FC = () => {
                               <span className="font-bold text-cyan-300 uppercase">
                                 {item.action}
                               </span>
-                              <span>{new Date(item.createdAt).toLocaleString('pt-BR')}</span>
+                              <span>
+                                {item.createdAt && !isNaN(new Date(item.createdAt).getTime())
+                                  ? new Date(item.createdAt).toLocaleString('pt-BR')
+                                  : '—'}
+                              </span>
                             </div>
 
                             <div className="text-slate-200 font-medium">

@@ -328,7 +328,8 @@ export class NoxDataStore {
         clientId: cli1.id,
         clientName: cli1.nome,
         clientCode: cli1.clientCode,
-        numeroProcesso: cli1.processosVinculados[0] || '1045230-89.2026.8.26.0100',
+        numeroProcesso:
+          (cli1.processosVinculados && cli1.processosVinculados[0]) || '1045230-89.2026.8.26.0100',
         tituloPeca: `Petição Inicial / Tutela de Urgência — ${cli1.nome}`,
         nivel: 3, // Litígio bancário => Nível 3 automático
         estagio: 'tese_em_definicao',
@@ -422,7 +423,8 @@ export class NoxDataStore {
         clientId: cli2.id,
         clientName: cli2.nome,
         clientCode: cli2.clientCode,
-        numeroProcesso: cli2.processosVinculados[0] || '0018492-44.2026.8.26.0001',
+        numeroProcesso:
+          (cli2.processosVinculados && cli2.processosVinculados[0]) || '0018492-44.2026.8.26.0001',
         tituloPeca: `Ação Indenizatória por Extravio de Bagagem — ${cli2.nome}`,
         nivel: 3, // Companhia aérea / grande porte => Nível 3
         estagio: 'em_redacao',
@@ -473,7 +475,8 @@ export class NoxDataStore {
         clientId: cli3.id,
         clientName: cli3.nome,
         clientCode: cli3.clientCode,
-        numeroProcesso: cli3.processosVinculados[0] || '5001290-77.2026.8.26.0200',
+        numeroProcesso:
+          (cli3.processosVinculados && cli3.processosVinculados[0]) || '5001290-77.2026.8.26.0200',
         tituloPeca: `Contestação Trabalhista — ${cli3.nome}`,
         nivel: 2,
         estagio: 'stress_test_adversarial',

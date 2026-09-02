@@ -53,7 +53,11 @@ export const IntakePublicPage: React.FC = () => {
     // Passo 2: Contato e Localização
     telefone: '',
     email: '',
-    endereco: '',
+    logradouro: '',
+    numero: '',
+    bairro: '',
+    cidade: '',
+    estado: 'MS',
 
     // Passo 3: Demanda e Narrativa dos Fatos
     demanda: 'consumidor',
@@ -82,6 +86,28 @@ export const IntakePublicPage: React.FC = () => {
     if (errors.cpf) setErrors((prev) => ({ ...prev, cpf: '' }))
   }
 
+  const isValidCpf = (cpfStr: string) => {
+    const clean = cpfStr.replace(/\D/g, '')
+    if (clean.length !== 11) return false
+    if (/^(\d)\1{10}$/.test(clean)) return false
+
+    let sum = 0
+    for (let i = 0; i < 9; i++) {
+      sum += parseInt(clean.charAt(i), 10) * (10 - i)
+    }
+    let rev = 11 - (sum % 11)
+    if (rev === 10 || rev === 11) rev = 0
+    if (rev !== parseInt(clean.charAt(9), 10)) return false
+
+    sum = 0
+    for (let i = 0; i < 10; i++) {
+      sum += parseInt(clean.charAt(i), 10) * (11 - i)
+    }
+    rev = 11 - (sum % 11)
+    if (rev === 10 || rev === 11) rev = 0
+    return rev === parseInt(clean.charAt(10), 10)
+  }
+
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let v = e.target.value.replace(/\D/g, '')
     if (v.length > 11) v = v.slice(0, 11)
@@ -101,6 +127,18 @@ export const IntakePublicPage: React.FC = () => {
     if (!formData.nome.trim() || formData.nome.trim().length < 3) {
       errs.nome = 'Informe seu nome completo (mínimo 3 caracteres).'
     }
+
+    const cleanCpf = formData.cpf.replace(/\D/g, '')
+    if (!cleanCpf) {
+      errs.cpf = 'O CPF é obrigatório.'
+    } else if (cleanCpf.length !== 11 || !isValidCpf(formData.cpf)) {
+      errs.cpf = 'Informe um CPF válido com 11 dígitos.'
+    }
+
+    if (!formData.rg.trim() || formData.rg.trim().length < 4) {
+      errs.rg = 'O RG é obrigatório (mínimo 4 caracteres).'
+    }
+
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -114,6 +152,23 @@ export const IntakePublicPage: React.FC = () => {
     if (formData.email && !formData.email.includes('@')) {
       errs.email = 'Informe um e-mail válido com @.'
     }
+
+    if (!formData.logradouro.trim() || formData.logradouro.trim().length < 2) {
+      errs.logradouro = 'Informe o logradouro / rua (obrigatório).'
+    }
+    if (!formData.numero.trim()) {
+      errs.numero = 'Informe o número (ou S/N).'
+    }
+    if (!formData.bairro.trim()) {
+      errs.bairro = 'Informe o bairro (obrigatório).'
+    }
+    if (!formData.cidade.trim()) {
+      errs.cidade = 'Informe a cidade (obrigatório).'
+    }
+    if (!formData.estado.trim()) {
+      errs.estado = 'Informe o estado/UF (obrigatório).'
+    }
+
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -134,14 +189,14 @@ export const IntakePublicPage: React.FC = () => {
   const handleNextStep = () => {
     if (currentStep === 1) {
       if (!validateStep1()) {
-        toast.error('Por favor, preencha seu nome completo para continuar.')
+        toast.error('Por favor, preencha todos os campos obrigatórios (Nome, CPF e RG).')
         return
       }
       setCurrentStep(2)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } else if (currentStep === 2) {
       if (!validateStep2()) {
-        toast.error('Por favor, preencha um telefone para podermos retornar o contato.')
+        toast.error('Por favor, preencha todos os campos obrigatórios de contato e endereço.')
         return
       }
       setCurrentStep(3)
@@ -173,16 +228,23 @@ export const IntakePublicPage: React.FC = () => {
 
     setSubmitting(true)
 
+    const enderecoCompleto = `${formData.logradouro.trim()}, Nº ${formData.numero.trim()}, ${formData.bairro.trim()}, ${formData.cidade.trim()} - ${formData.estado.trim().toUpperCase()}`
+
     const payload = {
       nome: formData.nome.trim(),
-      cpf: formData.cpf.trim() || undefined,
-      rg: formData.rg.trim() || undefined,
+      cpf: formData.cpf.trim(),
+      rg: formData.rg.trim(),
       nacionalidade: formData.nacionalidade.trim() || 'brasileiro(a)',
       estado_civil: formData.estadoCivil.trim() || 'solteiro(a)',
       profissao: formData.profissao.trim() || undefined,
       telefone: formData.telefone.trim(),
       email: formData.email.trim() || undefined,
-      endereco: formData.endereco.trim() || undefined,
+      endereco: enderecoCompleto,
+      logradouro: formData.logradouro.trim(),
+      numero: formData.numero.trim(),
+      bairro: formData.bairro.trim(),
+      cidade: formData.cidade.trim(),
+      estado: formData.estado.trim().toUpperCase(),
       demanda: formData.demanda,
       descricao_caso: formData.descricaoCaso.trim(),
       obs: formData.obs.trim() || undefined,
@@ -516,7 +578,7 @@ export const IntakePublicPage: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="cpf" className="text-xs font-semibold text-slate-200">
-                    CPF (Opcional)
+                    CPF <span className="text-amber-400">*</span>
                   </Label>
                   <Input
                     id="cpf"
@@ -524,21 +586,38 @@ export const IntakePublicPage: React.FC = () => {
                     value={formData.cpf}
                     onChange={handleCpfChange}
                     maxLength={14}
-                    className="bg-slate-950/80 border-slate-800 text-slate-100 placeholder:text-slate-600 focus:border-amber-500 text-sm h-11 font-mono"
+                    className={`bg-slate-950/80 border-slate-800 text-slate-100 placeholder:text-slate-600 focus:border-amber-500 text-sm h-11 font-mono ${
+                      errors.cpf ? 'border-rose-500 focus:border-rose-500' : ''
+                    }`}
                   />
+                  {errors.cpf && (
+                    <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> {errors.cpf}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
                   <Label htmlFor="rg" className="text-xs font-semibold text-slate-200">
-                    RG (Opcional)
+                    RG <span className="text-amber-400">*</span>
                   </Label>
                   <Input
                     id="rg"
                     placeholder="Ex: 00.000.000-0 SSP/MS"
                     value={formData.rg}
-                    onChange={(e) => setFormData((p) => ({ ...p, rg: e.target.value }))}
-                    className="bg-slate-950/80 border-slate-800 text-slate-100 placeholder:text-slate-600 focus:border-amber-500 text-sm h-11"
+                    onChange={(e) => {
+                      setFormData((p) => ({ ...p, rg: e.target.value }))
+                      if (errors.rg) setErrors((p) => ({ ...p, rg: '' }))
+                    }}
+                    className={`bg-slate-950/80 border-slate-800 text-slate-100 placeholder:text-slate-600 focus:border-amber-500 text-sm h-11 ${
+                      errors.rg ? 'border-rose-500 focus:border-rose-500' : ''
+                    }`}
                   />
+                  {errors.rg && (
+                    <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
+                      <AlertCircle className="w-3.5 h-3.5" /> {errors.rg}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -673,17 +752,134 @@ export const IntakePublicPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="endereco" className="text-xs font-semibold text-slate-200">
-                  Endereço Residencial / Comercial (Opcional)
-                </Label>
-                <Input
-                  id="endereco"
-                  placeholder="Ex: Rua das Flores, 123, Apto 45, Bairro, Campo Grande - MS"
-                  value={formData.endereco}
-                  onChange={(e) => setFormData((p) => ({ ...p, endereco: e.target.value }))}
-                  className="bg-slate-950/80 border-slate-800 text-slate-100 placeholder:text-slate-600 focus:border-amber-500 text-sm h-11"
-                />
+              {/* Endereço fragmentado e obrigatório */}
+              <div className="space-y-4 pt-2 border-t border-slate-800/80">
+                <div className="flex items-center gap-2">
+                  <Home className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs font-bold text-slate-200 uppercase tracking-wide">
+                    Endereço Residencial / Comercial <span className="text-amber-400">*</span>
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="space-y-1.5 md:col-span-3">
+                    <Label htmlFor="logradouro" className="text-xs font-semibold text-slate-200">
+                      Endereço (Rua / Logradouro / Av.) <span className="text-amber-400">*</span>
+                    </Label>
+                    <Input
+                      id="logradouro"
+                      placeholder="Ex: Rua das Flores"
+                      value={formData.logradouro}
+                      onChange={(e) => {
+                        setFormData((p) => ({ ...p, logradouro: e.target.value }))
+                        if (errors.logradouro) setErrors((p) => ({ ...p, logradouro: '' }))
+                      }}
+                      className={`bg-slate-950/80 border-slate-800 text-slate-100 placeholder:text-slate-600 focus:border-amber-500 text-sm h-11 ${
+                        errors.logradouro ? 'border-rose-500 focus:border-rose-500' : ''
+                      }`}
+                    />
+                    {errors.logradouro && (
+                      <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
+                        <AlertCircle className="w-3.5 h-3.5" /> {errors.logradouro}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="numero" className="text-xs font-semibold text-slate-200">
+                      Nº <span className="text-amber-400">*</span>
+                    </Label>
+                    <Input
+                      id="numero"
+                      placeholder="Ex: 123 ou S/N"
+                      value={formData.numero}
+                      onChange={(e) => {
+                        setFormData((p) => ({ ...p, numero: e.target.value }))
+                        if (errors.numero) setErrors((p) => ({ ...p, numero: '' }))
+                      }}
+                      className={`bg-slate-950/80 border-slate-800 text-slate-100 placeholder:text-slate-600 focus:border-amber-500 text-sm h-11 ${
+                        errors.numero ? 'border-rose-500 focus:border-rose-500' : ''
+                      }`}
+                    />
+                    {errors.numero && (
+                      <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
+                        <AlertCircle className="w-3.5 h-3.5" /> {errors.numero}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="bairro" className="text-xs font-semibold text-slate-200">
+                      Bairro <span className="text-amber-400">*</span>
+                    </Label>
+                    <Input
+                      id="bairro"
+                      placeholder="Ex: Centro"
+                      value={formData.bairro}
+                      onChange={(e) => {
+                        setFormData((p) => ({ ...p, bairro: e.target.value }))
+                        if (errors.bairro) setErrors((p) => ({ ...p, bairro: '' }))
+                      }}
+                      className={`bg-slate-950/80 border-slate-800 text-slate-100 placeholder:text-slate-600 focus:border-amber-500 text-sm h-11 ${
+                        errors.bairro ? 'border-rose-500 focus:border-rose-500' : ''
+                      }`}
+                    />
+                    {errors.bairro && (
+                      <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
+                        <AlertCircle className="w-3.5 h-3.5" /> {errors.bairro}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cidade" className="text-xs font-semibold text-slate-200">
+                      Cidade <span className="text-amber-400">*</span>
+                    </Label>
+                    <Input
+                      id="cidade"
+                      placeholder="Ex: Campo Grande"
+                      value={formData.cidade}
+                      onChange={(e) => {
+                        setFormData((p) => ({ ...p, cidade: e.target.value }))
+                        if (errors.cidade) setErrors((p) => ({ ...p, cidade: '' }))
+                      }}
+                      className={`bg-slate-950/80 border-slate-800 text-slate-100 placeholder:text-slate-600 focus:border-amber-500 text-sm h-11 ${
+                        errors.cidade ? 'border-rose-500 focus:border-rose-500' : ''
+                      }`}
+                    />
+                    {errors.cidade && (
+                      <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
+                        <AlertCircle className="w-3.5 h-3.5" /> {errors.cidade}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="estado" className="text-xs font-semibold text-slate-200">
+                      Estado (UF) <span className="text-amber-400">*</span>
+                    </Label>
+                    <Input
+                      id="estado"
+                      placeholder="Ex: MS"
+                      maxLength={2}
+                      value={formData.estado}
+                      onChange={(e) => {
+                        setFormData((p) => ({ ...p, estado: e.target.value.toUpperCase() }))
+                        if (errors.estado) setErrors((p) => ({ ...p, estado: '' }))
+                      }}
+                      className={`bg-slate-950/80 border-slate-800 text-slate-100 placeholder:text-slate-600 focus:border-amber-500 text-sm h-11 uppercase font-mono ${
+                        errors.estado ? 'border-rose-500 focus:border-rose-500' : ''
+                      }`}
+                    />
+                    {errors.estado && (
+                      <p className="text-xs text-rose-400 flex items-center gap-1 mt-1">
+                        <AlertCircle className="w-3.5 h-3.5" /> {errors.estado}
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="pt-4 flex items-center justify-between">
@@ -910,7 +1106,11 @@ export const IntakePublicPage: React.FC = () => {
                       profissao: '',
                       telefone: '',
                       email: '',
-                      endereco: '',
+                      logradouro: '',
+                      numero: '',
+                      bairro: '',
+                      cidade: '',
+                      estado: 'MS',
                       demanda: 'consumidor',
                       descricaoCaso: '',
                       obs: '',
