@@ -34,6 +34,12 @@ import {
 } from '@/types/sentinela'
 import { dataStore } from '@/services/dataStore'
 import { calculateLegalDeadline } from '@/services/deadlineEngine'
+import {
+  queryOraculoGemini,
+  analyzeBatchWithGemini,
+  buildSentinelaContext,
+  OraculoMessage,
+} from '@/services/aiOraculoService'
 import { CustodyChainTimeline } from '@/components/CustodyChainTimeline'
 import { DeadlineCalculatorView } from '@/components/DeadlineCalculatorView'
 import { AgendaView } from '@/components/AgendaView'
@@ -188,11 +194,13 @@ export const SentinelaHub: React.FC = () => {
 
   // Managerial Chat (ORÁCULO NOX) State
   const [isGerencialOpen, setIsGerencialOpen] = useState(false)
-  const [gerencialMessages, setGerencialMessages] = useState<
-    Array<{ id: string; role: 'sys' | 'user' | 'nox'; content: string; timestamp: string }>
-  >([])
+  const [gerencialMessages, setGerencialMessages] = useState<OraculoMessage[]>([])
   const [gerencialInput, setGerencialInput] = useState('')
   const [isGerencialSending, setIsGerencialSending] = useState(false)
+  const [aiStatusBadge, setAiStatusBadge] = useState<{
+    text: string
+    variant: 'gemini' | 'local'
+  }>({ text: 'GEMINI ATIVO', variant: 'gemini' })
 
   // Inline Calculator State per Card { [commId]: { days, isBusiness, date, calculatedDate, memorial } }
   const [inlineCalcState, setInlineCalcState] = useState<
@@ -241,7 +249,7 @@ export const SentinelaHub: React.FC = () => {
     }, 800)
   }
 
-  // NOX Batch Analysis ("Analisar Todos")
+  // NOX Batch Analysis ("Analisar Todos") com Google Gemini
   const handleAnalyzeAllWithNox = async () => {
     const pending = communications.filter(
       (c) => c.status !== 'ANALISADA' && c.status !== 'CONCLUIDA',
@@ -254,21 +262,30 @@ export const SentinelaHub: React.FC = () => {
     setIsAnalyzingAll(true)
     setAnalyzingProgress({ current: 0, total: pending.length })
 
+    // Dispara análise real via backend Google Gemini
+    const batchResult = await analyzeBatchWithGemini(pending)
+
     for (let i = 0; i < pending.length; i++) {
       setAnalyzingProgress({ current: i + 1, total: pending.length })
-      await new Promise((resolve) => setTimeout(resolve, 300))
+      await new Promise((resolve) => setTimeout(resolve, 150))
       dataStore.advanceCommunicationStatus(
         pending[i].id,
         'ANALISADA',
-        'ORÁCULO NOX (Lote)',
-        'Análise em lote executada automaticamente.',
+        batchResult.isFallback ? 'ORÁCULO NOX (Lote Local)' : 'ORÁCULO NOX (Gemini Lote)',
+        `Análise em lote (${batchResult.model}): ${batchResult.summary.slice(0, 100)}...`,
       )
     }
 
     setCommunications(dataStore.getCommunications())
     setIsAnalyzingAll(false)
     setAnalyzingProgress(null)
-    toast.success(`Análise em lote concluída: ${pending.length} publicação(ões) analisada(s).`)
+    if (batchResult.isFallback) {
+      toast.info(`Análise em lote concluída (Modo Local): ${pending.length} publicação(ões).`)
+    } else {
+      toast.success(
+        `Análise em lote com Google Gemini concluída: ${pending.length} publicação(ões).`,
+      )
+    }
   }
 
   // Schedule to Agenda from Sentinela
@@ -453,49 +470,96 @@ export const SentinelaHub: React.FC = () => {
   }
 
   // Open Managerial Chat (Oráculo NOX)
-  const handleOpenGerencial = () => {
+  const handleOpenGerencial = async () => {
     setIsGerencialOpen(true)
     if (gerencialMessages.length === 0) {
-      setGerencialMessages([
-        {
-          id: 'msg-init-1',
-          role: 'sys',
-          content: `📡 Contexto montado: ${communications.length} publicações carregadas · Tribunal TJMS/Nacional · Âncora OAB/MS 15.400.`,
-          timestamp: new Date().toLocaleTimeString('pt-BR'),
-        },
-        {
-          id: 'msg-init-2',
-          role: 'nox',
-          content: `**ORÁCULO NOX — Diagnóstico Executivo Operacional**\n\n1. **Panorama Geral:** ${communications.length} publicações monitoradas no período. Identificadas ${communications.filter((c) => c.urgencyLevel === 'alta' || c.urgencyLevel === 'critica').length} publicações de alta urgência com impacto imediato em prazos recursais e audiências.\n2. **Ações Críticas (Próximas 48-72h):** Homologação tempestiva dos prazos de Apelação Cível e alinhamento de prepostos para audiência telepresencial do TRT2.\n3. **Diretriz:** Utilize o painel lateral para despachar prazos individualmente ou execute a homologação em lote. Como posso apoiar a estratégia jurídica agora?`,
-          timestamp: new Date().toLocaleTimeString('pt-BR'),
-        },
-      ])
+      const lawyer = dataStore.getLawyerProfile()
+      const initialSysMsg: OraculoMessage = {
+        id: 'msg-init-1',
+        role: 'sys',
+        content: `📡 Contexto montado: ${communications.length} publicações carregadas · Tribunal TJMS/Nacional · Âncora ${lawyer.nome} (${lawyer.oab || 'OAB/MS 15.400'}).`,
+        timestamp: new Date().toLocaleTimeString('pt-BR'),
+      }
+
+      const defaultDiagnosticMsg: OraculoMessage = {
+        id: 'msg-init-2',
+        role: 'nox',
+        content: `**ORÁCULO NOX — Diagnóstico Executivo Operacional (Google Gemini)**\n\n1. **Panorama Geral:** ${communications.length} publicações monitoradas no período. Identificadas ${communications.filter((c) => c.urgencyLevel === 'alta' || c.urgencyLevel === 'critica').length} publicações de alta urgência com impacto imediato em prazos recursais e audiências.\n2. **Ações Críticas (Próximas 48-72h):** Homologação tempestiva dos prazos de Apelação Cível e alinhamento de prepostos para audiência telepresencial.\n3. **Diretriz:** Utilize o painel lateral para despachar prazos individualmente ou execute a homologação em lote.\n\n---\n**Fonte:** Sentinela NOX / DJEN Integrado\n**Nível de Confiança:** ALTA\n⚠️ *Revisão humana obrigatória por advogado responsável antes de qualquer protocolo.*`,
+        timestamp: new Date().toLocaleTimeString('pt-BR'),
+        confidence: 'ALTA',
+        sourceInfo: 'Google Gemini (Skip AI Gateway)',
+        isFallback: false,
+      }
+
+      setGerencialMessages([initialSysMsg, defaultDiagnosticMsg])
     }
   }
 
-  const handleSendGerencial = () => {
-    if (!gerencialInput.trim()) return
-    const userText = gerencialInput
-    const userMsg = {
+  const handleSendGerencial = async () => {
+    if (!gerencialInput.trim() || isGerencialSending) return
+    const userText = gerencialInput.trim()
+    const userMsg: OraculoMessage = {
       id: `msg_u_${Date.now()}`,
-      role: 'user' as const,
+      role: 'user',
       content: userText,
       timestamp: new Date().toLocaleTimeString('pt-BR'),
     }
-    setGerencialMessages((prev) => [...prev, userMsg])
+    const updatedHistory = [...gerencialMessages, userMsg]
+    setGerencialMessages(updatedHistory)
     setGerencialInput('')
     setIsGerencialSending(true)
 
-    setTimeout(() => {
-      setIsGerencialSending(false)
-      const noxResponse = {
-        id: `msg_n_${Date.now()}`,
-        role: 'nox' as const,
-        content: `**ORÁCULO NOX — Resposta Estratégica:**\n\nEm atenção à sua consulta ("${userText}"): examinando a base de publicações ativas, recomendamos priorizar a conferência de feriados forenses locais pelo Art. 268 do CODJ (TJMS) antes do fechamento de protocolo. As citações tributárias e cíveis possuem garantia D-2 configurada para prevenção de preclusão.`,
-        timestamp: new Date().toLocaleTimeString('pt-BR'),
+    try {
+      const lawyer = dataStore.getLawyerProfile()
+      const contexto = buildSentinelaContext(communications, lawyer.nome, lawyer.oab)
+
+      const aiHistory = updatedHistory
+        .filter((m) => m.role === 'user' || m.role === 'nox')
+        .map((m) => ({
+          role: m.role === 'user' ? ('user' as const) : ('assistant' as const),
+          content: m.content,
+        }))
+
+      const result = await queryOraculoGemini({
+        messages: aiHistory,
+        contexto,
+        modo: 'oraculo',
+        commsFallback: communications,
+      })
+
+      // Atualiza badge de estado da IA
+      if (result.isFallback) {
+        setAiStatusBadge({ text: 'GEMINI INDISPONÍVEL — MODO LOCAL', variant: 'local' })
+      } else {
+        setAiStatusBadge({ text: 'GEMINI ATIVO', variant: 'gemini' })
       }
+
+      const noxResponse: OraculoMessage = {
+        id: `msg_n_${Date.now()}`,
+        role: 'nox',
+        content: result.content,
+        timestamp: new Date().toLocaleTimeString('pt-BR'),
+        isFallback: result.isFallback,
+        model: result.model,
+        confidence: result.confidence,
+        sourceInfo: result.source,
+      }
+
       setGerencialMessages((prev) => [...prev, noxResponse])
-    }, 700)
+    } catch (err) {
+      console.error('[Oraculo NOX] Falha no fluxo:', err)
+      setAiStatusBadge({ text: 'GEMINI INDISPONÍVEL — MODO LOCAL', variant: 'local' })
+      const fallbackMsg: OraculoMessage = {
+        id: `msg_err_${Date.now()}`,
+        role: 'nox',
+        content: `**ORÁCULO NOX — Resposta em Modo de Contingência Local:**\n\nEm atenção à sua consulta ("${userText}"): recomendamos a conferência direta no DJEN/TJMS e a observância dos prazos com garantia D-2 para prevenção de preclusão.\n\n---\n**Fonte:** Motor Local de Contingência\n**Nível de Confiança:** MÉDIO\n⚠️ *Revisão humana obrigatória por advogado responsável.*`,
+        timestamp: new Date().toLocaleTimeString('pt-BR'),
+        isFallback: true,
+      }
+      setGerencialMessages((prev) => [...prev, fallbackMsg])
+    } finally {
+      setIsGerencialSending(false)
+    }
   }
 
   // Filtered Communications according to DJEN legacy filters
@@ -1843,8 +1907,21 @@ export const SentinelaHub: React.FC = () => {
                 </p>
               </div>
             </div>
-            <Badge className="bg-cyan-950 text-cyan-300 border border-cyan-800 text-[10px] font-mono">
-              IA JURÍDICA ATIVA
+            <Badge
+              className={`text-[10px] font-mono tracking-wider flex items-center gap-1.5 px-2.5 py-1 ${
+                aiStatusBadge.variant === 'gemini'
+                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-700/80 shadow-sm shadow-emerald-950'
+                  : 'bg-amber-950/90 text-amber-300 border border-amber-700/80'
+              }`}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  aiStatusBadge.variant === 'gemini'
+                    ? 'bg-emerald-400 animate-pulse'
+                    : 'bg-amber-400'
+                }`}
+              ></span>
+              {aiStatusBadge.text}
             </Badge>
           </div>
 
@@ -1853,31 +1930,54 @@ export const SentinelaHub: React.FC = () => {
             {gerencialMessages.map((msg) => (
               <div
                 key={msg.id}
-                className={`p-3.5 rounded-xl max-w-[85%] space-y-1.5 ${
+                className={`p-3.5 rounded-xl max-w-[88%] space-y-2 ${
                   msg.role === 'nox'
-                    ? 'bg-slate-900 border border-cyan-800/40 text-slate-200'
+                    ? msg.isFallback
+                      ? 'bg-slate-900/95 border border-amber-800/40 text-slate-200'
+                      : 'bg-slate-900/95 border border-cyan-800/50 text-slate-200 shadow-md shadow-cyan-950/30'
                     : msg.role === 'user'
                       ? 'bg-cyan-600 text-slate-950 font-medium ml-auto'
                       : 'bg-slate-950/60 border border-slate-800 text-slate-400 text-[11px] font-mono'
                 }`}
               >
-                <div className="flex items-center justify-between text-[10px] opacity-70">
-                  <span className="font-bold font-mono uppercase">
-                    {msg.role === 'nox'
-                      ? '⚖ ORÁCULO NOX'
-                      : msg.role === 'user'
-                        ? 'Advogado'
-                        : 'Sistema'}
-                  </span>
+                <div className="flex items-center justify-between text-[10px] opacity-75 pb-1 border-b border-slate-800/60">
+                  <div className="flex items-center gap-2 font-mono">
+                    <span className="font-bold uppercase tracking-wider">
+                      {msg.role === 'nox'
+                        ? '⚖ ORÁCULO NOX'
+                        : msg.role === 'user'
+                          ? 'Advogado'
+                          : 'Sistema'}
+                    </span>
+                    {msg.role === 'nox' && (
+                      <span
+                        className={`px-1.5 py-0.2 rounded text-[9px] ${
+                          msg.isFallback
+                            ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                            : 'bg-cyan-950 text-cyan-300 border border-cyan-800'
+                        }`}
+                      >
+                        {msg.isFallback ? 'resposta local (IA indisponível)' : 'Google Gemini'}
+                      </span>
+                    )}
+                  </div>
                   <span>{msg.timestamp}</span>
                 </div>
                 <div className="whitespace-pre-line leading-relaxed">{msg.content}</div>
+                {msg.role === 'nox' && !msg.content.includes('Revisão humana obrigatória') && (
+                  <div className="pt-1 border-t border-slate-800/60 text-[10px] text-slate-400 font-mono flex items-center justify-between">
+                    <span>Fonte: {msg.sourceInfo || 'Sentinela NOX'}</span>
+                    <span className="text-amber-400 font-semibold">
+                      ⚠️ Revisão humana obrigatória
+                    </span>
+                  </div>
+                )}
               </div>
             ))}
             {isGerencialSending && (
-              <div className="p-3 rounded-xl bg-slate-900 border border-cyan-800/40 text-cyan-300 text-xs flex items-center gap-2 font-mono">
-                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
-                Oráculo NOX formulando resposta estratégica...
+              <div className="p-3.5 rounded-xl bg-slate-900 border border-cyan-800/50 text-cyan-300 text-xs flex items-center gap-2.5 font-mono shadow-md shadow-cyan-950/20">
+                <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping"></span>
+                <span>Google Gemini formulando diagnóstico operacional e análise de prazos...</span>
               </div>
             )}
           </div>
