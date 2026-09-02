@@ -248,6 +248,49 @@ export class NoxDataStore {
         console.warn('PocketBase initial load clients failed (using local):', err)
       }
 
+      // 1.1 Carregar sentinela_agenda do PocketBase
+      try {
+        const pbAgendas = await pb.collection('sentinela_agenda').getFullList({
+          sort: '-start_date',
+        })
+        if (pbAgendas && pbAgendas.length > 0) {
+          const mappedAgenda: AgendaEvent[] = pbAgendas.map((rec: any) => ({
+            id: rec.id,
+            title: rec.title,
+            description: rec.description || '',
+            eventType: (rec.event_type as AgendaEventType) || 'AUDIENCIA',
+            startDate: rec.start_date,
+            endDate: rec.end_date,
+            isAllDay: !!rec.is_all_day,
+            locationOrLink: rec.location_or_link || '',
+            isVirtual: !!rec.is_virtual,
+            processNumber: rec.process_number || '',
+            responsible: rec.responsible || 'Higor Utinoi de Oliveira',
+            participants: Array.isArray(rec.participants) ? rec.participants : [],
+            tribunal: rec.tribunal || '',
+            communicationId: rec.communication_id || '',
+            status: rec.status || 'CONFIRMADO',
+            preparacaoHabilitada: !!rec.preparacao_habilitada,
+            clientId: rec.client_id || '',
+            clientCpf: rec.client_cpf || '',
+            clientName: rec.client_name || '',
+            alegacoesProcesso: rec.alegacoes_processo || undefined,
+            aprovadoParaCliente: !!rec.aprovado_para_cliente,
+            tipoAudiencia: rec.tipo_audiencia || undefined,
+            remindersMinutesBefore: [1440, 60],
+            createdAt: rec.created,
+            updatedAt: rec.updated,
+          }))
+
+          const existingAgendaIds = new Set(mappedAgenda.map((a) => a.id))
+          const localOnly = this.agendaEvents.filter((a) => !existingAgendaIds.has(a.id))
+          this.agendaEvents = [...mappedAgenda, ...localOnly]
+          this.saveAgenda()
+        }
+      } catch (err) {
+        console.warn('PocketBase initial load sentinela_agenda failed (using local):', err)
+      }
+
       // 2. Realtime listener para novas inserções (ex: Intake pelo endpoint público)
       try {
         pb.collection('clients').subscribe('*', (e: any) => {
@@ -2498,20 +2541,93 @@ export class NoxDataStore {
     return true
   }
 
-  public togglePreparacaoAudiencia(id: string, habilitar?: boolean) {
+  public async syncAgendaEventToPocketBase(event: AgendaEvent): Promise<void> {
+    try {
+      const pb = (await import('@/lib/pocketbase/client')).default
+      const payload: Record<string, any> = {
+        title: event.title,
+        description: event.description || '',
+        event_type: event.eventType,
+        start_date: event.startDate,
+        end_date: event.endDate,
+        is_all_day: !!event.isAllDay,
+        location_or_link: event.locationOrLink || '',
+        is_virtual: !!event.isVirtual,
+        process_number: event.processNumber || '',
+        responsible: event.responsible,
+        participants: event.participants || [],
+        tribunal: event.tribunal || '',
+        communication_id: event.communicationId || '',
+        status: event.status,
+        preparacao_habilitada: !!event.preparacaoHabilitada,
+        client_id: event.clientId || '',
+        client_cpf: event.clientCpf || '',
+        client_name: event.clientName || '',
+        alegacoes_processo: event.alegacoesProcesso || null,
+        aprovado_para_cliente: !!event.aprovadoParaCliente,
+        tipo_audiencia: event.tipoAudiencia || '',
+      }
+
+      try {
+        const existing = await pb.collection('sentinela_agenda').getOne(event.id)
+        if (existing) {
+          await pb.collection('sentinela_agenda').update(event.id, payload)
+          return
+        }
+      } catch (_) {
+        // Not found by ID, try find by process_number or create
+      }
+
+      if (event.processNumber) {
+        try {
+          const byProc = await pb
+            .collection('sentinela_agenda')
+            .getFirstListItem(`process_number="${event.processNumber}"`)
+          if (byProc) {
+            await pb.collection('sentinela_agenda').update(byProc.id, payload)
+            return
+          }
+        } catch (_) {
+          // Not found by process_number
+        }
+      }
+
+      await pb.collection('sentinela_agenda').create({
+        id: event.id.replace(/[^a-z0-9_]/gi, '').slice(0, 15),
+        ...payload,
+      })
+    } catch (err) {
+      console.warn('PocketBase syncAgendaEvent background warning:', err)
+    }
+  }
+
+  public togglePreparacaoAudiencia(id: string, habilitar?: boolean, actor?: string) {
     const e = this.agendaEvents.find((event) => event.id === id)
     if (!e) return false
     const novoStatus = habilitar !== undefined ? habilitar : !e.preparacaoHabilitada
     e.preparacaoHabilitada = novoStatus
     e.updatedAt = new Date().toISOString()
     this.saveAgenda()
+
+    const lawyerName = actor || this.getLawyerProfile().nome || 'Higor Utinoi de Oliveira'
+
     this.logAction(
       novoStatus ? 'PREPARACAO_AUDIENCIA_HABILITADA' : 'PREPARACAO_AUDIENCIA_DESABILITADA',
-      'sistema',
-      'Operador NOX',
+      'configuracao',
+      lawyerName,
       e.id,
-      { title: e.title, processo: e.processNumber, preparacaoHabilitada: novoStatus },
+      {
+        title: e.title,
+        processo: e.processNumber,
+        cliente: e.clientName,
+        preparacaoHabilitada: novoStatus,
+      },
     )
+
+    this.syncAgendaEventToPocketBase(e).catch((err) =>
+      console.warn('Sync togglePreparacao to PocketBase failed:', err),
+    )
+
     return true
   }
 
@@ -2525,7 +2641,10 @@ export class NoxDataStore {
       o_que_esta_em_aberto?: string
     },
     aprovadoParaCliente = true,
+    actor?: string,
   ) {
+    const lawyerName = actor || this.getLawyerProfile().nome || 'Higor Utinoi de Oliveira'
+
     // Atualiza na agenda caso seja ID de agenda
     const ev = this.agendaEvents.find(
       (e) => e.id === clientIdOrAgendaId || e.clientId === clientIdOrAgendaId,
@@ -2535,6 +2654,9 @@ export class NoxDataStore {
       ev.aprovadoParaCliente = aprovadoParaCliente
       ev.updatedAt = new Date().toISOString()
       this.saveAgenda()
+      this.syncAgendaEventToPocketBase(ev).catch((err) =>
+        console.warn('Sync updateAlegacoes to PocketBase sentinela_agenda failed:', err),
+      )
     }
 
     // Atualiza no cliente
@@ -2544,16 +2666,21 @@ export class NoxDataStore {
       cl.aprovadoParaCliente = aprovadoParaCliente
       cl.updatedAt = new Date().toISOString()
       this.saveClients()
+      this.syncClientToPocketBase(cl).catch((err) =>
+        console.warn('Sync updateAlegacoes to PocketBase clients failed:', err),
+      )
     }
 
     this.logAction(
       'ALEGACOES_PROCESSO_ATUALIZADAS',
-      'sistema',
-      'Operador NOX',
+      'configuracao',
+      lawyerName,
       clientIdOrAgendaId,
       {
         aprovadoParaCliente,
-        revisado_por: alegacoes.revisado_por,
+        revisado_por: alegacoes.revisado_por || lawyerName,
+        data_revisao: alegacoes.data_revisao,
+        processo: ev?.processNumber || (cl?.processosVinculados && cl.processosVinculados[0]),
       },
     )
     return true
