@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-02T05:08:24.395Z",
+  "generatedAt": "2026-09-02T05:18:12.567Z",
   "collections": [
     {
       "name": "users",
@@ -295,6 +295,18 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "client_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "client_code",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -511,6 +523,24 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "client_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "client_code",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "client_name",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -923,6 +953,162 @@
         }
       ],
       "indexes": []
+    },
+    {
+      "name": "clients",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "client_code",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "protocolo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "nome",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "cpf",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "rg",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "telefone",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "email",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "endereco",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "profissao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "nacionalidade",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "estado_civil",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "demanda",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "descricao_caso",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "origem",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["intake_site", "manual", "whatsapp", "indicacao", "presencial"]
+        },
+        {
+          "name": "estagio",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": [
+            "novo",
+            "em_atendimento",
+            "aguardando_documentos",
+            "ativo",
+            "concluido",
+            "inativo"
+          ]
+        },
+        {
+          "name": "docs_gerados",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "processos_vinculados",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "obs",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "responsavel",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_clients_code ON clients (client_code)",
+        "CREATE INDEX idx_clients_nome ON clients (nome)",
+        "CREATE INDEX idx_clients_estagio ON clients (estagio)",
+        "CREATE INDEX idx_clients_origem ON clients (origem)"
+      ]
     }
   ]
 }

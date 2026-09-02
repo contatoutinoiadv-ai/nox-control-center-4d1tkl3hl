@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { NoxRecord } from '@/types/nox'
+import React, { useState, useEffect } from 'react'
+import { NoxRecord, NoxClient } from '@/types/nox'
 import {
   X,
   FileText,
@@ -39,6 +39,38 @@ export const ProcessDetailDrawer: React.FC<ProcessDetailDrawerProps> = ({
   >('resumo')
   const [newNote, setNewNote] = useState('')
   const [currentRecord, setCurrentRecord] = useState<NoxRecord>(record)
+  const [allClients, setAllClients] = useState<NoxClient[]>(dataStore.getClients())
+
+  useEffect(() => {
+    setCurrentRecord(record)
+    setAllClients(dataStore.getClients())
+  }, [record])
+
+  const handleLinkClient = (clientId: string) => {
+    if (!clientId) {
+      if (currentRecord.clientId) {
+        dataStore.unlinkProcessFromClient(
+          currentRecord.clientId,
+          currentRecord.numeroProcesso,
+          'Operador NOX',
+        )
+        setCurrentRecord({ ...currentRecord, clientId: undefined, clientCode: undefined })
+        toast.success('Processo desvinculado de qualquer cliente.')
+      }
+      return
+    }
+
+    const client = allClients.find((c) => c.id === clientId)
+    if (!client) return
+
+    dataStore.linkProcessToClient(client.id, currentRecord.numeroProcesso, 'Operador NOX')
+    setCurrentRecord({
+      ...currentRecord,
+      clientId: client.id,
+      clientCode: client.clientCode,
+    })
+    toast.success(`Processo vinculado ao cliente ${client.nome} (${client.clientCode}).`)
+  }
 
   const handleAddNote = () => {
     if (!newNote.trim()) return
@@ -218,11 +250,45 @@ export const ProcessDetailDrawer: React.FC<ProcessDetailDrawerProps> = ({
             </div>
           </div>
 
-          {/* Operational Attributes */}
+          {/* Operational Attributes & Client Link */}
           <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800 space-y-3">
             <div className="text-[10px] font-mono text-slate-500 uppercase">
-              Metadados Operacionais
+              Metadados Operacionais & Vínculo de Cliente
             </div>
+
+            {/* Vínculo a Cliente (Requisito 3) */}
+            <div className="p-2.5 rounded-lg bg-slate-950/70 border border-cyan-500/30 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-cyan-300 flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+                  Vincular a Cliente (Controladoria 360º):
+                </span>
+                {currentRecord.clientCode && (
+                  <Badge className="bg-cyan-950 text-cyan-300 border-cyan-800 text-[10px] font-mono">
+                    {currentRecord.clientCode}
+                  </Badge>
+                )}
+              </div>
+              <select
+                value={
+                  currentRecord.clientId ||
+                  allClients.find((c) =>
+                    c.processosVinculados.includes(currentRecord.numeroProcesso),
+                  )?.id ||
+                  ''
+                }
+                onChange={(e) => handleLinkClient(e.target.value)}
+                className="w-full h-8 bg-slate-900 border border-slate-700 rounded-md px-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+              >
+                <option value="">-- Sem vínculo com cliente (Não agrupado) --</option>
+                {allClients.map((cli) => (
+                  <option key={cli.id} value={cli.id}>
+                    {cli.clientCode} — {cli.nome} ({cli.demanda} / {cli.origem})
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-400">Responsável Atual:</span>
               <span className="text-slate-200 font-medium">{currentRecord.responsible}</span>

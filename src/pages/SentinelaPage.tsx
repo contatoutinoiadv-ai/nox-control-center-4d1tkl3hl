@@ -2389,6 +2389,81 @@ export const SentinelaHub: React.FC = () => {
                 </DialogDescription>
               </DialogHeader>
 
+              {/* Vínculo de Cliente no Sentinela (Requisito 3) */}
+              <div className="p-3.5 rounded-xl bg-slate-900/90 border border-cyan-500/30 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-cyan-400" />
+                    <span className="text-xs font-bold text-cyan-300 font-mono uppercase">
+                      Vínculo com Cliente (Controladoria 360º):
+                    </span>
+                  </div>
+                  {selectedComm.clientCode && (
+                    <Badge className="bg-cyan-950 text-cyan-300 border-cyan-800 text-[10px] font-mono">
+                      {selectedComm.clientCode}
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <select
+                    value={
+                      selectedComm.clientId ||
+                      dataStore
+                        .getClients()
+                        .find((c) => c.processosVinculados.includes(selectedComm.numeroProcesso))
+                        ?.id ||
+                      ''
+                    }
+                    onChange={(e) => {
+                      const cid = e.target.value
+                      if (!cid) {
+                        if (selectedComm.clientId) {
+                          dataStore.unlinkProcessFromClient(
+                            selectedComm.clientId,
+                            selectedComm.numeroProcesso,
+                            'Operador Sentinela',
+                          )
+                          setSelectedComm({
+                            ...selectedComm,
+                            clientId: undefined,
+                            clientCode: undefined,
+                            clientName: undefined,
+                          })
+                          toast.success('Comunicação desvinculada de cliente.')
+                        }
+                        return
+                      }
+                      const cli = dataStore.getClientById(cid)
+                      if (cli) {
+                        dataStore.linkProcessToClient(
+                          cli.id,
+                          selectedComm.numeroProcesso,
+                          'Operador Sentinela',
+                        )
+                        setSelectedComm({
+                          ...selectedComm,
+                          clientId: cli.id,
+                          clientCode: cli.clientCode,
+                          clientName: cli.nome,
+                        })
+                        toast.success(
+                          `Processo ${selectedComm.numeroProcesso} vinculado ao cliente ${cli.nome} (${cli.clientCode}).`,
+                        )
+                      }
+                    }}
+                    className="flex-1 h-8 bg-slate-950 border border-slate-700 rounded-md px-2.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-mono"
+                  >
+                    <option value="">-- Sem vínculo (Não associado a nenhum cliente) --</option>
+                    {dataStore.getClients().map((cli) => (
+                      <option key={cli.id} value={cli.id}>
+                        {cli.clientCode} — {cli.nome} ({cli.demanda} / {cli.origem})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               {/* Custody Chain Component */}
               <CustodyChainTimeline custody={selectedComm.custody} />
 

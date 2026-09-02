@@ -17,6 +17,7 @@ import SettingsPage from './pages/SettingsPage'
 import SentinelaPage from './pages/SentinelaPage'
 import CentralPrazosPage from './pages/CentralPrazosPage'
 import CompromissosPage from './pages/CompromissosPage'
+import ClientesPage from './pages/ClientesPage'
 import NotFound from './pages/NotFound'
 
 const App = () => (
@@ -42,6 +43,14 @@ const App = () => (
                 element={
                   <ErrorBoundary moduleName="Sentinela NOX / DJEN">
                     <SentinelaPage />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="/clientes"
+                element={
+                  <ErrorBoundary moduleName="Clientes (Controladoria Jurídica)">
+                    <ClientesPage />
                   </ErrorBoundary>
                 }
               />

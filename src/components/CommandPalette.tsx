@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   ArrowRight,
   CornerDownLeft,
+  Users,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { dataStore } from '@/services/dataStore'
@@ -38,6 +39,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   const navItems = [
     { title: 'Central NOX', path: '/', category: 'Navegação' },
     { title: 'Sentinela NOX', path: '/sentinela', category: 'Navegação' },
+    { title: 'Clientes (Controladoria Jurídica 360º)', path: '/clientes', category: 'Navegação' },
     { title: 'Central de Prazos', path: '/central-prazos', category: 'Navegação' },
     { title: 'Compromissos & Agenda Autônoma', path: '/compromissos', category: 'Navegação' },
     { title: 'Radar de Alertas', path: '/radar', category: 'Navegação' },
@@ -63,6 +65,21 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
               r.tags.some((t) => t.toLowerCase().includes(query.toLowerCase())),
           )
           .slice(0, 8)
+      : []
+
+  const clients = dataStore.getClients()
+  const filteredClients =
+    query.trim().length > 1
+      ? clients
+          .filter(
+            (c) =>
+              c.nome.toLowerCase().includes(query.toLowerCase()) ||
+              c.clientCode.toLowerCase().includes(query.toLowerCase()) ||
+              (c.cpf && c.cpf.includes(query)) ||
+              (c.telefone && c.telefone.includes(query)) ||
+              (c.email && c.email.toLowerCase().includes(query.toLowerCase())),
+          )
+          .slice(0, 5)
       : []
 
   const handleSelectNav = (path: string) => {
@@ -118,6 +135,59 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                       <span>{item.title}</span>
                     </div>
                     <CornerDownLeft className="w-3.5 h-3.5 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Clients Search Results */}
+          {filteredClients.length > 0 && (
+            <div>
+              <div className="text-[11px] font-mono uppercase text-slate-500 px-3 py-1 font-semibold flex items-center justify-between">
+                <span>Clientes Cadastrados ({filteredClients.length})</span>
+                <span className="text-cyan-400 font-normal">Enter para abrir ficha</span>
+              </div>
+              <div className="space-y-1">
+                {filteredClients.map((cli) => (
+                  <button
+                    key={cli.id}
+                    onClick={() => {
+                      navigate(`/clientes?selected=${cli.id}`)
+                      onOpenChange(false)
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg hover:bg-slate-800/90 border border-transparent hover:border-cyan-500/30 transition-all text-left group"
+                  >
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="p-1.5 rounded mt-0.5 bg-cyan-500/20 text-cyan-400">
+                        <Users className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="truncate">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-semibold text-cyan-300">
+                            {cli.clientCode}
+                          </span>
+                          <span className="text-xs text-slate-200 font-medium truncate">
+                            {cli.nome}
+                          </span>
+                          <Badge className="text-[10px] px-1 py-0 h-4 bg-slate-800 text-slate-300 border-slate-700">
+                            {cli.demanda}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-slate-400 truncate mt-0.5">
+                          {cli.cpf || cli.telefone || cli.email || 'Sem contato'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] uppercase font-mono border-slate-700 text-slate-300"
+                      >
+                        {cli.estagio.replace('_', ' ')}
+                      </Badge>
+                    </div>
                   </button>
                 ))}
               </div>

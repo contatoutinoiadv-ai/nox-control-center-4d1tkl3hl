@@ -31,6 +31,64 @@ export interface ActionHistoryEntry {
   details?: string
 }
 
+export type ClientStage =
+  | 'novo'
+  | 'em_atendimento'
+  | 'aguardando_documentos'
+  | 'ativo'
+  | 'concluido'
+  | 'inativo'
+
+export type ClientOrigin = 'intake_site' | 'manual' | 'whatsapp' | 'indicacao' | 'presencial'
+
+export type ClientDemandArea =
+  | 'consumidor'
+  | 'trabalhista'
+  | 'civel'
+  | 'criminal'
+  | 'bancario'
+  | 'imobiliario'
+  | 'tributario'
+  | 'familia'
+  | 'previdenciario'
+  | 'outro'
+
+export interface ClientGeneratedDoc {
+  id: string
+  templateId?: string
+  nomeModelo: string
+  criadoEm: string
+  autor: string
+  conteudoHtml?: string
+  status: 'gerado' | 'assinado' | 'pendente'
+  downloadUrl?: string
+}
+
+export interface NoxClient {
+  id: string
+  clientCode: string // ex: CLI-2026-001 ou PROTOCOLO
+  protocolo?: string
+  nome: string
+  cpf?: string
+  rg?: string
+  telefone?: string
+  email?: string
+  endereco?: string
+  profissao?: string
+  nacionalidade?: string
+  estadoCivil?: string
+  demanda: ClientDemandArea | string
+  descricaoCaso?: string
+  origem: ClientOrigin
+  estagio: ClientStage
+  docsGerados: ClientGeneratedDoc[]
+  processosVinculados: string[] // lista de numero_processo ou record_code vinculados
+  obs?: string
+  responsavel?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface NoxRecord {
   id: string
   recordCode: string
@@ -66,6 +124,8 @@ export interface NoxRecord {
   validationErrors: ValidationIssue[]
   sourceBatchId: string
   sourceRowIndex: number
+  clientId?: string
+  clientCode?: string
   createdAt: string
   updatedAt: string
 }

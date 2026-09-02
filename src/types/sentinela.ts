@@ -94,6 +94,9 @@ export interface SentinelaCommunication {
   urgencyLevel: 'baixa' | 'media' | 'alta' | 'critica'
   riskScore: number // 0 - 100
   assignedTo?: string
+  clientId?: string
+  clientCode?: string
+  clientName?: string
   custody: CustodyChain
   deadlineCalculated?: DeadlineMemorial
   createdAt: string

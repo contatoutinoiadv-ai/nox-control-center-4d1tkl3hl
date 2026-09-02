@@ -1,4 +1,12 @@
-import { NoxRecord, ImportBatch, AuditLogEntry, NoxSystemStats } from '@/types/nox'
+import {
+  NoxRecord,
+  ImportBatch,
+  AuditLogEntry,
+  NoxSystemStats,
+  NoxClient,
+  ClientGeneratedDoc,
+  ClientStage,
+} from '@/types/nox'
 import { generateFullSyntheticDataset, INITIAL_BATCH, INITIAL_AUDIT_LOGS } from '@/data/mockData'
 import {
   SentinelaCommunication,
@@ -38,6 +46,7 @@ const STORAGE_KEYS = {
   API_HEALTH: 'nox_sentinela_api_health_v1',
   INCIDENTS: 'nox_sentinela_incidents_v1',
   DECISION_MEMORY: 'nox_sentinela_decision_memory_v1',
+  CLIENTS: 'nox_control_center_clients_v1',
 }
 
 export interface AppSettings {
@@ -84,6 +93,7 @@ export class NoxDataStore {
   private apiHealth: SentinelaApiHealth[] = []
   private incidents: IncidentCrisisRoom[] = []
   private decisionMemory: DecisionMemoryItem[] = []
+  private clients: NoxClient[] = []
   private settings: AppSettings = DEFAULT_SETTINGS
   private listeners: Set<() => void> = new Set()
 
@@ -148,6 +158,13 @@ export class NoxDataStore {
 
       const storedMemory = localStorage.getItem(STORAGE_KEYS.DECISION_MEMORY)
       this.decisionMemory = storedMemory ? JSON.parse(storedMemory) : []
+
+      const storedClients = localStorage.getItem(STORAGE_KEYS.CLIENTS)
+      if (storedClients) {
+        this.clients = JSON.parse(storedClients)
+      } else {
+        this.clients = this.generateInitialClients()
+      }
     } catch {
       this.records = []
       this.imports = []
@@ -159,8 +176,183 @@ export class NoxDataStore {
       this.apiHealth = [...INITIAL_API_HEALTH]
       this.incidents = []
       this.decisionMemory = []
+      this.clients = this.generateInitialClients()
       this.settings = DEFAULT_SETTINGS
     }
+  }
+
+  private generateInitialClients(): NoxClient[] {
+    const now = new Date()
+    const d1 = new Date(now.getTime() - 2 * 86400000).toISOString()
+    const d2 = new Date(now.getTime() - 5 * 86400000).toISOString()
+    const d3 = new Date(now.getTime() - 8 * 86400000).toISOString()
+
+    const initialClients: NoxClient[] = [
+      {
+        id: 'cli-intake-001',
+        clientCode: 'CLI-2026-001',
+        protocolo: 'INT-2026-8801',
+        nome: 'Marcos Vinícius Silveira',
+        cpf: '382.910.450-88',
+        rg: '44.891.203-X SSP/SP',
+        telefone: '(11) 98455-1234',
+        email: 'marcos.silveira@email.com',
+        endereco: 'Rua das Palmeiras, 450, Apto 82, Cerqueira César, São Paulo - SP',
+        profissao: 'Engenheiro de Software',
+        nacionalidade: 'brasileiro(a)',
+        estadoCivil: 'casado(a)',
+        demanda: 'bancario',
+        descricaoCaso:
+          'Cobrança indevida de juros abusivos em contrato de financiamento imobiliário e negativação indevida nos órgãos de proteção ao crédito (SPC/SERASA). O banco incluiu tarifas e vendas casadas não autorizadas.',
+        origem: 'intake_site',
+        estagio: 'novo',
+        docsGerados: [],
+        processosVinculados: ['1045230-89.2026.8.26.0100'],
+        responsavel: 'Higor Utinoi de Oliveira',
+        createdAt: d1,
+        updatedAt: d1,
+      },
+      {
+        id: 'cli-intake-002',
+        clientCode: 'CLI-2026-002',
+        protocolo: 'INT-2026-8802',
+        nome: 'Ana Carolina Mendonça Prado',
+        cpf: '219.840.118-45',
+        rg: '38.102.994-1 SSP/SP',
+        telefone: '(11) 97120-9988',
+        email: 'ana.mendonca@adv.com',
+        endereco: 'Av. Paulista, 1500, Conj 41, Bela Vista, São Paulo - SP',
+        profissao: 'Arquiteta e Urbanista',
+        nacionalidade: 'brasileiro(a)',
+        estadoCivil: 'solteiro(a)',
+        demanda: 'consumidor',
+        descricaoCaso:
+          'Cancelamento unilateral de passagem aérea internacional de lua de mel e extravio definitivo de bagagem em viagem para a Europa, sem assistência material prestada pela companhia aérea.',
+        origem: 'intake_site',
+        estagio: 'aguardando_documentos',
+        docsGerados: [
+          {
+            id: 'doc-g-001',
+            nomeModelo: 'Procuração Ad Judicia et Extra',
+            criadoEm: d2,
+            autor: 'Higor Utinoi de Oliveira',
+            status: 'gerado',
+          },
+        ],
+        processosVinculados: ['0018492-44.2026.8.26.0001'],
+        responsavel: 'Higor Utinoi de Oliveira',
+        createdAt: d2,
+        updatedAt: d2,
+      },
+      {
+        id: 'cli-manual-003',
+        clientCode: 'CLI-2026-003',
+        protocolo: 'DIR-2026-103',
+        nome: 'Transportadora Rápido Bandeirantes Ltda',
+        cpf: '18.940.231/0001-90',
+        rg: 'IE 109.842.110.119',
+        telefone: '(19) 3455-8900',
+        email: 'juridico@rapidobandeirantes.com.br',
+        endereco: 'Rodovia Anhanguera, KM 110, Distrito Industrial, Campinas - SP',
+        profissao: 'Pessoa Jurídica (Transporte Rodoviário)',
+        nacionalidade: 'brasileira',
+        estadoCivil: 'Pessoa Jurídica',
+        demanda: 'trabalhista',
+        descricaoCaso:
+          'Reclamatória trabalhista proposta por ex-motorista carreteiro requerendo horas extras e adicional de periculosidade. Atendimento presencial no escritório de Campinas com entrega de fichas de tacógrafo.',
+        origem: 'manual',
+        estagio: 'ativo',
+        docsGerados: [
+          {
+            id: 'doc-g-002',
+            nomeModelo: 'Contrato de Prestação de Serviços Advocatícios',
+            criadoEm: d3,
+            autor: 'Higor Utinoi de Oliveira',
+            status: 'gerado',
+          },
+          {
+            id: 'doc-g-003',
+            nomeModelo: 'Procuração com Poderes Específicos',
+            criadoEm: d3,
+            autor: 'Higor Utinoi de Oliveira',
+            status: 'gerado',
+          },
+        ],
+        processosVinculados: ['5001290-77.2026.8.26.0200', '0001928-11.2026.5.02.0040'],
+        responsavel: 'Higor Utinoi de Oliveira',
+        createdAt: d3,
+        updatedAt: d3,
+      },
+      {
+        id: 'cli-wpp-004',
+        clientCode: 'CLI-2026-004',
+        protocolo: 'WPP-2026-5504',
+        nome: 'Carlos Eduardo Nogueira',
+        cpf: '145.670.328-91',
+        rg: '50.128.441-2 SSP/MS',
+        telefone: '(67) 99123-4567',
+        email: 'carlos.nogueira@fazenda.com.br',
+        endereco: 'Rua Afonso Pena, 2200, Centro, Campo Grande - MS',
+        profissao: 'Produtor Rural',
+        nacionalidade: 'brasileiro(a)',
+        estadoCivil: 'casado(a)',
+        demanda: 'civel',
+        descricaoCaso:
+          'Ação de rescisão contratual cumulada com perdas e danos referente à compra e venda de maquinário agrícola com vício oculto de fabricação. Primeiro contato realizado pelo WhatsApp institucional.',
+        origem: 'whatsapp',
+        estagio: 'em_atendimento',
+        docsGerados: [],
+        processosVinculados: [],
+        responsavel: 'Higor Utinoi de Oliveira',
+        createdAt: d1,
+        updatedAt: d1,
+      },
+    ]
+
+    // Garantir que os eventos de auditoria iniciais contenham o INTAKE_RECEBIDO para os clientes originados do site
+    setTimeout(() => {
+      this.ensureIntakeAuditLogs(initialClients)
+    }, 0)
+
+    return initialClients
+  }
+
+  private ensureIntakeAuditLogs(clients: NoxClient[]) {
+    for (const cli of clients) {
+      if (cli.origem === 'intake_site') {
+        const hasLog = this.auditLogs.some(
+          (l) =>
+            l.action === 'INTAKE_RECEBIDO' &&
+            (l.targetId === cli.id || l.targetId === cli.clientCode),
+        )
+        if (!hasLog) {
+          const entry: AuditLogEntry = {
+            id: `aud_intake_${cli.id}`,
+            action: 'INTAKE_RECEBIDO',
+            category: 'sistema',
+            actor: 'Intake Site / api/intake_submit.php',
+            targetId: cli.id,
+            details: {
+              client_code: cli.clientCode,
+              protocolo: cli.protocolo,
+              nome: cli.nome,
+              cpf: cli.cpf,
+              telefone: cli.telefone,
+              email: cli.email,
+              demanda: cli.demanda,
+              descricao_caso: cli.descricaoCaso,
+              origem: cli.origem,
+              estagio_inicial: 'novo',
+              timestamp_captura: cli.createdAt,
+            },
+            ipAddress: '187.12.90.44 (Visitante Web)',
+            createdAt: cli.createdAt,
+          }
+          this.auditLogs.push(entry)
+        }
+      }
+    }
+    this.saveAuditLogs()
   }
 
   public subscribe(listener: () => void): () => void {
@@ -197,6 +389,257 @@ export class NoxDataStore {
       /* intentionally ignored */
     }
     this.notify()
+  }
+
+  private saveClients() {
+    try {
+      localStorage.setItem(STORAGE_KEYS.CLIENTS, JSON.stringify(this.clients))
+    } catch {
+      /* intentionally ignored */
+    }
+    this.notify()
+  }
+
+  // ================= Clientes NOX Getters and Operations =================
+
+  public getClients(): NoxClient[] {
+    return [...this.clients]
+  }
+
+  public getClientById(id: string): NoxClient | undefined {
+    return this.clients.find((c) => c.id === id || c.clientCode === id || c.protocolo === id)
+  }
+
+  public getClientByCpf(cpf: string): NoxClient | undefined {
+    if (!cpf) return undefined
+    const clean = cpf.replace(/\D/g, '')
+    return this.clients.find((c) => c.cpf && c.cpf.replace(/\D/g, '') === clean)
+  }
+
+  public addClient(
+    clientData: Omit<
+      NoxClient,
+      'id' | 'clientCode' | 'createdAt' | 'updatedAt' | 'docsGerados' | 'processosVinculados'
+    > & {
+      docsGerados?: ClientGeneratedDoc[]
+      processosVinculados?: string[]
+      clientCode?: string
+    },
+  ): NoxClient {
+    const nextNum = this.clients.length + 1
+    const code = clientData.clientCode || `CLI-2026-${String(nextNum).padStart(3, '0')}`
+    const id = `cli_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+    const nowIso = new Date().toISOString()
+
+    const newClient: NoxClient = {
+      id,
+      clientCode: code,
+      protocolo:
+        clientData.protocolo ||
+        (clientData.origem === 'intake_site'
+          ? `INT-2026-${Math.floor(1000 + Math.random() * 9000)}`
+          : `MAN-${Math.floor(100 + Math.random() * 900)}`),
+      nome: clientData.nome,
+      cpf: clientData.cpf,
+      rg: clientData.rg,
+      telefone: clientData.telefone,
+      email: clientData.email,
+      endereco: clientData.endereco,
+      profissao: clientData.profissao,
+      nacionalidade: clientData.nacionalidade || 'brasileiro(a)',
+      estadoCivil: clientData.estadoCivil || 'solteiro(a)',
+      demanda: clientData.demanda,
+      descricaoCaso: clientData.descricaoCaso,
+      origem: clientData.origem,
+      estagio: clientData.estagio || 'novo',
+      docsGerados: clientData.docsGerados || [],
+      processosVinculados: clientData.processosVinculados || [],
+      obs: clientData.obs,
+      responsavel: clientData.responsavel || this.settings.lawyerName || 'Higor Utinoi de Oliveira',
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    }
+
+    this.clients.unshift(newClient)
+    this.saveClients()
+
+    // Registrar no audit_logs
+    const isIntake = newClient.origem === 'intake_site'
+    this.logAction(
+      isIntake ? 'INTAKE_RECEBIDO' : 'CLIENTE_CADASTRADO_MANUAL',
+      'sistema',
+      isIntake ? 'Intake Site / api/intake_submit.php' : newClient.responsavel || 'Operador NOX',
+      newClient.id,
+      {
+        client_code: newClient.clientCode,
+        protocolo: newClient.protocolo,
+        nome: newClient.nome,
+        cpf: newClient.cpf,
+        origem: newClient.origem,
+        estagio: newClient.estagio,
+        demanda: newClient.demanda,
+        descricao_caso: newClient.descricaoCaso,
+      },
+    )
+
+    return newClient
+  }
+
+  public updateClient(id: string, updates: Partial<NoxClient>, actor = 'Operador NOX'): boolean {
+    const cli = this.clients.find((c) => c.id === id || c.clientCode === id)
+    if (!cli) return false
+
+    const oldStage = cli.estagio
+    Object.assign(cli, updates, { updatedAt: new Date().toISOString() })
+    this.saveClients()
+
+    if (updates.estagio && updates.estagio !== oldStage) {
+      this.logAction('STATUS_CLIENTE_ALTERADO', 'revisao', actor, cli.id, {
+        cliente: cli.nome,
+        client_code: cli.clientCode,
+        estagio_anterior: oldStage,
+        estagio_novo: updates.estagio,
+      })
+    } else {
+      this.logAction('DADOS_CLIENTE_ATUALIZADOS', 'revisao', actor, cli.id, {
+        cliente: cli.nome,
+        campos_alterados: Object.keys(updates),
+      })
+    }
+
+    return true
+  }
+
+  public updateClientStage(id: string, newStage: ClientStage, actor = 'Operador NOX'): boolean {
+    const cli = this.clients.find((c) => c.id === id || c.clientCode === id)
+    if (!cli) return false
+
+    const oldStage = cli.estagio
+    cli.estagio = newStage
+    cli.updatedAt = new Date().toISOString()
+    this.saveClients()
+
+    this.logAction('STATUS_CLIENTE_ALTERADO', 'revisao', actor, cli.id, {
+      cliente: cli.nome,
+      client_code: cli.clientCode,
+      estagio_anterior: oldStage,
+      estagio_novo: newStage,
+    })
+
+    return true
+  }
+
+  public linkProcessToClient(
+    clientId: string,
+    processNumber: string,
+    actor = 'Operador NOX',
+  ): boolean {
+    const cli = this.clients.find((c) => c.id === clientId || c.clientCode === clientId)
+    if (!cli) return false
+
+    if (!cli.processosVinculados.includes(processNumber)) {
+      cli.processosVinculados.push(processNumber)
+      cli.updatedAt = new Date().toISOString()
+      this.saveClients()
+    }
+
+    // Também atualizar em records e em communications se existirem
+    const rec = this.records.find(
+      (r) => r.numeroProcesso === processNumber || r.recordCode === processNumber,
+    )
+    if (rec) {
+      rec.clientId = cli.id
+      rec.clientCode = cli.clientCode
+      this.saveRecords()
+    }
+
+    const comms = this.communications.filter((c) => c.numeroProcesso === processNumber)
+    for (const comm of comms) {
+      comm.clientId = cli.id
+      comm.clientCode = cli.clientCode
+      comm.clientName = cli.nome
+    }
+    if (comms.length > 0) {
+      this.saveCommunications()
+    }
+
+    this.logAction('PROCESSO_VINCULADO_AO_CLIENTE', 'revisao', actor, cli.id, {
+      cliente: cli.nome,
+      client_code: cli.clientCode,
+      numero_processo: processNumber,
+    })
+
+    return true
+  }
+
+  public unlinkProcessFromClient(
+    clientId: string,
+    processNumber: string,
+    actor = 'Operador NOX',
+  ): boolean {
+    const cli = this.clients.find((c) => c.id === clientId || c.clientCode === clientId)
+    if (!cli) return false
+
+    cli.processosVinculados = cli.processosVinculados.filter((p) => p !== processNumber)
+    cli.updatedAt = new Date().toISOString()
+    this.saveClients()
+
+    this.logAction('PROCESSO_DESVINCULADO_DO_CLIENTE', 'revisao', actor, cli.id, {
+      cliente: cli.nome,
+      client_code: cli.clientCode,
+      numero_processo: processNumber,
+    })
+
+    return true
+  }
+
+  public addGeneratedDocToClient(
+    clientId: string,
+    doc: Omit<ClientGeneratedDoc, 'id' | 'criadoEm'>,
+    actor = 'Operador NOX',
+  ): ClientGeneratedDoc | null {
+    const cli = this.clients.find((c) => c.id === clientId || c.clientCode === clientId)
+    if (!cli) return null
+
+    const newDoc: ClientGeneratedDoc = {
+      id: `doc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      templateId: doc.templateId,
+      nomeModelo: doc.nomeModelo,
+      criadoEm: new Date().toISOString(),
+      autor: actor,
+      conteudoHtml: doc.conteudoHtml,
+      status: doc.status || 'gerado',
+      downloadUrl: doc.downloadUrl,
+    }
+
+    cli.docsGerados.unshift(newDoc)
+    cli.updatedAt = new Date().toISOString()
+    this.saveClients()
+
+    this.logAction('DOCUMENTO_GERADO_CLIENTE', 'sistema', actor, cli.id, {
+      cliente: cli.nome,
+      client_code: cli.clientCode,
+      nome_documento: newDoc.nomeModelo,
+      doc_id: newDoc.id,
+    })
+
+    return newDoc
+  }
+
+  public deleteClient(id: string, actor = 'Operador NOX'): boolean {
+    const idx = this.clients.findIndex((c) => c.id === id || c.clientCode === id)
+    if (idx === -1) return false
+
+    const cli = this.clients[idx]
+    this.clients.splice(idx, 1)
+    this.saveClients()
+
+    this.logAction('CLIENTE_EXCLUIDO', 'sistema', actor, id, {
+      cliente: cli.nome,
+      client_code: cli.clientCode,
+    })
+
+    return true
   }
 
   public saveSettings(newSettings: Partial<AppSettings>) {
@@ -1094,6 +1537,7 @@ export class NoxDataStore {
     this.agendaEvents = []
     this.incidents = []
     this.decisionMemory = []
+    this.clients = []
 
     try {
       localStorage.removeItem(STORAGE_KEYS.RECORDS)
@@ -1104,6 +1548,7 @@ export class NoxDataStore {
       localStorage.removeItem(STORAGE_KEYS.AGENDA)
       localStorage.removeItem(STORAGE_KEYS.INCIDENTS)
       localStorage.removeItem(STORAGE_KEYS.DECISION_MEMORY)
+      localStorage.removeItem(STORAGE_KEYS.CLIENTS)
     } catch {
       /* ignore */
     }
@@ -1113,6 +1558,8 @@ export class NoxDataStore {
 
   public resetToSyntheticDemo(): void {
     this.clearAllData()
+    this.clients = this.generateInitialClients()
+    this.saveClients()
   }
 }
 

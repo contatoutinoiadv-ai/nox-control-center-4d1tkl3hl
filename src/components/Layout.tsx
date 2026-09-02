@@ -19,6 +19,7 @@ import {
   Lock,
   ChevronRight,
   RefreshCw,
+  Users,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -29,6 +30,7 @@ import { toast } from 'sonner'
 
 export const Layout: React.FC = () => {
   const [stats, setStats] = useState<NoxSystemStats>(dataStore.getStats())
+  const [statsClientsCount, setStatsClientsCount] = useState<number>(dataStore.getClients().length)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const location = useLocation()
@@ -36,6 +38,7 @@ export const Layout: React.FC = () => {
   useEffect(() => {
     const unsub = dataStore.subscribe(() => {
       setStats(dataStore.getStats())
+      setStatsClientsCount(dataStore.getClients().length)
     })
     return unsub
   }, [])
@@ -61,6 +64,13 @@ export const Layout: React.FC = () => {
       badge: 'NOVO',
       badgeVariant: 'aurora',
       isSentinela: true,
+    },
+    {
+      name: 'Clientes',
+      path: '/clientes',
+      icon: Users,
+      badge: statsClientsCount > 0 ? statsClientsCount : null,
+      badgeVariant: 'cyan',
     },
     {
       name: 'Central de Prazos',
