@@ -137,9 +137,43 @@ export const CompromissosPage: React.FC = () => {
   const [events, setEvents] = useState<AgendaEvent[]>(dataStore.getAgendaEvents())
   const [tasks, setTasks] = useState<SentinelaTask[]>(dataStore.getTasks())
   const [comms, setComms] = useState<SentinelaCommunication[]>(dataStore.getCommunications())
-  const [activeTab, setActiveTab] = useState<'hoje' | 'audiencias' | 'sugestoes' | 'todos'>('hoje')
+  const [activeTab, setActiveTab] = useState<
+    'hoje' | 'audiencias' | 'consulta_periodo' | 'sugestoes' | 'todos'
+  >('hoje')
   const [filterType, setFilterType] = useState<string>('TODOS')
   const [searchFilter, setSearchFilter] = useState('')
+
+  // Filtros da Consulta de Audiências por Período
+  const todayIso = new Date().toISOString().split('T')[0]
+  const defaultFutureIso = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split('T')[0]
+  const [periodoDataInicio, setPeriodoDataInicio] = useState(todayIso)
+  const [periodoDataFim, setPeriodoDataFim] = useState(defaultFutureIso)
+  const [periodoStatusFiltro, setPeriodoStatusFiltro] = useState<string>('TODOS')
+  const [periodoTermoBusca, setPeriodoTermoBusca] = useState('')
+  const [periodoTribunalFiltro, setPeriodoTribunalFiltro] = useState('TODOS')
+  const [periodoHasConsulted, setPeriodoHasConsulted] = useState(false)
+  const [periodoResultados, setPeriodoResultados] = useState<
+    Array<{
+      id: string
+      titulo: string
+      dataHora: string
+      data: string
+      hora: string
+      tipoAudiencia: string
+      processo: string
+      cliente?: string
+      tribunal: string
+      localOuLink?: string
+      isVirtual: boolean
+      origem: 'DJEN_DETECTADA' | 'AGENDA_OFICIAL'
+      statusRevisao: 'PENDENTE_HOMOLOGACAO' | 'CONFIRMADA' | 'RASCUNHO' | 'CANCELADA'
+      trechoDjen?: string
+      rawDetectada?: DjenAudienciaDetectada
+      rawEvent?: AgendaEvent
+    }>
+  >([])
 
   // Modais de Criação Manual
   const [manualModalOpen, setManualModalOpen] = useState(false)
@@ -164,12 +198,25 @@ export const CompromissosPage: React.FC = () => {
   )
 
   const reloadData = () => {
-    setEvents(dataStore.getAgendaEvents())
+    const agendaEvs = dataStore.getAgendaEvents()
+    const detectedDjen = buscarAudienciasDetectadasNoDjen()
+    setEvents(agendaEvs)
     setTasks(dataStore.getTasks())
     setComms(dataStore.getCommunications())
     setSugestoes(gerarSugestoesAgendamento())
-    setAudienciasDjen(buscarAudienciasDetectadasNoDjen())
+    setAudienciasDjen(detectedDjen)
     setTwinCapacity(calcularCapacidadeOperacionalTitular())
+    if (periodoHasConsulted) {
+      executarConsultaPeriodo(
+        periodoDataInicio,
+        periodoDataFim,
+        periodoStatusFiltro,
+        periodoTribunalFiltro,
+        periodoTermoBusca,
+        agendaEvs,
+        detectedDjen,
+      )
+    }
   }
 
   useEffect(() => {
@@ -179,6 +226,176 @@ export const CompromissosPage: React.FC = () => {
     })
     return unsub
   }, [])
+
+  // Execução da Consulta por Período de Audiências DJEN
+  const executarConsultaPeriodo = (
+    dataIni = periodoDataInicio,
+    dataFim = periodoDataFim,
+    statusFiltro = periodoStatusFiltro,
+    tribunalFiltro = periodoTribunalFiltro,
+    termo = periodoTermoBusca,
+    agendaData = events,
+    detectedData = audienciasDjen,
+  ) => {
+    const resultadosUnificados: Array<{
+      id: string
+      titulo: string
+      dataHora: string
+      data: string
+      hora: string
+      tipoAudiencia: string
+      processo: string
+      cliente?: string
+      tribunal: string
+      localOuLink?: string
+      isVirtual: boolean
+      origem: 'DJEN_DETECTADA' | 'AGENDA_OFICIAL'
+      statusRevisao: 'PENDENTE_HOMOLOGACAO' | 'CONFIRMADA' | 'RASCUNHO' | 'CANCELADA'
+      trechoDjen?: string
+      rawDetectada?: DjenAudienciaDetectada
+      rawEvent?: AgendaEvent
+    }> = []
+
+    // 1. Audiências detectadas autonomamente pelo DJEN (pendentes de homologação)
+    for (const d of detectedData) {
+      const dataEv =
+        d.dataDetectada ||
+        (d.rascunhoEvento.startDate ? d.rascunhoEvento.startDate.split('T')[0] : '')
+      if (dataIni && dataEv && dataEv < dataIni) continue
+      if (dataFim && dataEv && dataEv > dataFim) continue
+
+      const statusRev: 'PENDENTE_HOMOLOGACAO' | 'CONFIRMADA' | 'RASCUNHO' | 'CANCELADA' =
+        'PENDENTE_HOMOLOGACAO'
+
+      if (statusFiltro !== 'TODOS' && statusFiltro !== statusRev) continue
+      if (tribunalFiltro !== 'TODOS' && d.tribunal && d.tribunal !== tribunalFiltro) continue
+
+      if (termo) {
+        const q = termo.toLowerCase()
+        const match =
+          d.processo.toLowerCase().includes(q) ||
+          d.tipoAudiencia.toLowerCase().includes(q) ||
+          d.tribunal.toLowerCase().includes(q) ||
+          d.trechoExtraido.toLowerCase().includes(q) ||
+          (d.rascunhoEvento.clientName && d.rascunhoEvento.clientName.toLowerCase().includes(q))
+        if (!match) continue
+      }
+
+      resultadosUnificados.push({
+        id: `djen_det_${d.communicationId}`,
+        titulo: d.rascunhoEvento.title,
+        dataHora: d.rascunhoEvento.startDate,
+        data: dataEv,
+        hora: d.horaDetectada || '14:00',
+        tipoAudiencia: d.tipoAudiencia,
+        processo: d.processo,
+        cliente: d.rascunhoEvento.clientName,
+        tribunal: d.tribunal || 'DJEN',
+        localOuLink: d.localOuLink || d.rascunhoEvento.locationOrLink,
+        isVirtual: d.rascunhoEvento.isVirtual,
+        origem: 'DJEN_DETECTADA',
+        statusRevisao: statusRev,
+        trechoDjen: d.trechoExtraido,
+        rawDetectada: d,
+        rawEvent: d.rascunhoEvento,
+      })
+    }
+
+    // 2. Eventos da Agenda do tipo AUDIENCIA dentro do período
+    for (const ev of agendaData) {
+      if (ev.eventType !== 'AUDIENCIA') continue
+
+      const dataEv = ev.startDate.includes('T') ? ev.startDate.split('T')[0] : ev.startDate
+      if (dataIni && dataEv < dataIni) continue
+      if (dataFim && dataEv > dataFim) continue
+
+      // Evitar duplicar se a mesma comunicação já foi adicionada acima
+      if (
+        ev.communicationId &&
+        resultadosUnificados.some((r) => r.rawDetectada?.communicationId === ev.communicationId)
+      ) {
+        continue
+      }
+
+      let statusRev: 'PENDENTE_HOMOLOGACAO' | 'CONFIRMADA' | 'RASCUNHO' | 'CANCELADA' = 'CONFIRMADA'
+      if (ev.status === 'AGENDADO') {
+        // Se for um rascunho de audiência não confirmado
+        statusRev = ev.communicationId ? 'PENDENTE_HOMOLOGACAO' : 'RASCUNHO'
+      } else if (ev.status === 'CANCELADO') {
+        statusRev = 'CANCELADA'
+      } else {
+        statusRev = 'CONFIRMADA'
+      }
+
+      if (statusFiltro !== 'TODOS' && statusFiltro !== statusRev) continue
+      if (tribunalFiltro !== 'TODOS' && ev.tribunal && ev.tribunal !== tribunalFiltro) continue
+
+      if (termo) {
+        const q = termo.toLowerCase()
+        const match =
+          ev.title.toLowerCase().includes(q) ||
+          (ev.processNumber && ev.processNumber.toLowerCase().includes(q)) ||
+          (ev.tribunal && ev.tribunal.toLowerCase().includes(q)) ||
+          (ev.clientName && ev.clientName.toLowerCase().includes(q)) ||
+          (ev.description && ev.description.toLowerCase().includes(q))
+        if (!match) continue
+      }
+
+      const horaEv = ev.startDate.includes('T') ? ev.startDate.split('T')[1].slice(0, 5) : '00:00'
+
+      resultadosUnificados.push({
+        id: ev.id,
+        titulo: ev.title,
+        dataHora: ev.startDate,
+        data: dataEv,
+        hora: horaEv,
+        tipoAudiencia: ev.title.split('-')[0].trim() || 'Audiência Geral',
+        processo: ev.processNumber || 'Sem Processo Vinculado',
+        cliente: ev.clientName,
+        tribunal: ev.tribunal || 'Tribunal Não Informado',
+        localOuLink: ev.locationOrLink,
+        isVirtual: ev.isVirtual,
+        origem: ev.communicationId ? 'DJEN_DETECTADA' : 'AGENDA_OFICIAL',
+        statusRevisao: statusRev,
+        trechoDjen: ev.description,
+        rawEvent: ev,
+      })
+    }
+
+    // Ordenar por data cronológica crescente
+    resultadosUnificados.sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora))
+
+    setPeriodoResultados(resultadosUnificados)
+    setPeriodoHasConsulted(true)
+  }
+
+  const handleDispararConsultaPeriodo = () => {
+    if (periodoDataInicio && periodoDataFim && periodoDataInicio > periodoDataFim) {
+      toast.error('Data inicial não pode ser posterior à data final')
+      return
+    }
+    executarConsultaPeriodo()
+    toast.success('Consulta de audiências realizada!', {
+      description: `Período: ${periodoDataInicio || 'Início'} até ${periodoDataFim || 'Fim'}`,
+    })
+  }
+
+  // Lista de tribunais distintos presentes nas audiências e comunicações
+  const tribunaisDisponiveis = Array.from(
+    new Set([
+      ...events.map((e) => e.tribunal).filter(Boolean),
+      ...audienciasDjen.map((a) => a.tribunal).filter(Boolean),
+      ...comms.map((c) => c.tribunal).filter(Boolean),
+      'TJSP',
+      'TJMS',
+      'TRT2',
+      'TRT24',
+      'TRF3',
+      'TJDFT',
+      'STJ',
+      'STF',
+    ]),
+  ).filter(Boolean) as string[]
 
   // Visão do Dia (reaproveitando o padrão DailyBriefingData do NOX)
   const todayStr = new Date().toISOString().split('T')[0]
@@ -480,18 +697,25 @@ export const CompromissosPage: React.FC = () => {
 
       {/* Tabs de Navegação Interna do Módulo */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-        <TabsList className="bg-slate-950/80 border border-slate-800 p-1 rounded-xl grid grid-cols-4 max-w-2xl">
+        <TabsList className="bg-slate-950/80 border border-slate-800 p-1 rounded-xl flex flex-wrap gap-1 max-w-3xl">
           <TabsTrigger
             value="hoje"
-            className="text-xs font-semibold data-[state=active]:bg-cyan-950 data-[state=active]:text-cyan-300"
+            className="text-xs font-semibold data-[state=active]:bg-cyan-950 data-[state=active]:text-cyan-300 flex-1 min-w-[120px]"
           >
             Visão do Dia
           </TabsTrigger>
           <TabsTrigger
-            value="audiencias"
-            className="text-xs font-semibold data-[state=active]:bg-purple-950 data-[state=active]:text-purple-300 relative"
+            value="consulta_periodo"
+            className="text-xs font-semibold data-[state=active]:bg-purple-950 data-[state=active]:text-purple-300 flex-1 min-w-[180px] relative"
           >
-            Audiências DJEN
+            <Search className="w-3.5 h-3.5 mr-1 text-purple-400" />
+            Consultar por Período DJEN
+          </TabsTrigger>
+          <TabsTrigger
+            value="audiencias"
+            className="text-xs font-semibold data-[state=active]:bg-purple-950/70 data-[state=active]:text-purple-300 flex-1 min-w-[140px] relative"
+          >
+            Pauta Geral
             {audienciasDjen.length > 0 && (
               <span className="ml-1.5 px-1.5 py-0.2 rounded-full text-[9px] bg-purple-600 text-white font-mono">
                 {audienciasDjen.length}
@@ -500,13 +724,13 @@ export const CompromissosPage: React.FC = () => {
           </TabsTrigger>
           <TabsTrigger
             value="sugestoes"
-            className="text-xs font-semibold data-[state=active]:bg-emerald-950 data-[state=active]:text-emerald-300"
+            className="text-xs font-semibold data-[state=active]:bg-emerald-950 data-[state=active]:text-emerald-300 flex-1 min-w-[140px]"
           >
             Sugestões de Horários
           </TabsTrigger>
           <TabsTrigger
             value="todos"
-            className="text-xs font-semibold data-[state=active]:bg-slate-900 data-[state=active]:text-slate-200"
+            className="text-xs font-semibold data-[state=active]:bg-slate-900 data-[state=active]:text-slate-200 flex-1 min-w-[120px]"
           >
             Todos os Eventos ({events.length})
           </TabsTrigger>
@@ -745,7 +969,454 @@ export const CompromissosPage: React.FC = () => {
           </div>
         </TabsContent>
 
-        {/* TAB 2: CONSULTA DE AUDIÊNCIAS (DJEN + OFICIAIS) */}
+        {/* TAB 2: CONSULTAR POR PERÍODO AS AUDIÊNCIAS DJEN */}
+        <TabsContent value="consulta_periodo" className="space-y-5 mt-4">
+          {/* Caixa de Filtros de Período */}
+          <div className="p-4 rounded-xl bg-slate-900/90 border border-purple-800/60 shadow-lg shadow-purple-950/20 space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-purple-950 border border-purple-700/60 flex items-center justify-center text-purple-300">
+                  <Search className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                    Consulta de Audiências DJEN por Período
+                    <Badge
+                      variant="outline"
+                      className="text-[9px] font-mono border-purple-500/60 text-purple-300 bg-purple-950/50"
+                    >
+                      NOX AURORA • DJEN / DIÁRIOS
+                    </Badge>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Consulte todas as audiências do período selecionado — incluindo as detectadas
+                    autonomamente nos diários e as cadastradas na agenda oficial.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-end md:self-auto">
+                <Badge
+                  variant="outline"
+                  className="text-[10px] font-mono border-slate-700 text-slate-400 bg-slate-950"
+                >
+                  Revisão Humana Obrigatória
+                </Badge>
+              </div>
+            </div>
+
+            {/* Grid de Campos de Filtro */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+              {/* Data Inicial */}
+              <div className="space-y-1">
+                <Label className="text-slate-300 text-[11px] font-mono flex items-center gap-1.5">
+                  <CalendarIcon className="w-3.5 h-3.5 text-purple-400" />
+                  Data Inicial
+                </Label>
+                <Input
+                  type="date"
+                  value={periodoDataInicio}
+                  onChange={(e) => setPeriodoDataInicio(e.target.value)}
+                  className="bg-slate-950 border-slate-800 text-slate-100 text-xs font-mono h-9 focus:border-purple-500"
+                />
+              </div>
+
+              {/* Data Final */}
+              <div className="space-y-1">
+                <Label className="text-slate-300 text-[11px] font-mono flex items-center gap-1.5">
+                  <CalendarIcon className="w-3.5 h-3.5 text-purple-400" />
+                  Data Final
+                </Label>
+                <Input
+                  type="date"
+                  value={periodoDataFim}
+                  onChange={(e) => setPeriodoDataFim(e.target.value)}
+                  className="bg-slate-950 border-slate-800 text-slate-100 text-xs font-mono h-9 focus:border-purple-500"
+                />
+              </div>
+
+              {/* Status de Revisão */}
+              <div className="space-y-1">
+                <Label className="text-slate-300 text-[11px] font-mono flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+                  Status de Revisão
+                </Label>
+                <select
+                  value={periodoStatusFiltro}
+                  onChange={(e) => setPeriodoStatusFiltro(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-md px-2.5 h-9 text-xs font-mono focus:border-purple-500"
+                >
+                  <option value="TODOS">Todos os Status</option>
+                  <option value="PENDENTE_HOMOLOGACAO">Pendente de Homologação (DJEN)</option>
+                  <option value="CONFIRMADA">Confirmada na Pauta</option>
+                  <option value="RASCUNHO">Rascunho</option>
+                  <option value="CANCELADA">Cancelada</option>
+                </select>
+              </div>
+
+              {/* Tribunal */}
+              <div className="space-y-1">
+                <Label className="text-slate-300 text-[11px] font-mono flex items-center gap-1.5">
+                  <Briefcase className="w-3.5 h-3.5 text-amber-400" />
+                  Tribunal
+                </Label>
+                <select
+                  value={periodoTribunalFiltro}
+                  onChange={(e) => setPeriodoTribunalFiltro(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-md px-2.5 h-9 text-xs font-mono focus:border-purple-500"
+                >
+                  <option value="TODOS">Todos os Tribunais</option>
+                  {tribunaisDisponiveis.map((trib) => (
+                    <option key={trib} value={trib}>
+                      {trib}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Botão de Disparo da Consulta */}
+              <div className="space-y-1 flex flex-col justify-end">
+                <Label className="opacity-0 hidden lg:block text-[11px]">Ação</Label>
+                <Button
+                  onClick={handleDispararConsultaPeriodo}
+                  className="w-full h-9 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md shadow-purple-950/40 flex items-center justify-center gap-2"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  Consultar Período
+                </Button>
+              </div>
+            </div>
+
+            {/* Busca textual complementar por processo/cliente */}
+            <div className="pt-2 border-t border-slate-800/60 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-500" />
+                <Input
+                  placeholder="Refinar busca por número de processo, cliente ou palavras-chave no teor..."
+                  value={periodoTermoBusca}
+                  onChange={(e) => setPeriodoTermoBusca(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleDispararConsultaPeriodo()}
+                  className="bg-slate-950 border-slate-800 pl-8 h-8 text-xs text-slate-200 focus:border-purple-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  onClick={() => {
+                    const ini = todayIso
+                    const fim = defaultFutureIso
+                    setPeriodoDataInicio(ini)
+                    setPeriodoDataFim(fim)
+                    setPeriodoStatusFiltro('TODOS')
+                    setPeriodoTribunalFiltro('TODOS')
+                    setPeriodoTermoBusca('')
+                    executarConsultaPeriodo(ini, fim, 'TODOS', 'TODOS', '', events, audienciasDjen)
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200"
+                >
+                  Limpar Filtros
+                </Button>
+
+                <Button
+                  onClick={() => {
+                    const ini = todayIso
+                    const next30 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+                      .toISOString()
+                      .split('T')[0]
+                    setPeriodoDataInicio(ini)
+                    setPeriodoDataFim(next30)
+                    executarConsultaPeriodo(
+                      ini,
+                      next30,
+                      periodoStatusFiltro,
+                      periodoTribunalFiltro,
+                      periodoTermoBusca,
+                      events,
+                      audienciasDjen,
+                    )
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs bg-slate-950 border-purple-800/60 text-purple-300 hover:bg-purple-950/40"
+                >
+                  Próximos 30 dias
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Área de Resultados da Consulta */}
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <CalendarCheck className="w-4 h-4 text-purple-400" />
+                <h3 className="text-sm font-bold text-slate-100">
+                  Resultados da Consulta de Audiências ({periodoResultados.length})
+                </h3>
+                {periodoHasConsulted && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] font-mono border-purple-800/80 text-purple-300 bg-purple-950/30"
+                  >
+                    {periodoDataInicio || '...'} até {periodoDataFim || '...'}
+                  </Badge>
+                )}
+              </div>
+
+              {periodoResultados.length > 0 && (
+                <div className="flex items-center gap-3 text-xs font-mono text-slate-400">
+                  <span className="flex items-center gap-1 text-amber-300">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 inline-block animate-pulse" />
+                    {
+                      periodoResultados.filter((r) => r.statusRevisao === 'PENDENTE_HOMOLOGACAO')
+                        .length
+                    }{' '}
+                    pendente(s)
+                  </span>
+                  <span>•</span>
+                  <span className="flex items-center gap-1 text-emerald-300">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+                    {periodoResultados.filter((r) => r.statusRevisao === 'CONFIRMADA').length}{' '}
+                    confirmada(s)
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {periodoResultados.length === 0 ? (
+              <div className="p-8 text-center bg-slate-900/40 rounded-xl border border-slate-800 space-y-3">
+                <div className="w-12 h-12 rounded-full bg-slate-950 border border-slate-800 flex items-center justify-center mx-auto text-slate-500">
+                  <Video className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-slate-300">
+                    {periodoHasConsulted
+                      ? 'Nenhuma audiência localizada no período e filtros informados.'
+                      : 'Defina o período desejado e clique em "Consultar Período".'}
+                  </p>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    O Sentinela busca eventos do tipo AUDIENCIA no dataStore e na fila autônoma de
+                    detecção do DJEN (padrões &quot;audiência designada&quot;, &quot;audiência para
+                    o dia&quot;, &quot;ficam as partes intimadas da audiência&quot;).
+                  </p>
+                </div>
+                {!periodoHasConsulted && (
+                  <Button
+                    onClick={handleDispararConsultaPeriodo}
+                    size="sm"
+                    className="h-8 text-xs bg-purple-600 hover:bg-purple-500 text-white font-bold"
+                  >
+                    <Search className="w-3.5 h-3.5 mr-1.5" />
+                    Consultar Audiências Agora
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {periodoResultados.map((item) => {
+                  const isPendente = item.statusRevisao === 'PENDENTE_HOMOLOGACAO'
+                  const isConfirmada = item.statusRevisao === 'CONFIRMADA'
+                  const isRascunho = item.statusRevisao === 'RASCUNHO'
+
+                  // Formatação amigável de data
+                  let dataFormatada = item.data
+                  if (item.data && item.data.includes('-')) {
+                    const [y, m, d] = item.data.split('-')
+                    dataFormatada = `${d}/${m}/${y}`
+                  }
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={`p-4 rounded-xl border transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${
+                        isPendente
+                          ? 'bg-purple-950/20 border-purple-800/80 hover:border-purple-600'
+                          : isConfirmada
+                            ? 'bg-slate-900/90 border-slate-800 hover:border-slate-700'
+                            : 'bg-slate-950 border-slate-800'
+                      }`}
+                    >
+                      {/* Bloco de Data e Hora */}
+                      <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                        <div className="flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-slate-950 border border-slate-800 text-center shrink-0 shadow-inner">
+                          <span className="text-[10px] font-mono text-purple-400 font-bold uppercase">
+                            {dataFormatada.split('/')[1]
+                              ? `${dataFormatada.split('/')[0]}/${dataFormatada.split('/')[1]}`
+                              : 'AUD'}
+                          </span>
+                          <span className="text-xs font-bold font-mono text-cyan-300">
+                            {item.hora || '14:00'}
+                          </span>
+                        </div>
+
+                        {/* Conteúdo Informativo */}
+                        <div className="space-y-1.5 flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] font-mono bg-purple-950 text-purple-300 border-purple-700"
+                            >
+                              {item.tipoAudiencia || 'Audiência'}
+                            </Badge>
+
+                            {item.tribunal && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] font-mono text-cyan-300 border-cyan-800 bg-cyan-950/40"
+                              >
+                                {item.tribunal}
+                              </Badge>
+                            )}
+
+                            {item.isVirtual && (
+                              <Badge
+                                variant="outline"
+                                className="text-[9px] text-cyan-400 border-cyan-800 bg-cyan-950/30 flex items-center gap-1"
+                              >
+                                <Video className="w-2.5 h-2.5" /> Virtual
+                              </Badge>
+                            )}
+
+                            {/* Badge de Status de Revisão */}
+                            {isPendente && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] font-mono text-amber-300 border-amber-700 bg-amber-950/50 flex items-center gap-1"
+                              >
+                                <AlertTriangle className="w-3 h-3 text-amber-400" />
+                                Pendente de Homologação
+                              </Badge>
+                            )}
+
+                            {isConfirmada && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] font-mono text-emerald-300 border-emerald-700 bg-emerald-950/40 flex items-center gap-1"
+                              >
+                                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                Confirmada
+                              </Badge>
+                            )}
+
+                            {isRascunho && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] font-mono text-slate-300 border-slate-700 bg-slate-900"
+                              >
+                                Rascunho
+                              </Badge>
+                            )}
+                          </div>
+
+                          {/* Processo e Título */}
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono text-xs font-bold text-slate-100">
+                                {item.processo}
+                              </span>
+                              {item.cliente && (
+                                <>
+                                  <span className="text-slate-600">•</span>
+                                  <span className="text-xs text-slate-300">
+                                    Parte/Cliente:{' '}
+                                    <strong className="text-slate-200">{item.cliente}</strong>
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-300 mt-0.5 font-medium">
+                              {item.titulo}
+                            </p>
+                          </div>
+
+                          {/* Trecho extraído do DJEN se houver */}
+                          {item.trechoDjen && (
+                            <div className="text-[11px] text-slate-300 bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/90 font-serif italic max-w-3xl">
+                              &quot;{item.trechoDjen}&quot;
+                            </div>
+                          )}
+
+                          {/* Metadados adicionais */}
+                          <div className="flex items-center gap-3 text-[11px] font-mono text-slate-400 flex-wrap">
+                            <span className="flex items-center gap-1 text-cyan-300">
+                              <CalendarIcon className="w-3 h-3" />
+                              Data: {dataFormatada} às {item.hora}
+                            </span>
+                            {item.localOuLink && (
+                              <>
+                                <span>•</span>
+                                <span className="flex items-center gap-1 text-slate-400 truncate max-w-md">
+                                  <MapPin className="w-3 h-3 text-slate-500" />
+                                  {item.localOuLink}
+                                </span>
+                              </>
+                            )}
+                            <span>•</span>
+                            <span className="text-slate-500">
+                              Origem:{' '}
+                              {item.origem === 'DJEN_DETECTADA'
+                                ? 'Detecção Autônoma DJEN'
+                                : 'Agenda Oficial NOX'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Ações de Revisão Humana */}
+                      <div className="flex items-center gap-2 shrink-0 self-end lg:self-center pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-800 w-full lg:w-auto justify-end">
+                        {isPendente && item.rawDetectada && (
+                          <>
+                            <Button
+                              onClick={() => {
+                                handleRejeitarAudienciaDjen(item.rawDetectada!)
+                                setPeriodoResultados((prev) => prev.filter((p) => p.id !== item.id))
+                              }}
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 text-xs text-slate-400 hover:text-rose-400 hover:bg-rose-950/30"
+                            >
+                              Descartar
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                handleAprovarAudienciaDjen(item.rawDetectada!)
+                                setPeriodoResultados((prev) =>
+                                  prev.map((p) =>
+                                    p.id === item.id
+                                      ? { ...p, statusRevisao: 'CONFIRMADA' as const }
+                                      : p,
+                                  ),
+                                )
+                              }}
+                              size="sm"
+                              className="h-8 text-xs bg-purple-600 hover:bg-purple-500 text-white font-bold shadow-md shadow-purple-950 flex items-center gap-1.5"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Homologar na Pauta
+                            </Button>
+                          </>
+                        )}
+
+                        {isConfirmada && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] font-mono text-emerald-400 border-emerald-800/80 bg-emerald-950/40 py-1 px-2.5"
+                          >
+                            Integrada à Pauta
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* TAB 3: PAUTA GERAL DE AUDIÊNCIAS (DJEN + OFICIAIS) */}
         <TabsContent value="audiencias" className="space-y-5 mt-4">
           {/* Alertas de Audiências Detectadas Autonomamente pelo DJEN */}
           <div className="p-4 rounded-xl bg-purple-950/30 border border-purple-800/60 space-y-3">
@@ -923,7 +1594,7 @@ export const CompromissosPage: React.FC = () => {
           </div>
         </TabsContent>
 
-        {/* TAB 3: SUGESTÕES AUTOMÁTICAS DE AGENDAMENTO */}
+        {/* TAB 4: SUGESTÕES AUTOMÁTICAS DE AGENDAMENTO */}
         <TabsContent value="sugestoes" className="space-y-5 mt-4">
           <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
             <div className="flex items-center justify-between">
@@ -1010,7 +1681,7 @@ export const CompromissosPage: React.FC = () => {
           </div>
         </TabsContent>
 
-        {/* TAB 4: TODOS OS EVENTOS & FILTRAGEM */}
+        {/* TAB 5: TODOS OS EVENTOS & FILTRAGEM */}
         <TabsContent value="todos" className="space-y-4 mt-4">
           <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs">
             <div className="relative flex-1 min-w-[200px]">
