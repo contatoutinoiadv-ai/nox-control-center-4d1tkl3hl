@@ -215,7 +215,7 @@ export const Layout: React.FC = () => {
             <div className="bg-emerald-950/40 border border-emerald-800/60 rounded-md p-2 mb-2">
               <div className="flex items-center gap-1.5 text-emerald-300 text-[10px] font-semibold font-mono">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>Base Real Importada</span>
+                <span>DADOS IMPORTADOS REAIS</span>
               </div>
               <p className="text-[10px] text-emerald-400/90 mt-0.5 leading-tight font-mono">
                 {dataStore.getActiveBatch()?.filename || 'Lote CSV Ativo'} ({stats.totalMonitored}{' '}
@@ -226,7 +226,7 @@ export const Layout: React.FC = () => {
             <div className="bg-amber-950/40 border border-amber-800/40 rounded-md p-2 mb-2">
               <div className="flex items-center gap-1.5 text-amber-300 text-[10px] font-semibold font-mono">
                 <Sparkles className="w-3 h-3 text-amber-400" />
-                <span>Dados Sintéticos Demo</span>
+                <span>DEMO SINTÉTICO</span>
               </div>
               <p className="text-[10px] text-amber-400/80 mt-0.5 leading-tight">
                 Importe um CSV para alternar para a base real
@@ -350,7 +350,7 @@ export const Layout: React.FC = () => {
                     : 'text-amber-400'
                 }
               >
-                {dataStore.isUsingRealImportedData() ? 'BASE REAL IMPORTADA' : 'DEMO SINTÉTICO'}
+                {dataStore.isUsingRealImportedData() ? 'DADOS IMPORTADOS REAIS' : 'DEMO SINTÉTICO'}
               </span>
             </div>
           </div>

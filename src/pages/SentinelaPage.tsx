@@ -568,11 +568,11 @@ export const SentinelaHub: React.FC = () => {
               {dataStore.isUsingRealImportedData() ? (
                 <Badge className="bg-emerald-950 text-emerald-300 border border-emerald-600 text-[10px] font-mono flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  BASE IMPORTADA REAL ({communications.length})
+                  DADOS IMPORTADOS REAIS ({communications.length})
                 </Badge>
               ) : (
                 <Badge className="bg-amber-950/80 text-amber-300 border border-amber-800 text-[10px] font-mono">
-                  DEMO SINTÉTICO (42)
+                  DEMO SINTÉTICO ({communications.length})
                 </Badge>
               )}
               <span className="text-xs text-slate-400 font-mono flex items-center gap-1">

@@ -162,11 +162,11 @@ export const ProcessesPage: React.FC = () => {
             {dataStore.isUsingRealImportedData() ? (
               <Badge className="bg-emerald-950 text-emerald-300 border-emerald-700 font-mono text-xs flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                BASE IMPORTADA REAL
+                DADOS IMPORTADOS REAIS ({records.length})
               </Badge>
             ) : (
               <Badge className="bg-amber-950/70 text-amber-300 border-amber-800 font-mono text-xs">
-                DATASET SINTÉTICO (DEMO)
+                DEMO SINTÉTICO ({records.length})
               </Badge>
             )}
           </div>

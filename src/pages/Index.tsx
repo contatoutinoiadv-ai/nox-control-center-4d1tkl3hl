@@ -100,7 +100,7 @@ export const Index: React.FC = () => {
               </Badge>
             ) : (
               <Badge className="bg-amber-950/70 text-amber-300 border-amber-800 font-mono text-xs">
-                DATASET SINTÉTICO (DEMO)
+                DEMO SINTÉTICO ({records.length})
               </Badge>
             )}
           </div>

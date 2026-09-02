@@ -482,54 +482,54 @@ export class NoxDataStore {
           ],
         },
         deadlineCalculated: isQuarantine
-  ? undefined
-  : {
-      id: `dead-imp-${idx + 1}`,
-      communicationId: `comm-imp-${idx + 1}`,
-      numeroProcesso: rec.numeroProcesso,
-      originText: `Intimação referente a ${rec.assunto || rec.alertTitle}`,
-      generatingAct: 'DISPONIBILIZACAO_DJEN',
-      legalRuleName: 'Prazo Geral de Manifestação (15 dias úteis)',
-      legalRuleArticle: 'Art. 219 e 335 do CPC',
-      daysCount: 15,
-      daysType: 'DIAS_UTEIS' as const,
-      initialDateMarker: rec.dataDistribuicao || '2026-09-01',
-      firstDayCounted: '2026-09-02',
-      tribunal: rec.tribunal || 'TJSP',
-      comarca: rec.normalizedData?.uf || 'SP',
-      holidaysApplied: [
-        {
-          date: '2026-09-07',
-          name: 'Independência do Brasil',
-          type: 'FERIADO_NACIONAL' as const,
-        },
-      ],
-      calculationSteps: [
-        {
-          stepNumber: 1,
-          date: rec.dataDistribuicao || '2026-09-01',
-          dayOfWeek: 'Terça-feira',
-          isBusinessDay: true,
-          description: 'Disponibilização da publicação no DJEN',
-        },
-        {
-          stepNumber: 2,
-          date: '2026-09-24',
-          dayOfWeek: 'Quinta-feira',
-          isBusinessDay: true,
-          description: '15º dia útil — Vencimento fatal CPC',
-        },
-      ],
-      finalDeadlineDate: '2026-09-24',
-      finalDeadlineTime: '23:59',
-      confidenceScore: 0.98,
-      confidenceLevel: 'ALTA' as const,
-      isDeterminable: true,
-      reviewApprovalStatus: 'PENDENTE' as const,
-      ruleVersion: 'CPC_2015_V2',
-      internalDeadlineDate: '2026-09-22',
-      notes: 'Calculado automaticamente pelo Motor de Prazos NOX.',
-    },
+          ? undefined
+          : {
+              id: `dead-imp-${idx + 1}`,
+              communicationId: `comm-imp-${idx + 1}`,
+              numeroProcesso: rec.numeroProcesso,
+              originText: `Intimação referente a ${rec.assunto || rec.alertTitle}`,
+              generatingAct: 'DISPONIBILIZACAO_DJEN',
+              legalRuleName: 'Prazo Geral de Manifestação (15 dias úteis)',
+              legalRuleArticle: 'Art. 219 e 335 do CPC',
+              daysCount: 15,
+              daysType: 'uteis' as const,
+              initialDateMarker: rec.dataDistribuicao || '2026-09-01',
+              firstDayCounted: '2026-09-02',
+              tribunal: rec.tribunal || 'TJSP',
+              comarca: rec.normalizedData?.uf || 'SP',
+              holidaysApplied: [
+                {
+                  date: '2026-09-07',
+                  name: 'Independência do Brasil',
+                  type: 'FERIADO_NACIONAL' as const,
+                },
+              ],
+              calculationSteps: [
+                {
+                  stepNumber: 1,
+                  date: rec.dataDistribuicao || '2026-09-01',
+                  dayOfWeek: 'Terça-feira',
+                  isBusinessDay: true,
+                  description: 'Disponibilização da publicação no DJEN',
+                },
+                {
+                  stepNumber: 2,
+                  date: '2026-09-24',
+                  dayOfWeek: 'Quinta-feira',
+                  isBusinessDay: true,
+                  description: '15º dia útil — Vencimento fatal CPC',
+                },
+              ],
+              finalDeadlineDate: '2026-09-24',
+              finalDeadlineTime: '23:59',
+              confidenceScore: 0.98,
+              confidenceLevel: 'ALTA' as const,
+              isDeterminable: true,
+              reviewApprovalStatus: 'PENDENTE' as const,
+              ruleVersion: 'CPC_2015_V2',
+              internalDeadlineDate: '2026-09-22',
+              notes: 'Calculado automaticamente pelo Motor de Prazos NOX.',
+            },
         createdAt: batch.createdAt,
         updatedAt: new Date().toISOString(),
       }
@@ -538,7 +538,7 @@ export class NoxDataStore {
 
   private async syncToPocketBase(batch: ImportBatch, records: NoxRecord[]): Promise<void> {
     try {
-      const { pb } = await import('@/lib/pocketbase/client')
+      const pb = (await import('@/lib/pocketbase/client')).default
 
       // Save batch in `imports` collection
       await pb.collection('imports').create({
