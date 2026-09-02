@@ -34,7 +34,9 @@ export const ReviewPage: React.FC = () => {
 
   // Form Fields for Current Review
   const [noteText, setNoteText] = useState('')
-  const [assignedResponsible, setAssignedResponsible] = useState('')
+  const lawyerProfile = dataStore.getLawyerProfile()
+  const defaultResponsible = `${lawyerProfile.nome || 'Higor Utinoi de Oliveira'} (${lawyerProfile.oab || 'OAB/MS 15.400'})`
+  const [assignedResponsible, setAssignedResponsible] = useState(defaultResponsible)
   const [assignedPriority, setAssignedPriority] = useState<PriorityLevel>('media')
   const [newTagInput, setNewTagInput] = useState('')
 
@@ -78,10 +80,10 @@ export const ReviewPage: React.FC = () => {
 
   useEffect(() => {
     if (activeRecord) {
-      setAssignedResponsible(activeRecord.responsible)
+      setAssignedResponsible(activeRecord.responsible || defaultResponsible)
       setAssignedPriority(activeRecord.priority)
     }
-  }, [activeRecord])
+  }, [activeRecord, defaultResponsible])
 
   const handleNextItem = () => {
     if (currentIdx < reviewQueue.length - 1) {
@@ -374,19 +376,16 @@ export const ReviewPage: React.FC = () => {
                 <select
                   value={assignedResponsible}
                   onChange={(e) => setAssignedResponsible(e.target.value)}
+                  aria-label="Atribuir Responsável"
                   className="w-full h-8 bg-slate-900 border border-slate-700 rounded-md px-2.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500"
                 >
-                  <option value="Dra. Mariana Rios">Dra. Mariana Rios (Cível / Contencioso)</option>
-                  <option value="Dr. Lucas Silveira">
-                    Dr. Lucas Silveira (Tributário / Federal)
+                  <option value={defaultResponsible}>
+                    {defaultResponsible} (Advogado Titular)
                   </option>
-                  <option value="Dr. Roberto Vasconcelos">
-                    Dr. Roberto Vasconcelos (Empresarial / Recuperação)
-                  </option>
-                  <option value="Dra. Camila Duarte">Dra. Camila Duarte (Trabalhista)</option>
                   <option value="Operador de Qualidade">
                     Operador de Qualidade (Schema & Dados)
                   </option>
+                  <option value="Equipe Sentinela NOX">Equipe Sentinela NOX (Triagem IA)</option>
                 </select>
               </div>
 

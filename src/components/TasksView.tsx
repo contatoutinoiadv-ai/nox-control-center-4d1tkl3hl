@@ -80,11 +80,21 @@ export const TasksView: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('TODOS')
   const [createModalOpen, setCreateModalOpen] = useState(false)
 
+  const lawyerProfile = dataStore.getLawyerProfile()
+  const defaultResponsible = lawyerProfile.nome || 'Higor Utinoi de Oliveira'
+
+  useEffect(() => {
+    const unsub = dataStore.subscribe(() => {
+      setTasks(dataStore.getTasks())
+    })
+    return unsub
+  }, [])
+
   // New Task Form
   const [newTitle, setNewTitle] = useState('')
   const [newDesc, setNewDesc] = useState('')
   const [newPriority, setNewPriority] = useState<TaskPriority>('MEDIA')
-  const [newResponsible, setNewResponsible] = useState('Dra. Mariana Rios')
+  const [newResponsible, setNewResponsible] = useState(defaultResponsible)
   const [newDueDate, setNewDueDate] = useState(
     new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0],
   )
@@ -140,7 +150,11 @@ export const TasksView: React.FC = () => {
   }
 
   const filteredTasks = tasks.filter((t) => {
-    if (viewMode === 'minha_fila' && t.responsible !== 'Dra. Mariana Rios') return false
+    if (
+      viewMode === 'minha_fila' &&
+      !t.responsible.toLowerCase().includes(defaultResponsible.toLowerCase().split(' ')[0])
+    )
+      return false
     if (statusFilter !== 'TODOS' && t.status !== statusFilter) return false
     if (searchFilter) {
       const q = searchFilter.toLowerCase()
@@ -237,8 +251,8 @@ export const TasksView: React.FC = () => {
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Minha Fila (Dra. Mariana)
-          </button>
+            Minha Fila ({defaultResponsible.split(' ')[0]})
+          </button>{' '}
         </div>
       </div>
 

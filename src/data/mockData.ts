@@ -56,7 +56,7 @@ export const SYNTHETIC_RECORDS: NoxRecord[] = [
     alertDescription:
       'Bloqueio emergencial de contas transitórias registrado no diário de justiça com prazo fatal de contestação.',
     priority: 'urgente',
-    responsible: 'Higor Utinoi de Oliveira',
+    responsible: 'Higor Utinoi de Oliveira (OAB/MS 15.400)',
     tags: ['Tutela Antecipada', 'Risco Financeiro', 'DJE-Capital'],
     notes: [
       {
@@ -127,7 +127,7 @@ export const SYNTHETIC_RECORDS: NoxRecord[] = [
     alertDescription:
       'Decisão concede suspensão de exigibilidade de crédito tributário com repercussão para 14 associadas.',
     priority: 'urgente',
-    responsible: 'Higor Utinoi de Oliveira',
+    responsible: 'Higor Utinoi de Oliveira (OAB/MS 15.400)',
     tags: ['Tributário', 'Liminar Deferida', 'MS Coletivo'],
     notes: [
       {
@@ -191,7 +191,7 @@ export const SYNTHETIC_RECORDS: NoxRecord[] = [
     alertDescription:
       'Designada audiência de instrução com obrigatoriedade de comparecimento das testemunhas da reclamada.',
     priority: 'media',
-    responsible: 'Higor Utinoi de Oliveira',
+    responsible: 'Higor Utinoi de Oliveira (OAB/MS 15.400)',
     tags: ['Trabalhista', 'Audiência Marcada', 'Rito Ordinário'],
     notes: [],
     history: [
@@ -248,7 +248,7 @@ export const SYNTHETIC_RECORDS: NoxRecord[] = [
     alertDescription:
       'Decisão executiva determinou indisponibilidade via CNIB de loteamento no Recreio dos Bandeirantes.',
     priority: 'urgente',
-    responsible: 'Higor Utinoi de Oliveira',
+    responsible: 'Higor Utinoi de Oliveira (OAB/MS 15.400)',
     tags: ['Execução Fiscal', 'CNIB', 'Penhora'],
     notes: [],
     history: [
@@ -305,7 +305,7 @@ export const SYNTHETIC_RECORDS: NoxRecord[] = [
     alertDescription:
       'Despacho intimando exequente a indicar novos bens passíveis de penhora em prazo preclusivo.',
     priority: 'alta',
-    responsible: 'Higor Utinoi de Oliveira',
+    responsible: 'Higor Utinoi de Oliveira (OAB/MS 15.400)',
     tags: ['SISBAJUD', 'Cumprimento Sentença', 'Prazo Preclusivo'],
     notes: [],
     history: [
@@ -362,7 +362,7 @@ export const SYNTHETIC_RECORDS: NoxRecord[] = [
     alertDescription:
       'O campo num_processo_cnj veio com máscara inconsistente e falta o dígito verificador.',
     priority: 'alta',
-    responsible: 'Higor Utinoi de Oliveira',
+    responsible: 'Higor Utinoi de Oliveira (OAB/MS 15.400)',
     tags: ['Dado Inválido', 'Quarentena', 'CNJ Inconsistente'],
     notes: [
       {
@@ -439,7 +439,7 @@ export const SYNTHETIC_RECORDS: NoxRecord[] = [
     alertDescription:
       'Registro com potencial enquadramento no LEX TEMPUS quando módulo preditivo for ativado.',
     priority: 'baixa',
-    responsible: 'Higor Utinoi de Oliveira',
+    responsible: 'Higor Utinoi de Oliveira (OAB/MS 15.400)',
     tags: ['Previdenciário', 'Tema STF', 'LEX TEMPUS Ready'],
     notes: [],
     history: [
@@ -496,7 +496,7 @@ export const SYNTHETIC_RECORDS: NoxRecord[] = [
     alertDescription:
       'Ciência tácita aberta há 7 dias com contagem automática de prazo para apresentação de contestação.',
     priority: 'media',
-    responsible: 'Higor Utinoi de Oliveira',
+    responsible: 'Higor Utinoi de Oliveira (OAB/MS 15.400)',
     tags: ['Consumidor', 'PROJUDI', 'Ciência Tácita'],
     notes: [],
     history: [
@@ -553,7 +553,7 @@ export const SYNTHETIC_RECORDS: NoxRecord[] = [
     alertDescription:
       'Publicação do edital de convocação com prazo estrito de 15 dias para impugnação da relação nominal.',
     priority: 'urgente',
-    responsible: 'Higor Utinoi de Oliveira',
+    responsible: 'Higor Utinoi de Oliveira (OAB/MS 15.400)',
     tags: ['Recuperação Judicial', 'AGC', 'Impacto Corporativo'],
     notes: [],
     history: [
@@ -610,7 +610,7 @@ export const SYNTHETIC_RECORDS: NoxRecord[] = [
     alertDescription:
       'Transação firmada entre as partes, processo arquivado definitivamente com baixa na distribuição.',
     priority: 'baixa',
-    responsible: 'Higor Utinoi de Oliveira',
+    responsible: 'Higor Utinoi de Oliveira (OAB/MS 15.400)',
     tags: ['TRT15', 'Trabalhista', 'Acordo Homologado'],
     notes: [
       {
@@ -700,7 +700,7 @@ export function generateFullSyntheticDataset(): NoxRecord[] {
     'importacao',
     'futuro_lex_tempus',
   ]
-  const responsibles = ['Higor Utinoi de Oliveira']
+  const responsibles = ['Higor Utinoi de Oliveira (OAB/MS 15.400)']
 
   for (let i = 11; i <= 42; i++) {
     const code = `SNT-90${i < 10 ? '0' + i : i}`

@@ -57,6 +57,13 @@ export const AgendaView: React.FC = () => {
   const [responsibleFilter, setResponsibleFilter] = useState<string>('TODOS')
   const [createModalOpen, setCreateModalOpen] = useState(false)
 
+  useEffect(() => {
+    const unsub = dataStore.subscribe(() => {
+      setEvents(dataStore.getAgendaEvents())
+    })
+    return unsub
+  }, [])
+
   // New Event Form State
   const [newTitle, setNewTitle] = useState('')
   const [newType, setNewType] = useState<AgendaEventType>('AUDIENCIA')
@@ -64,7 +71,9 @@ export const AgendaView: React.FC = () => {
     new Date().toISOString().split('T')[0] + 'T14:00',
   )
   const [newEndDate, setNewEndDate] = useState(new Date().toISOString().split('T')[0] + 'T15:30')
-  const [newResponsible, setNewResponsible] = useState('Dra. Mariana Rios')
+  const [newResponsible, setNewResponsible] = useState(
+    dataStore.getLawyerProfile().nome || 'Higor Utinoi de Oliveira',
+  )
   const [newProcess, setNewProcess] = useState('')
   const [newLocation, setNewLocation] = useState('')
   const [newIsVirtual, setNewIsVirtual] = useState(true)

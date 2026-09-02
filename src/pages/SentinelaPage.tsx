@@ -153,7 +153,8 @@ export const SentinelaHub: React.FC = () => {
   }
 
   const handleApproveDeadline = (commId: string, memorial: any) => {
-    dataStore.approveCommunicationDeadline(commId, memorial, 'Dra. Mariana Rios')
+    const lawyerName = dataStore.getLawyerProfile().nome || 'Higor Utinoi de Oliveira'
+    dataStore.approveCommunicationDeadline(commId, memorial, lawyerName)
     setCommunications(dataStore.getCommunications())
     setRecoveredTime(dataStore.getRecoveredTimeMetric())
     toast.success('Prazo homologado e tarefas geradas na Agenda!')

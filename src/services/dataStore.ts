@@ -1074,7 +1074,7 @@ export class NoxDataStore {
     this.apiHealth = [...INITIAL_API_HEALTH]
     this.incidents = [...INITIAL_INCIDENT_ROOMS]
     this.decisionMemory = [...INITIAL_DECISION_MEMORY]
-    this.settings = DEFAULT_SETTINGS
+    this.settings = { ...DEFAULT_SETTINGS }
 
     this.saveRecords()
     this.saveImports()

@@ -46,7 +46,7 @@ export const CentralPrazosPage: React.FC = () => {
       processo: c.numeroProcesso,
       tribunal: c.tribunal,
       memorial: c.deadlineCalculated!,
-      responsavel: c.assignedTo || 'Dra. Mariana Rios',
+      responsavel: c.assignedTo || dataStore.getLawyerProfile().nome || 'Higor Utinoi de Oliveira',
       urgencia: c.urgencyLevel,
     }))
 
