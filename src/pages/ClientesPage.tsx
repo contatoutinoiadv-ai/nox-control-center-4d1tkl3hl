@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
-import { useSearchParams, Link } from 'react-router-dom'
+import { useSearchParams, Link, useNavigate } from 'react-router-dom'
 import {
   Users,
   UserPlus,
@@ -52,6 +52,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { dataStore } from '@/services/dataStore'
+import { datajudService, ProcessoMonitorado } from '@/services/datajudService'
 import {
   NoxClient,
   ClientStage,
@@ -151,7 +152,7 @@ const ORIGIN_CONFIG: Record<
 export const ClientesPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedParam = searchParams.get('selected')
-
+  const navigate = useNavigate()
   // Estado sincronizado com o dataStore
   const [clients, setClients] = useState<NoxClient[]>(dataStore.getClients())
   const [records, setRecords] = useState<NoxRecord[]>(dataStore.getRecords())
@@ -180,7 +181,9 @@ export const ClientesPage: React.FC = () => {
   const [docEditorHtml, setDocEditorHtml] = useState('')
   const [linkProcessModalOpen, setLinkProcessModalOpen] = useState(false)
   const [selectedProcessToLink, setSelectedProcessToLink] = useState('')
-
+  const [monitorados, setMonitorados] = useState<ProcessoMonitorado[]>([])
+  const [linkingProcess, setLinkingProcess] = useState(false)
+  const [processoBusca, setProcessoBusca] = useState('')
   // Formulário de Novo Cadastro Manual
   const [formData, setFormData] = useState({
     nome: '',
@@ -604,21 +607,75 @@ export const ClientesPage: React.FC = () => {
     }
   }
 
-  // Vincular Processo ao Cliente
-  const handleLinkProcess = () => {
+  // Carrega os processos monitorados do DataJud (com o vínculo real por client_id)
+  const refreshMonitorados = useCallback(async () => {
+    const lista = await datajudService.getProcessosMonitorados()
+    setMonitorados(lista)
+  }, [])
+
+  useEffect(() => {
+    refreshMonitorados()
+  }, [refreshMonitorados])
+
+  // Processos monitorados vinculados de verdade a este cliente (via relação client_id)
+  const processosMonitoradosDoCliente = useMemo(() => {
+    if (!selectedClient) return []
+    return monitorados.filter((m) => {
+      const vinculadoPorId = m.client_id === selectedClient.id
+      const vinculadoPorCodigo = m.expand?.client_id && m.expand.client_id.id === selectedClient.id
+      return vinculadoPorId || vinculadoPorCodigo
+    })
+  }, [monitorados, selectedClient])
+
+  // Vincular Processo ao Cliente: grava a relação client_id no processo monitorado
+  const handleLinkProcess = async () => {
     if (!selectedClient || !selectedProcessToLink.trim()) return
 
-    dataStore.linkProcessToClient(selectedClient.id, selectedProcessToLink.trim(), 'Operador NOX')
-    toast.success(
-      `Processo ${selectedProcessToLink.trim()} vinculado à ficha de ${selectedClient.nome}.`,
-    )
-    setSelectedProcessToLink('')
-    setLinkProcessModalOpen(false)
+    setLinkingProcess(true)
+    try {
+      const atualizado = await datajudService.vincularProcessoAoCliente(
+        selectedProcessToLink.trim(),
+        selectedClient.id,
+        selectedClient.nome,
+      )
+
+      if (atualizado) {
+        // Mantém o registro legado na ficha (processos_vinculados) como rótulo/visualização
+        dataStore.linkProcessToClient(
+          selectedClient.id,
+          selectedProcessToLink.trim(),
+          'Operador NOX',
+        )
+        toast.success(
+          `Processo ${selectedProcessToLink.trim()} vinculado à ficha de ${selectedClient.nome}.`,
+        )
+        setSelectedProcessToLink('')
+        setProcessoBusca('')
+        setLinkProcessModalOpen(false)
+        await refreshMonitorados()
+      } else {
+        toast.error('Não foi possível vincular o processo ao cliente.')
+      }
+    } catch (err: any) {
+      toast.error(`Erro ao vincular processo: ${err?.message || 'Falha inesperada.'}`)
+    } finally {
+      setLinkingProcess(false)
+    }
   }
 
-  // Desvincular Processo
-  const handleUnlinkProcess = (procNumber: string) => {
+  // Desvincular Processo: remove a relação client_id do processo monitorado
+  const handleUnlinkProcess = async (procNumber: string, monitoradoId?: string) => {
     if (!selectedClient) return
+
+    if (monitoradoId) {
+      const ok = await datajudService.desvincularProcessoDoCliente(monitoradoId)
+      if (!ok) {
+        toast.error('Não foi possível desvincular o processo.')
+        return
+      }
+      await refreshMonitorados()
+    }
+
     dataStore.unlinkProcessFromClient(selectedClient.id, procNumber, 'Operador NOX')
     toast.success(`Processo ${procNumber} desvinculado.`)
   }
@@ -710,6 +767,15 @@ export const ClientesPage: React.FC = () => {
 
     return Array.from(processMap.values())
   }, [selectedClient, records, comms])
+
+  // Processos vindos do monitoramento DataJud (processos_monitorados) via client_id
+  const monitoradosProcessData = useMemo(() => {
+    return processosMonitoradosDoCliente.map((m) => ({
+      numeroProcesso: m.numero_processo,
+      tribunal: m.tribunal || m.expand?.client_id?.client_code || 'Em monitoramento',
+      monitoradoId: m.id,
+    }))
+  }, [processosMonitoradosDoCliente])
 
   // Prazos e Compromissos filtrados para a Ficha
   const clientAgendaDeadlines = useMemo(() => {
@@ -1328,7 +1394,10 @@ export const ClientesPage: React.FC = () => {
                     className="data-[state=active]:bg-cyan-950/80 data-[state=active]:text-cyan-300 text-slate-400 text-xs font-mono rounded-t-lg"
                   >
                     <Briefcase className="w-3.5 h-3.5 mr-1.5" /> Processos (
-                    {clientProcessesData.length})
+                    {monitoradosProcessData.length > 0
+                      ? monitoradosProcessData.length
+                      : clientProcessesData.length}
+                    )
                   </TabsTrigger>
                   <TabsTrigger
                     value="prazos"
@@ -1520,7 +1589,7 @@ export const ClientesPage: React.FC = () => {
                   </Button>
                 </div>
 
-                {clientProcessesData.length === 0 ? (
+                {monitoradosProcessData.length === 0 && clientProcessesData.length === 0 ? (
                   <div className="p-8 text-center rounded-xl border border-dashed border-slate-800 bg-slate-900/30 text-xs text-slate-400 space-y-2">
                     <Briefcase className="w-8 h-8 mx-auto text-slate-600" />
                     <p>Nenhum processo formal vinculado a este cliente no momento.</p>
@@ -1535,10 +1604,22 @@ export const ClientesPage: React.FC = () => {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {clientProcessesData.map((proc, idx) => (
+                    {/* Processos monitorados (DataJud) vinculados por client_id */}
+                    {monitoradosProcessData.map((proc) => (
                       <div
-                        key={idx}
-                        className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2 hover:border-cyan-500/30 transition-all"
+                        key={`mon-${proc.monitoradoId}`}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() =>
+                          navigate(`/processos/${encodeURIComponent(proc.numeroProcesso)}`)
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            navigate(`/processos/${encodeURIComponent(proc.numeroProcesso)}`)
+                          }
+                        }}
+                        title={`Abrir a linha do tempo do processo ${proc.numeroProcesso}`}
+                        className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2 hover:border-cyan-500/50 cursor-pointer transition-all"
                       >
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <div className="flex items-center gap-2">
@@ -1548,24 +1629,22 @@ export const ClientesPage: React.FC = () => {
                             <Badge className="text-[10px] bg-slate-800 text-slate-300 border-slate-700">
                               {proc.tribunal}
                             </Badge>
-                            <Badge
-                              className={`text-[10px] uppercase font-mono ${
-                                proc.severity === 'critico' || proc.severity === 'critica'
-                                  ? 'bg-rose-950 text-rose-300 border-rose-800'
-                                  : proc.severity === 'alto' || proc.severity === 'alta'
-                                    ? 'bg-amber-950 text-amber-300 border-amber-800'
-                                    : 'bg-cyan-950 text-cyan-300 border-cyan-800'
-                              }`}
-                            >
-                              {proc.severity}
+                            <Badge className="text-[10px] uppercase font-mono bg-emerald-950/60 text-emerald-300 border-emerald-800">
+                              Monitorado
                             </Badge>
                           </div>
 
                           <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-cyan-400/80 flex items-center gap-1 font-mono">
+                              Ver movimentações <ChevronRight className="w-3.5 h-3.5" />
+                            </span>
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleUnlinkProcess(proc.numeroProcesso)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleUnlinkProcess(proc.numeroProcesso, proc.monitoradoId)
+                              }}
                               title="Desvincular processo deste cliente"
                               className="h-7 px-2 text-rose-400 hover:text-rose-300 hover:bg-rose-950/50 text-[11px]"
                             >
@@ -1575,28 +1654,97 @@ export const ClientesPage: React.FC = () => {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-400 pt-1">
-                          <div>
-                            <span className="text-[10px] font-mono text-slate-500">
-                              Órgão Julgador:{' '}
-                            </span>
-                            <span className="text-slate-200">{proc.orgao}</span>
-                          </div>
-                          <div>
-                            <span className="text-[10px] font-mono text-slate-500">
-                              Classe / Assunto:{' '}
-                            </span>
-                            <span className="text-slate-200">{proc.classe}</span>
-                          </div>
+                        <div className="text-xs text-slate-400 pt-1">
+                          <span className="text-[10px] font-mono text-slate-500">Origem: </span>
+                          <span className="text-slate-300">
+                            Monitoramento DataJud vinculado por cliente
+                          </span>
                         </div>
-
-                        {proc.assunto && (
-                          <div className="text-[11px] text-slate-300 bg-slate-950/60 p-2 rounded border border-slate-800/80 leading-relaxed">
-                            {proc.assunto}
-                          </div>
-                        )}
                       </div>
                     ))}
+
+                    {/* Demais vínculos por histórico (Sentinela/registros) */}
+                    {clientProcessesData
+                      .filter(
+                        (p) =>
+                          !monitoradosProcessData.some(
+                            (m) => m.numeroProcesso === p.numeroProcesso,
+                          ),
+                      )
+                      .map((proc, idx) => (
+                        <div
+                          key={`hist-${idx}`}
+                          className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2 hover:border-cyan-500/30 transition-all"
+                        >
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs font-bold text-cyan-300">
+                                {proc.numeroProcesso}
+                              </span>
+                              <Badge className="text-[10px] bg-slate-800 text-slate-300 border-slate-700">
+                                {proc.tribunal}
+                              </Badge>
+                              <Badge
+                                className={`text-[10px] uppercase font-mono ${
+                                  proc.severity === 'critico' || proc.severity === 'critica'
+                                    ? 'bg-rose-950 text-rose-300 border-rose-800'
+                                    : proc.severity === 'alto' || proc.severity === 'alta'
+                                      ? 'bg-amber-950 text-amber-300 border-amber-800'
+                                      : 'bg-cyan-950 text-cyan-300 border-cyan-800'
+                                }`}
+                              >
+                                {proc.severity}
+                              </Badge>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  navigate(`/processos/${encodeURIComponent(proc.numeroProcesso)}`)
+                                }
+                                title="Abrir a linha do tempo do processo"
+                                className="h-7 px-2 text-cyan-300 hover:bg-slate-800 text-[11px]"
+                              >
+                                <ChevronRight className="w-3.5 h-3.5 mr-1" />
+                                Detalhe
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleUnlinkProcess(proc.numeroProcesso)}
+                                title="Desvincular processo deste cliente"
+                                className="h-7 px-2 text-rose-400 hover:text-rose-300 hover:bg-rose-950/50 text-[11px]"
+                              >
+                                <Unlink className="w-3.5 h-3.5 mr-1" />
+                                Desvincular
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-400 pt-1">
+                            <div>
+                              <span className="text-[10px] font-mono text-slate-500">
+                                Órgão Julgador:{' '}
+                              </span>
+                              <span className="text-slate-200">{proc.orgao}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-mono text-slate-500">
+                                Classe / Assunto:{' '}
+                              </span>
+                              <span className="text-slate-200">{proc.classe}</span>
+                            </div>
+                          </div>
+
+                          {proc.assunto && (
+                            <div className="text-[11px] text-slate-300 bg-slate-950/60 p-2 rounded border border-slate-800/80 leading-relaxed">
+                              {proc.assunto}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                   </div>
                 )}
               </TabsContent>
@@ -2181,7 +2329,8 @@ export const ClientesPage: React.FC = () => {
               Vincular Processo a {selectedClient?.nome}
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-400 font-mono">
-              Digite o número do processo (CNJ) ou selecione um processo monitorado.
+              Escolha um processo já monitorado (DataJud) ou digite um número CNJ. O vínculo é
+              gravado no processo monitorado, com o cliente de verdade.
             </DialogDescription>
           </DialogHeader>
 
@@ -2194,6 +2343,62 @@ export const ClientesPage: React.FC = () => {
                 placeholder="Ex: 1045230-89.2026.8.26.0100"
                 className="bg-slate-900 border-slate-700 text-xs text-slate-100 font-mono"
               />
+            </div>
+
+            {/* Processos já monitorados no DataJud (gravam client_id de verdade) */}
+            <div className="space-y-1 pt-1">
+              <span className="text-[10px] font-mono text-slate-400 uppercase">
+                Processos Monitorados Disponíveis:
+              </span>
+              <Input
+                value={processoBusca}
+                onChange={(e) => setProcessoBusca(e.target.value)}
+                placeholder="Filtrar processos monitorados..."
+                className="bg-slate-900 border-slate-700 text-xs text-slate-100 h-8"
+              />
+              <div className="max-h-44 overflow-y-auto space-y-1 border border-slate-800 rounded-lg p-1 bg-slate-900/60">
+                {monitorados.length === 0 ? (
+                  <div className="p-2 text-[11px] text-slate-500 text-center">
+                    Nenhum processo monitorado cadastrado ainda.
+                  </div>
+                ) : (
+                  monitorados
+                    .filter(
+                      (m) =>
+                        !processoBusca.trim() ||
+                        m.numero_processo.toLowerCase().includes(processoBusca.toLowerCase()) ||
+                        (m.cliente || '').toLowerCase().includes(processoBusca.toLowerCase()),
+                    )
+                    .slice(0, 20)
+                    .map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setSelectedProcessToLink(m.numero_processo)}
+                        className={`w-full text-left p-1.5 rounded hover:bg-slate-800/80 text-xs font-mono flex items-center justify-between transition-colors ${
+                          selectedProcessToLink === m.numero_processo
+                            ? 'bg-cyan-950/60 ring-1 ring-cyan-600'
+                            : 'text-slate-300'
+                        }`}
+                      >
+                        <span className="truncate text-cyan-300">{m.numero_processo}</span>
+                        <span className="flex items-center gap-1 shrink-0 ml-2">
+                          <Badge
+                            variant="outline"
+                            className="text-[9px] border-slate-700 text-slate-400"
+                          >
+                            {m.tribunal || 'ALIAS'}
+                          </Badge>
+                          {m.client_id && (
+                            <Badge className="text-[9px] bg-emerald-950/60 text-emerald-300 border-emerald-800">
+                              Vinculado
+                            </Badge>
+                          )}
+                        </span>
+                      </button>
+                    ))
+                )}
+              </div>
             </div>
 
             {/* Sugestões de Processos Não Vinculados */}
@@ -2235,10 +2440,11 @@ export const ClientesPage: React.FC = () => {
             </Button>
             <Button
               size="sm"
+              disabled={linkingProcess || !selectedProcessToLink.trim()}
               onClick={handleLinkProcess}
               className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs"
             >
-              Confirmar Vínculo
+              {linkingProcess ? 'Vinculando...' : 'Confirmar Vínculo'}
             </Button>
           </DialogFooter>
         </DialogContent>

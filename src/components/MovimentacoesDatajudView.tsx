@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Activity,
   RefreshCw,
@@ -41,6 +42,7 @@ import { toast } from 'sonner'
 const PAGE_SIZE = 50
 
 export const MovimentacoesDatajudView: React.FC = () => {
+  const navigate = useNavigate()
   const [processos, setProcessos] = useState<ProcessoMonitorado[]>([])
   const [movimentacoes, setMovimentacoes] = useState<MovimentacaoProcesso[]>([])
   const [alertas, setAlertas] = useState<AlertaMovimentacao[]>([])
@@ -437,10 +439,19 @@ export const MovimentacoesDatajudView: React.FC = () => {
             return (
               <div
                 key={p.id}
-                className={`p-3 rounded-lg border transition-all ${
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate(`/processos/${encodeURIComponent(p.numero_processo)}`)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    navigate(`/processos/${encodeURIComponent(p.numero_processo)}`)
+                  }
+                }}
+                title={`Abrir detalhe e linha do tempo do processo ${p.numero_processo}`}
+                className={`p-3 rounded-lg border cursor-pointer transition-all ${
                   isSelected
                     ? 'bg-cyan-950/40 border-cyan-500'
-                    : 'bg-slate-950/60 border-slate-800/80 hover:border-slate-700'
+                    : 'bg-slate-950/60 border-slate-800/80 hover:border-cyan-500/60'
                 }`}
               >
                 <div className="flex items-center justify-between mb-1.5">
@@ -477,8 +488,12 @@ export const MovimentacoesDatajudView: React.FC = () => {
 
                 <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-800/80 text-[11px] font-mono">
                   <button
-                    onClick={() => handleSelectProcesso(isSelected ? null : p.numero_processo)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      navigate(`/processos/${encodeURIComponent(p.numero_processo)}`)
+                    }}
                     className="text-cyan-400 hover:underline flex items-center gap-1"
+                    title={`Abrir a linha do tempo completa de ${p.numero_processo}`}
                   >
                     <Eye className="w-3 h-3" /> {countMovs} movimentos
                   </button>
@@ -487,7 +502,10 @@ export const MovimentacoesDatajudView: React.FC = () => {
                     size="sm"
                     variant="ghost"
                     disabled={isSyncing}
-                    onClick={() => handleConsultarProcesso(p.numero_processo)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleConsultarProcesso(p.numero_processo)
+                    }}
                     className="h-6 px-2 text-[10px] text-cyan-300 hover:bg-slate-800"
                   >
                     <RefreshCw className={`w-3 h-3 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />

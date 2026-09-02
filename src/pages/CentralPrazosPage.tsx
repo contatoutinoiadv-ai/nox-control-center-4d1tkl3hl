@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Clock,
   AlertTriangle,
@@ -33,6 +34,7 @@ import {
 import { toast } from 'sonner'
 
 export const CentralPrazosPage: React.FC = () => {
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<
     'prazos' | 'agenda' | 'tarefas' | 'calculadora' | 'movimentacoes'
   >('prazos')
@@ -227,7 +229,15 @@ export const CentralPrazosPage: React.FC = () => {
                 .map((d, i) => (
                   <div
                     key={i}
-                    className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-all space-y-3 nox-glass-card"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate(`/processos/${encodeURIComponent(d.processo)}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        navigate(`/processos/${encodeURIComponent(d.processo)}`)
+                      }
+                    }}
+                    className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-cyan-500/60 cursor-pointer transition-all space-y-3 nox-glass-card"
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="space-y-1">
@@ -255,23 +265,39 @@ export const CentralPrazosPage: React.FC = () => {
                       </div>
 
                       <div className="flex items-center gap-3 shrink-0">
-                        <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-center min-w-[110px]">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            navigate(`/processos/${encodeURIComponent(d.processo)}`)
+                          }}
+                          className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-cyan-500/60 hover:bg-slate-900 text-center min-w-[110px] transition-all"
+                          title={`Ver as movimentações do processo ${d.processo}`}
+                        >
                           <div className="text-[9px] font-mono uppercase text-slate-400">
                             Prazo Interno
                           </div>
                           <div className="text-xs font-bold text-amber-400 font-mono">
                             {d.memorial.internalDeadlineDate}
                           </div>
-                        </div>
+                        </button>
 
-                        <div className="p-2.5 rounded-lg bg-rose-950/40 border border-rose-800 text-center min-w-[120px]">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            navigate(`/processos/${encodeURIComponent(d.processo)}`)
+                          }}
+                          className="p-2.5 rounded-lg bg-rose-950/40 border border-rose-800 hover:border-cyan-500/60 hover:bg-rose-950/60 text-center min-w-[120px] transition-all"
+                          title={`Ver as movimentações do processo ${d.processo}`}
+                        >
                           <div className="text-[9px] font-mono uppercase text-rose-300 font-semibold">
                             Vencimento Fatal
                           </div>
                           <div className="text-sm font-black text-rose-400 font-mono">
                             {d.memorial.finalDeadlineDate}
                           </div>
-                        </div>
+                        </button>
                       </div>
                     </div>
 

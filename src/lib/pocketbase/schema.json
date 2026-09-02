@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-02T21:08:14.577Z",
+  "generatedAt": "2026-09-02T21:11:39.651Z",
   "collections": [
     {
       "name": "users",
@@ -1412,12 +1412,20 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "client_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "clients"
         }
       ],
       "indexes": [
         "CREATE UNIQUE INDEX idx_proc_mon_num ON processos_monitorados (numero_processo)",
         "CREATE INDEX idx_proc_mon_ativo ON processos_monitorados (ativo)",
-        "CREATE INDEX idx_proc_mon_trib ON processos_monitorados (tribunal)"
+        "CREATE INDEX idx_proc_mon_trib ON processos_monitorados (tribunal)",
+        "CREATE INDEX `idx_proc_mon_client` ON `processos_monitorados` (client_id)"
       ]
     },
     {

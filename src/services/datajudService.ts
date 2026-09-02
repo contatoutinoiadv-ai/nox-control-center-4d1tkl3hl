@@ -8,6 +8,10 @@ export interface ProcessoMonitorado {
   ativo: boolean
   tem_prazo_aberto: boolean
   ultimo_status_mapeamento?: string
+  client_id?: string
+  expand?: {
+    client_id?: { id: string; nome: string; client_code?: string }
+  }
   created?: string
   updated?: string
 }
@@ -340,15 +344,94 @@ class DatajudService {
   /**
    * Lista todos os processos monitorados
    */
-  async getProcessosMonitorados(): Promise<ProcessoMonitorado[]> {
+  async getProcessosMonitorados(filtroClientId?: string): Promise<ProcessoMonitorado[]> {
     try {
+      const filter = filtroClientId
+        ? pb.filter('client_id = {:clientId}', { clientId: filtroClientId })
+        : ''
       const records = await pb.collection('processos_monitorados').getFullList<ProcessoMonitorado>({
+        filter,
         sort: '-created',
+        expand: 'client_id',
       })
       return records
     } catch (err) {
       console.error('Erro ao buscar processos monitorados:', err)
       return []
+    }
+  }
+
+  /**
+   * Busca um processo monitorado pelo número CNJ
+   */
+  async getProcessoMonitoradoPorNumero(numeroProcesso: string): Promise<ProcessoMonitorado | null> {
+    try {
+      const record = await pb
+        .collection('processos_monitorados')
+        .getFirstListItem<ProcessoMonitorado>(
+          pb.filter('numero_processo = {:num}', { num: numeroProcesso }),
+        )
+      return record
+    } catch (err) {
+      console.error('Erro ao buscar processo monitorado por número:', err)
+      return null
+    }
+  }
+
+  /**
+   * Vincula um processo monitorado a um cliente real da collection clients,
+   * gravando o campo de relação client_id (mantendo o texto apenas como rótulo).
+   */
+  async vincularProcessoAoCliente(
+    numeroProcesso: string,
+    clientId: string,
+    nomeCliente?: string,
+  ): Promise<ProcessoMonitorado | null> {
+    try {
+      const existente = await this.getProcessoMonitoradoPorNumero(numeroProcesso)
+      if (existente) {
+        return await pb
+          .collection('processos_monitorados')
+          .update<ProcessoMonitorado>(existente.id, {
+            client_id: clientId,
+            ...(nomeCliente ? { cliente: nomeCliente } : {}),
+          })
+      }
+
+      // Processo ainda não monitorado: cadastra já vinculado ao cliente
+      const aliasInfo = this.resolveAlias(numeroProcesso)
+      const tribunalAlias = aliasInfo.alias || 'indefinido'
+      const statusMapeamento = aliasInfo.alias
+        ? 'mapeado'
+        : `tribunal_nao_mapeado (${aliasInfo.jtr})`
+
+      return await pb.collection('processos_monitorados').create<ProcessoMonitorado>({
+        numero_processo: numeroProcesso,
+        cliente: nomeCliente || '',
+        tribunal: tribunalAlias,
+        ativo: true,
+        tem_prazo_aberto: false,
+        ultimo_status_mapeamento: statusMapeamento,
+        client_id: clientId,
+      })
+    } catch (err) {
+      console.error('Erro ao vincular processo monitorado ao cliente:', err)
+      return null
+    }
+  }
+
+  /**
+   * Remove o vínculo de cliente de um processo monitorado
+   */
+  async desvincularProcessoDoCliente(processoMonitoradoId: string): Promise<boolean> {
+    try {
+      await pb.collection('processos_monitorados').update(processoMonitoradoId, {
+        client_id: null,
+      })
+      return true
+    } catch (err) {
+      console.error('Erro ao desvincular processo monitorado do cliente:', err)
+      return false
     }
   }
 
@@ -360,6 +443,7 @@ class DatajudService {
     cliente?: string,
     tribunal?: string,
     temPrazoAberto = false,
+    clientId?: string,
   ): Promise<ProcessoMonitorado | null> {
     try {
       const aliasInfo = this.resolveAlias(numeroProcesso)
@@ -375,6 +459,7 @@ class DatajudService {
         ativo: true,
         tem_prazo_aberto: temPrazoAberto,
         ultimo_status_mapeamento: statusMapeamento,
+        ...(clientId ? { client_id: clientId } : {}),
       })
       return record
     } catch (err) {

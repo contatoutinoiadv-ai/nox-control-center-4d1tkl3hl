@@ -21,6 +21,7 @@ import UsuariosPage from './pages/UsuariosPage'
 import { AccessDeniedView } from './components/AccessDeniedView'
 import { authUsersService } from './services/authUsersService'
 import CentralPrazosPage from './pages/CentralPrazosPage'
+import ProcessDetailPage from './pages/ProcessDetailPage'
 import CompromissosPage from './pages/CompromissosPage'
 import ClientesPage from './pages/ClientesPage'
 import ProducaoPage from './pages/ProducaoPage'
@@ -228,6 +229,16 @@ const App = () => (
                 element={
                   <ProtectedModuleRoute moduleKey="processos" moduleName="Processos">
                     <ProcessesPage />
+                  </ProtectedModuleRoute>
+                }
+              />
+              <Route
+                path="/processos/:numeroProcesso"
+                element={
+                  <ProtectedModuleRoute moduleKey="processos" moduleName="Processos">
+                    <ErrorBoundary moduleName="Detalhe do Processo">
+                      <ProcessDetailPage />
+                    </ErrorBoundary>
                   </ProtectedModuleRoute>
                 }
               />
