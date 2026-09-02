@@ -89,11 +89,11 @@ export const SettingsPage: React.FC = () => {
   }
 
   const handleResetData = () => {
-    if (
-      confirm('Deseja redefinir todo o ambiente para os dados sintéticos determinísticos padrão?')
-    ) {
-      dataStore.resetToSyntheticDemo()
-      toast.success('Ambiente redefinido para dados sintéticos determinísticos padrão.')
+    if (confirm('Deseja limpar todos os dados importados e zerar o sistema por completo?')) {
+      dataStore.clearAllData()
+      toast.success(
+        'Todos os dados foram apagados. O sistema está zerado pronto para nova importação.',
+      )
     }
   }
 
@@ -124,7 +124,7 @@ export const SettingsPage: React.FC = () => {
           className="h-8 text-xs bg-slate-900 border-rose-900/60 text-rose-400 hover:bg-rose-950/40 font-mono"
         >
           <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
-          Redefinir Dados Demo
+          Zerar e Limpar Dados
         </Button>
       </div>
 

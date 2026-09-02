@@ -119,14 +119,23 @@ export const CentralPrazosPage: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 nox-glass-card">
           <div className="text-[10px] font-mono text-slate-400 uppercase">Vencendo Hoje</div>
-          <div className="text-xl font-black text-rose-400 font-mono mt-1">1 prazo</div>
-          <div className="text-[10px] text-rose-300/80 font-mono">TJSP Apelação</div>
+          <div className="text-xl font-black text-rose-400 font-mono mt-1">
+            {
+              deadlinesList.filter(
+                (d) => d.memorial.finalDeadlineDate === new Date().toISOString().split('T')[0],
+              ).length
+            }{' '}
+            prazos
+          </div>
+          <div className="text-[10px] text-slate-500 font-mono">Monitoramento diário</div>
         </div>
 
         <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 nox-glass-card">
           <div className="text-[10px] font-mono text-slate-400 uppercase">Próximos 7 Dias</div>
-          <div className="text-xl font-black text-amber-400 font-mono mt-1">4 prazos</div>
-          <div className="text-[10px] text-slate-400 font-mono">TRT2 / TJDFT</div>
+          <div className="text-xl font-black text-amber-400 font-mono mt-1">
+            {deadlinesList.length} prazos
+          </div>
+          <div className="text-[10px] text-slate-400 font-mono">Calculados com CPC/CLT</div>
         </div>
 
         <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 nox-glass-card">
@@ -144,7 +153,7 @@ export const CentralPrazosPage: React.FC = () => {
           <div className="text-xl font-black text-purple-400 font-mono mt-1">
             {agenda.length} eventos
           </div>
-          <div className="text-[10px] text-slate-400 font-mono">Próximas 2 semanas</div>
+          <div className="text-[10px] text-slate-400 font-mono">Agenda sincronizada</div>
         </div>
       </div>
 
@@ -168,76 +177,85 @@ export const CentralPrazosPage: React.FC = () => {
           </div>
 
           <div className="space-y-3">
-            {deadlinesList
-              .filter(
-                (d) =>
-                  !searchQuery ||
-                  d.processo.includes(searchQuery) ||
-                  d.tribunal.toLowerCase().includes(searchQuery.toLowerCase()),
-              )
-              .map((d, i) => (
-                <div
-                  key={i}
-                  className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-all space-y-3 nox-glass-card"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-cyan-950 text-cyan-300 border border-cyan-800 text-[10px] font-mono">
-                          {d.tribunal}
-                        </Badge>
-                        <span className="text-xs font-mono font-bold text-slate-200">
-                          {d.processo}
-                        </span>
-                        <span className="text-xs text-slate-400">• {d.responsavel}</span>
+            {deadlinesList.length === 0 ? (
+              <div className="p-10 rounded-xl bg-slate-900/40 border border-slate-800 text-center text-slate-500 text-xs space-y-2">
+                <div className="font-bold text-slate-300">Nenhum prazo judicial ativo</div>
+                <p className="text-slate-500">
+                  Importe um arquivo CSV ou homologue publicações na Triagem para calcular memoriais
+                  temporais.
+                </p>
+              </div>
+            ) : (
+              deadlinesList
+                .filter(
+                  (d) =>
+                    !searchQuery ||
+                    d.processo.includes(searchQuery) ||
+                    d.tribunal.toLowerCase().includes(searchQuery.toLowerCase()),
+                )
+                .map((d, i) => (
+                  <div
+                    key={i}
+                    className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-all space-y-3 nox-glass-card"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-cyan-950 text-cyan-300 border border-cyan-800 text-[10px] font-mono">
+                            {d.tribunal}
+                          </Badge>
+                          <span className="text-xs font-mono font-bold text-slate-200">
+                            {d.processo}
+                          </span>
+                          <span className="text-xs text-slate-400">• {d.responsavel}</span>
+                        </div>
+                        <h4 className="text-sm font-bold text-slate-100">
+                          {d.memorial.legalRuleName}
+                        </h4>
+                        <p className="text-xs text-slate-400 font-mono">
+                          {d.memorial.legalRuleArticle}
+                        </p>
                       </div>
-                      <h4 className="text-sm font-bold text-slate-100">
-                        {d.memorial.legalRuleName}
-                      </h4>
-                      <p className="text-xs text-slate-400 font-mono">
-                        {d.memorial.legalRuleArticle}
-                      </p>
+
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-center min-w-[110px]">
+                          <div className="text-[9px] font-mono uppercase text-slate-400">
+                            Prazo Interno
+                          </div>
+                          <div className="text-xs font-bold text-amber-400 font-mono">
+                            {d.memorial.internalDeadlineDate}
+                          </div>
+                        </div>
+
+                        <div className="p-2.5 rounded-lg bg-rose-950/40 border border-rose-800 text-center min-w-[120px]">
+                          <div className="text-[9px] font-mono uppercase text-rose-300 font-semibold">
+                            Vencimento Fatal
+                          </div>
+                          <div className="text-sm font-black text-rose-400 font-mono">
+                            {d.memorial.finalDeadlineDate}
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-3 shrink-0">
-                      <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-center min-w-[110px]">
-                        <div className="text-[9px] font-mono uppercase text-slate-400">
-                          Prazo Interno
-                        </div>
-                        <div className="text-xs font-bold text-amber-400 font-mono">
-                          {d.memorial.internalDeadlineDate}
-                        </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800 text-[11px] font-mono text-slate-400">
+                      <div>
+                        Contagem:{' '}
+                        <span className="text-slate-300">
+                          {d.memorial.daysCount} dias {d.memorial.daysType}
+                        </span>{' '}
+                        (Início: {d.memorial.firstDayCounted})
                       </div>
-
-                      <div className="p-2.5 rounded-lg bg-rose-950/40 border border-rose-800 text-center min-w-[120px]">
-                        <div className="text-[9px] font-mono uppercase text-rose-300 font-semibold">
-                          Vencimento Fatal
-                        </div>
-                        <div className="text-sm font-black text-rose-400 font-mono">
-                          {d.memorial.finalDeadlineDate}
-                        </div>
+                      <div className="text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> Feriados & Suspensões Checados (100%)
                       </div>
                     </div>
                   </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800 text-[11px] font-mono text-slate-400">
-                    <div>
-                      Contagem:{' '}
-                      <span className="text-slate-300">
-                        {d.memorial.daysCount} dias {d.memorial.daysType}
-                      </span>{' '}
-                      (Início: {d.memorial.firstDayCounted})
-                    </div>
-                    <div className="text-emerald-400 flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" /> Feriados & Suspensões Checados (100%)
-                    </div>
-                  </div>
-                </div>
-              ))}
+                ))
+            )}
           </div>
         </div>
       )}
-
       {activeTab === 'agenda' && <AgendaView />}
       {activeTab === 'tarefas' && <TasksView />}
       {activeTab === 'calculadora' && <DeadlineCalculatorView />}

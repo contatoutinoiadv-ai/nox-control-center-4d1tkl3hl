@@ -99,8 +99,8 @@ export const Index: React.FC = () => {
                 DADOS IMPORTADOS REAIS ({records.length})
               </Badge>
             ) : (
-              <Badge className="bg-amber-950/70 text-amber-300 border-amber-800 font-mono text-xs">
-                DEMO SINTÉTICO ({records.length})
+              <Badge className="bg-slate-900 text-slate-400 border-slate-800 font-mono text-xs">
+                SEM DADOS — aguardando importação ({records.length})
               </Badge>
             )}
           </div>
@@ -337,48 +337,61 @@ export const Index: React.FC = () => {
             </div>
 
             <div className="space-y-2.5">
-              {urgentQueue.map((rec) => (
-                <div
-                  key={rec.id}
-                  onClick={() => navigate(`/processos?selected=${rec.id}`)}
-                  className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-cyan-500/40 transition-all cursor-pointer group flex items-start justify-between gap-3"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-xs font-bold text-cyan-300 group-hover:text-cyan-200">
-                        {rec.recordCode}
-                      </span>
-                      <span className="text-xs text-slate-400 font-mono">{rec.numeroProcesso}</span>
-                      <Badge className="text-[9px] px-1.5 py-0 h-4 bg-slate-800 text-slate-300 border-slate-700">
-                        {rec.tribunal}
-                      </Badge>
-                      <Badge
-                        className={`text-[9px] uppercase font-mono px-1.5 py-0 ${
-                          rec.severity === 'critico'
-                            ? 'bg-rose-950 text-rose-400 border-rose-800'
-                            : rec.severity === 'alto'
-                              ? 'bg-amber-950 text-amber-400 border-amber-800'
-                              : 'bg-yellow-950 text-yellow-400 border-yellow-800'
-                        }`}
-                      >
-                        {rec.severity}
-                      </Badge>
+              {urgentQueue.length === 0 ? (
+                <div className="p-8 text-center bg-slate-950/50 rounded-xl border border-slate-800/80 text-slate-400 text-xs space-y-2">
+                  <p className="font-medium text-slate-300">
+                    Nenhum alerta crítico ativo no momento
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    Importe um arquivo CSV para visualizar a fila de atenção imediata.
+                  </p>
+                </div>
+              ) : (
+                urgentQueue.map((rec) => (
+                  <div
+                    key={rec.id}
+                    onClick={() => navigate(`/processos?selected=${rec.id}`)}
+                    className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-cyan-500/40 transition-all cursor-pointer group flex items-start justify-between gap-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-xs font-bold text-cyan-300 group-hover:text-cyan-200">
+                          {rec.recordCode}
+                        </span>
+                        <span className="text-xs text-slate-400 font-mono">
+                          {rec.numeroProcesso}
+                        </span>
+                        <Badge className="text-[9px] px-1.5 py-0 h-4 bg-slate-800 text-slate-300 border-slate-700">
+                          {rec.tribunal}
+                        </Badge>
+                        <Badge
+                          className={`text-[9px] uppercase font-mono px-1.5 py-0 ${
+                            rec.severity === 'critico'
+                              ? 'bg-rose-950 text-rose-400 border-rose-800'
+                              : rec.severity === 'alto'
+                                ? 'bg-amber-950 text-amber-400 border-amber-800'
+                                : 'bg-yellow-950 text-yellow-400 border-yellow-800'
+                          }`}
+                        >
+                          {rec.severity}
+                        </Badge>
+                      </div>
+
+                      <p className="text-xs font-medium text-slate-200 mt-1 line-clamp-1 group-hover:text-white">
+                        {rec.alertTitle}
+                      </p>
+                      <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">{rec.partes}</p>
                     </div>
 
-                    <p className="text-xs font-medium text-slate-200 mt-1 line-clamp-1 group-hover:text-white">
-                      {rec.alertTitle}
-                    </p>
-                    <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">{rec.partes}</p>
+                    <div className="flex flex-col items-end shrink-0 gap-1">
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        Resp: {rec.responsible.split(' ')[1] || rec.responsible}
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-cyan-400 group-hover:translate-x-0.5 transition-all" />
+                    </div>
                   </div>
-
-                  <div className="flex flex-col items-end shrink-0 gap-1">
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      Resp: {rec.responsible.split(' ')[1] || rec.responsible}
-                    </span>
-                    <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-cyan-400 group-hover:translate-x-0.5 transition-all" />
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
 

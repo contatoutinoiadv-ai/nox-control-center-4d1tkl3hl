@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   CheckSquare,
   Clock,
@@ -82,7 +82,6 @@ export const TasksView: React.FC = () => {
 
   const lawyerProfile = dataStore.getLawyerProfile()
   const defaultResponsible = lawyerProfile.nome || 'Higor Utinoi de Oliveira'
-
   useEffect(() => {
     const unsub = dataStore.subscribe(() => {
       setTasks(dataStore.getTasks())

@@ -157,10 +157,10 @@ export const ReviewPage: React.FC = () => {
                 DADOS IMPORTADOS REAIS ({records.length})
               </Badge>
             ) : (
-              <Badge className="bg-amber-950/70 text-amber-300 border-amber-800 font-mono text-xs">
-                DEMO SINTÉTICO ({records.length})
+              <Badge className="bg-slate-900 text-slate-400 border-slate-800 font-mono text-xs">
+                SEM DADOS — aguardando importação ({records.length})
               </Badge>
-            )}
+            )}{' '}
           </div>
           <p className="text-slate-400 text-xs mt-1">
             Fluxo contínuo de decisão: priorização, despacho para advogados/analistas e anotação

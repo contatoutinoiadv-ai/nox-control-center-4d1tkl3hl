@@ -223,13 +223,13 @@ export const Layout: React.FC = () => {
               </p>
             </div>
           ) : (
-            <div className="bg-amber-950/40 border border-amber-800/40 rounded-md p-2 mb-2">
-              <div className="flex items-center gap-1.5 text-amber-300 text-[10px] font-semibold font-mono">
-                <Sparkles className="w-3 h-3 text-amber-400" />
-                <span>DEMO SINTÉTICO</span>
+            <div className="bg-slate-900/60 border border-slate-800 rounded-md p-2 mb-2">
+              <div className="flex items-center gap-1.5 text-slate-300 text-[10px] font-semibold font-mono">
+                <Database className="w-3 h-3 text-cyan-400" />
+                <span>SEM DADOS — aguardando importação</span>
               </div>
-              <p className="text-[10px] text-amber-400/80 mt-0.5 leading-tight">
-                Importe um CSV para alternar para a base real
+              <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">
+                Importe o CSV do Sentinela para alimentar o painel
               </p>
             </div>
           )}
@@ -237,13 +237,11 @@ export const Layout: React.FC = () => {
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-cyan-400 text-xs">
-                OP
+                HU
               </div>
               <div className="truncate">
-                <div className="text-xs font-medium text-slate-200 truncate">Operador NOX</div>
-                <div className="text-[10px] font-mono text-slate-400 truncate">
-                  contatoutinoiadv
-                </div>
+                <div className="text-xs font-medium text-slate-200 truncate">Higor Utinoi</div>
+                <div className="text-[10px] font-mono text-slate-400 truncate">OAB/MS 15.400</div>
               </div>
             </div>
             <Lock className="w-3.5 h-3.5 text-slate-400" />
@@ -340,17 +338,19 @@ export const Layout: React.FC = () => {
             <div className="hidden lg:flex items-center gap-2 pl-2 border-l border-slate-800 text-xs font-mono text-slate-400">
               <span className="text-slate-500">Origem:</span>
               <span className="text-slate-300">
-                {dataStore.getActiveBatch()?.filename || 'sentinela_nox_2026-09-01_1155.csv'}
+                {dataStore.getActiveBatch()?.filename || 'Nenhum lote ativo'}
               </span>
               <span className="text-slate-600">|</span>
               <span
                 className={
                   dataStore.isUsingRealImportedData()
                     ? 'text-emerald-400 font-bold'
-                    : 'text-amber-400'
+                    : 'text-slate-400'
                 }
               >
-                {dataStore.isUsingRealImportedData() ? 'DADOS IMPORTADOS REAIS' : 'DEMO SINTÉTICO'}
+                {dataStore.isUsingRealImportedData()
+                  ? 'DADOS IMPORTADOS REAIS'
+                  : 'SEM DADOS — aguardando importação'}
               </span>
             </div>
           </div>

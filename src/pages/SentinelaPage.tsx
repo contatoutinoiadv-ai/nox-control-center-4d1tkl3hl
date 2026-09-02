@@ -286,8 +286,8 @@ export const SentinelaHub: React.FC = () => {
       isAllDay: true,
       isVirtual: false,
       processNumber: comm.numeroProcesso,
-      responsible: comm.assignedTo || 'Dr. Higor Utinói',
-      participants: [comm.assignedTo || 'Dr. Higor Utinói'],
+      responsible: comm.assignedTo || dataStore.getLawyerProfile().nome,
+      participants: [comm.assignedTo || dataStore.getLawyerProfile().nome],
       tribunal: comm.tribunal,
       communicationId: comm.id,
       status: 'AGENDADO',
@@ -315,8 +315,8 @@ export const SentinelaHub: React.FC = () => {
         isAllDay: true,
         isVirtual: false,
         processNumber: comm.numeroProcesso,
-        responsible: comm.assignedTo || 'Dr. Higor Utinói',
-        participants: [comm.assignedTo || 'Dr. Higor Utinói'],
+        responsible: comm.assignedTo || dataStore.getLawyerProfile().nome,
+        participants: [comm.assignedTo || dataStore.getLawyerProfile().nome],
         tribunal: comm.tribunal,
         communicationId: comm.id,
         status: 'AGENDADO',
@@ -364,7 +364,7 @@ export const SentinelaHub: React.FC = () => {
   const handleExportMarkdown = () => {
     let md = `# RELATÓRIO SENTINELA NOX — DJEN / PUBLICAÇÕES\n`
     md += `*Gerado em: ${new Date().toLocaleString('pt-BR')}*\n`
-    md += `*Advogado Âncora: Dr. Higor Utinói (OAB/MS 15.400)*\n\n`
+    md += `*Advogado Âncora: ${dataStore.getLawyerProfile().nome} (${dataStore.getLawyerProfile().oab})*\n\n`
     md += `## 1. Resumo Quantitativo\n`
     md += `- Total de Comunicações: ${communications.length}\n`
     md += `- Citações: ${communications.filter((c) => c.tipoComunicacao === 'CITACAO').length}\n`
@@ -567,15 +567,15 @@ export const SentinelaHub: React.FC = () => {
                 Sentinela NOX v2.0
               </Badge>
               {dataStore.isUsingRealImportedData() ? (
-                <Badge className="bg-emerald-950 text-emerald-300 border border-emerald-600 text-[10px] font-mono flex items-center gap-1">
+                <Badge className="bg-emerald-950 text-emerald-300 border-emerald-700 font-mono text-xs flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                   DADOS IMPORTADOS REAIS ({communications.length})
                 </Badge>
               ) : (
-                <Badge className="bg-amber-950/80 text-amber-300 border border-amber-800 text-[10px] font-mono">
-                  DEMO SINTÉTICO ({communications.length})
+                <Badge className="bg-slate-900 text-slate-400 border-slate-800 font-mono text-xs">
+                  SEM DADOS — aguardando importação ({communications.length})
                 </Badge>
-              )}
+              )}{' '}
               <span className="text-xs text-slate-400 font-mono flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
                 Operação Inteligente & Cadeia de Custódia
@@ -1807,7 +1807,7 @@ export const SentinelaHub: React.FC = () => {
                         dataStore.advanceCommunicationStatus(
                           noxActiveComm.id,
                           'PRAZO_TAREFA_AGENDA',
-                          'Dr. Higor Utinói',
+                          dataStore.getLawyerProfile().nome,
                           'Homologado e despachado para a esteira jurídica.',
                         )
                         setCommunications(dataStore.getCommunications())
@@ -1837,7 +1837,8 @@ export const SentinelaHub: React.FC = () => {
                   ORÁCULO NOX — Painel Gerencial Estratégico
                 </h3>
                 <p className="text-[10px] text-slate-400 font-mono">
-                  Contexto Ativo: {communications.length} publicações · Dr. Higor Utinói OAB/MS
+                  Contexto Ativo: {communications.length} publicações ·{' '}
+                  {dataStore.getLawyerProfile().nome} {dataStore.getLawyerProfile().oab}
                   15.400
                 </p>
               </div>

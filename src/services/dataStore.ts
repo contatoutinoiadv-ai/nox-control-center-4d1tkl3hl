@@ -57,7 +57,7 @@ export interface AppSettings {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-  demoMode: true,
+  demoMode: false,
   reducedMotionPreference: false,
   autoRefreshRadar: true,
   refreshIntervalSeconds: 15,
@@ -99,31 +99,29 @@ export class NoxDataStore {
   }
 
   private init() {
-    // Load from LocalStorage if present, else seed deterministic dataset
+    // Purge legacy demo artifacts from localStorage if version marker is not clean
     try {
-      const storedRecs = localStorage.getItem(STORAGE_KEYS.RECORDS)
-      if (storedRecs) {
-        this.records = JSON.parse(storedRecs)
-      } else {
-        this.records = generateFullSyntheticDataset()
-        this.saveRecords()
+      const isCleaned = localStorage.getItem('nox_zero_clean_v2')
+      if (!isCleaned) {
+        localStorage.removeItem(STORAGE_KEYS.RECORDS)
+        localStorage.removeItem(STORAGE_KEYS.IMPORTS)
+        localStorage.removeItem(STORAGE_KEYS.AUDIT_LOGS)
+        localStorage.removeItem(STORAGE_KEYS.COMMUNICATIONS)
+        localStorage.removeItem(STORAGE_KEYS.TASKS)
+        localStorage.removeItem(STORAGE_KEYS.AGENDA)
+        localStorage.removeItem(STORAGE_KEYS.INCIDENTS)
+        localStorage.removeItem(STORAGE_KEYS.DECISION_MEMORY)
+        localStorage.setItem('nox_zero_clean_v2', 'true')
       }
+
+      const storedRecs = localStorage.getItem(STORAGE_KEYS.RECORDS)
+      this.records = storedRecs ? JSON.parse(storedRecs) : []
 
       const storedImports = localStorage.getItem(STORAGE_KEYS.IMPORTS)
-      if (storedImports) {
-        this.imports = JSON.parse(storedImports)
-      } else {
-        this.imports = [INITIAL_BATCH]
-        this.saveImports()
-      }
+      this.imports = storedImports ? JSON.parse(storedImports) : []
 
       const storedLogs = localStorage.getItem(STORAGE_KEYS.AUDIT_LOGS)
-      if (storedLogs) {
-        this.auditLogs = JSON.parse(storedLogs)
-      } else {
-        this.auditLogs = [...INITIAL_AUDIT_LOGS]
-        this.saveAuditLogs()
-      }
+      this.auditLogs = storedLogs ? JSON.parse(storedLogs) : []
 
       const storedSettings = localStorage.getItem(STORAGE_KEYS.SETTINGS)
       if (storedSettings) {
@@ -131,15 +129,13 @@ export class NoxDataStore {
       }
 
       const storedComms = localStorage.getItem(STORAGE_KEYS.COMMUNICATIONS)
-      this.communications = storedComms
-        ? JSON.parse(storedComms)
-        : [...INITIAL_SENTINELA_COMMUNICATIONS]
+      this.communications = storedComms ? JSON.parse(storedComms) : []
 
       const storedTasks = localStorage.getItem(STORAGE_KEYS.TASKS)
-      this.tasks = storedTasks ? JSON.parse(storedTasks) : [...INITIAL_SENTINELA_TASKS]
+      this.tasks = storedTasks ? JSON.parse(storedTasks) : []
 
       const storedAgenda = localStorage.getItem(STORAGE_KEYS.AGENDA)
-      this.agendaEvents = storedAgenda ? JSON.parse(storedAgenda) : [...INITIAL_AGENDA_EVENTS]
+      this.agendaEvents = storedAgenda ? JSON.parse(storedAgenda) : []
 
       const storedAutos = localStorage.getItem(STORAGE_KEYS.AUTOMATIONS)
       this.automations = storedAutos ? JSON.parse(storedAutos) : [...INITIAL_AUTOMATION_RULES]
@@ -148,21 +144,21 @@ export class NoxDataStore {
       this.apiHealth = storedHealth ? JSON.parse(storedHealth) : [...INITIAL_API_HEALTH]
 
       const storedIncidents = localStorage.getItem(STORAGE_KEYS.INCIDENTS)
-      this.incidents = storedIncidents ? JSON.parse(storedIncidents) : [...INITIAL_INCIDENT_ROOMS]
+      this.incidents = storedIncidents ? JSON.parse(storedIncidents) : []
 
       const storedMemory = localStorage.getItem(STORAGE_KEYS.DECISION_MEMORY)
-      this.decisionMemory = storedMemory ? JSON.parse(storedMemory) : [...INITIAL_DECISION_MEMORY]
+      this.decisionMemory = storedMemory ? JSON.parse(storedMemory) : []
     } catch {
-      this.records = generateFullSyntheticDataset()
-      this.imports = [INITIAL_BATCH]
-      this.auditLogs = [...INITIAL_AUDIT_LOGS]
-      this.communications = [...INITIAL_SENTINELA_COMMUNICATIONS]
-      this.tasks = [...INITIAL_SENTINELA_TASKS]
-      this.agendaEvents = [...INITIAL_AGENDA_EVENTS]
+      this.records = []
+      this.imports = []
+      this.auditLogs = []
+      this.communications = []
+      this.tasks = []
+      this.agendaEvents = []
       this.automations = [...INITIAL_AUTOMATION_RULES]
       this.apiHealth = [...INITIAL_API_HEALTH]
-      this.incidents = [...INITIAL_INCIDENT_ROOMS]
-      this.decisionMemory = [...INITIAL_DECISION_MEMORY]
+      this.incidents = []
+      this.decisionMemory = []
       this.settings = DEFAULT_SETTINGS
     }
   }
@@ -264,8 +260,8 @@ export class NoxDataStore {
       inReviewRecords: inReview,
       quarantinedRecords: quarantined,
       resolvedRecords: resolved,
-      lastImportTimestamp: lastBatch?.createdAt || '2026-09-01T11:55:00Z',
-      sentinelaConnected: true,
+      lastImportTimestamp: lastBatch?.createdAt || '',
+      sentinelaConnected: this.imports.length > 0,
       sentinelaSyncMode: 'IMPORT_CSV_ISOLATED',
     }
   }
@@ -420,7 +416,7 @@ export class NoxDataStore {
         orgaoJulgador: rec.orgaoJulgador || 'Vara Cível',
         comarca: rec.normalizedData?.uf || 'SP',
         classeJudicial: rec.classeJudicial || 'Procedimento Cível',
-        destinatario: rec.partes || 'Dr. Higor Utinói (OAB/MS 15.400)',
+        destinatario: rec.partes || 'Higor Utinoi de Oliveira (OAB/MS 15.400)',
         tipoComunicacao: isQuarantine
           ? 'INTIMACAO'
           : rec.severity === 'critico'
@@ -445,7 +441,7 @@ export class NoxDataStore {
         urgencyLevel: urgency,
         riskScore:
           urgency === 'critica' ? 95 : urgency === 'alta' ? 80 : urgency === 'media' ? 55 : 25,
-        assignedTo: rec.responsible || 'Dr. Higor Utinói',
+        assignedTo: rec.responsible || 'Higor Utinoi de Oliveira',
         custody: {
           communicationId: `comm-imp-${idx + 1}`,
           snapshot: {
@@ -950,11 +946,11 @@ export class NoxDataStore {
   }
 
   public getOperationalTwin(): OperationalTwinCapacity[] {
-    return [...INITIAL_OPERATIONAL_TWIN]
+    return []
   }
 
   public getGaps(): GapItem[] {
-    return [...INITIAL_GAPS]
+    return []
   }
 
   public getRecoveredTimeMetric(): RecoveredTimeMetric {
@@ -999,90 +995,92 @@ export class NoxDataStore {
   public getDailyBriefing(): DailyBriefingData {
     const todayStr = new Date().toISOString().split('T')[0]
     const defaultLawyer = this.settings.lawyerName || 'Higor Utinoi de Oliveira'
+
+    const urgentDeadlines = this.communications
+      .filter((c) => c.deadlineCalculated && c.deadlineCalculated.finalDeadlineDate === todayStr)
+      .map((c) => ({
+        id: c.deadlineCalculated!.id,
+        process: c.numeroProcesso,
+        title: c.deadlineCalculated!.legalRuleName,
+        responsible: c.assignedTo || defaultLawyer,
+        hoursLeft: 12,
+      }))
+
+    const upcomingCommitments = this.agendaEvents.slice(0, 5).map((ev) => ({
+      id: ev.id,
+      time: ev.startDate.includes('T') ? ev.startDate.split('T')[1].slice(0, 5) : '09:00',
+      title: ev.title,
+      type: ev.eventType,
+      responsible: ev.responsible,
+    }))
+
+    const pendingReviews = this.communications.filter(
+      (c) => c.status === 'REVISAO_HUMANA' || c.status === 'VALIDADA',
+    ).length
+
+    const highRisk = this.records.filter((r) => r.severity === 'critico').length
+
     return {
       date: todayStr,
-      urgentDeadlinesToday: [
-        {
-          id: 'dead-101',
-          process: '1004523-88.2025.8.26.0100',
-          title: 'Apelação Cível TJSP (Fase de Elaboração)',
-          responsible: defaultLawyer,
-          hoursLeft: 14,
-        },
-      ],
-      upcomingCommitments: [
-        {
-          id: 'agenda-102',
-          time: '14:30',
-          title: 'Audiência de Instrução e Julgamento (Zoom TRT24)',
-          type: 'AUDIENCIA',
-          responsible: defaultLawyer,
-        },
-        {
-          id: 'agenda-103',
-          time: '10:00',
-          title: 'Reunião de Alinhamento Estratégico com Diretoria',
-          type: 'REUNIAO',
-          responsible: defaultLawyer,
-        },
-      ],
-      pendingReviewsCount: this.communications.filter(
-        (c) => c.status === 'REVISAO_HUMANA' || c.status === 'VALIDADA',
-      ).length,
-      highRiskAlertsCount: this.records.filter((r) => r.severity === 'critico').length,
+      urgentDeadlinesToday: urgentDeadlines,
+      upcomingCommitments,
+      pendingReviewsCount: pendingReviews,
+      highRiskAlertsCount: highRisk,
       captureHealthStatus: 'ESTAVEL',
-      bottlenecks: [
-        `${defaultLawyer} possui audiências de instrução e prazos concentrados nos próximos 3 dias.`,
-        'Tarefa #task-103 aguarda manifestação de terceiro (laudo pericial).',
-      ],
-      explainableRecommendations: [
-        {
-          title: 'Homologar prazo ambíguo em comm-103 (Despacho sobre Laudo)',
-          reason:
-            'Prazo pode vencer em 5 dias ou 15 dias conforme Art. 218 § 3º ou Art. 477 § 1º CPC.',
-          suggestedAction: 'Abrir Triagem Sentinela e validar memorial.',
-          targetRoute: '/sentinela/triagem',
-        },
-        {
-          title: 'Conferir suspensões forenses de Campo Grande / TJMS',
-          reason:
-            'Prevenção de preclusão de prazos em comarcas com feriados municipais no calendário.',
-          suggestedAction: 'Acessar Central de Prazos e validar calendário.',
-          targetRoute: '/prazos',
-        },
-      ],
+      bottlenecks:
+        this.records.length === 0
+          ? ['Nenhum gargalo identificado — aguardando importação de lote Sentinela.']
+          : [],
+      explainableRecommendations:
+        this.records.length === 0
+          ? [
+              {
+                title: 'Importar lote de publicações Sentinela',
+                reason: 'O sistema está em estado limpo pronto para receber dados reais.',
+                suggestedAction: 'Acessar Importações e carregar o arquivo CSV.',
+                targetRoute: '/importacoes',
+              },
+            ]
+          : [],
     }
   }
 
   public isUsingRealImportedData(): boolean {
-    const activeBatch = this.imports[0]
-    return Boolean(activeBatch && activeBatch.id !== 'batch_sentinela_2026_09_01')
+    return this.imports.length > 0 && this.records.length > 0
   }
 
   public getActiveBatch(): ImportBatch | undefined {
     return this.imports[0]
   }
 
-  public resetToSyntheticDemo(): void {
-    this.records = generateFullSyntheticDataset()
-    this.imports = [INITIAL_BATCH]
-    this.auditLogs = [...INITIAL_AUDIT_LOGS]
-    this.communications = [...INITIAL_SENTINELA_COMMUNICATIONS]
-    this.tasks = [...INITIAL_SENTINELA_TASKS]
-    this.agendaEvents = [...INITIAL_AGENDA_EVENTS]
-    this.automations = [...INITIAL_AUTOMATION_RULES]
-    this.apiHealth = [...INITIAL_API_HEALTH]
-    this.incidents = [...INITIAL_INCIDENT_ROOMS]
-    this.decisionMemory = [...INITIAL_DECISION_MEMORY]
-    this.settings = { ...DEFAULT_SETTINGS }
+  public clearAllData(): void {
+    this.records = []
+    this.imports = []
+    this.auditLogs = []
+    this.communications = []
+    this.tasks = []
+    this.agendaEvents = []
+    this.incidents = []
+    this.decisionMemory = []
 
-    this.saveRecords()
-    this.saveImports()
-    this.saveAuditLogs()
-    this.saveCommunications()
-    this.saveTasks()
-    this.saveAgenda()
-    this.saveSettings(DEFAULT_SETTINGS)
+    try {
+      localStorage.removeItem(STORAGE_KEYS.RECORDS)
+      localStorage.removeItem(STORAGE_KEYS.IMPORTS)
+      localStorage.removeItem(STORAGE_KEYS.AUDIT_LOGS)
+      localStorage.removeItem(STORAGE_KEYS.COMMUNICATIONS)
+      localStorage.removeItem(STORAGE_KEYS.TASKS)
+      localStorage.removeItem(STORAGE_KEYS.AGENDA)
+      localStorage.removeItem(STORAGE_KEYS.INCIDENTS)
+      localStorage.removeItem(STORAGE_KEYS.DECISION_MEMORY)
+    } catch {
+      /* ignore */
+    }
+
+    this.notify()
+  }
+
+  public resetToSyntheticDemo(): void {
+    this.clearAllData()
   }
 }
 
