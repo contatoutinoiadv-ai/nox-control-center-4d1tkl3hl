@@ -1,22 +1,21 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   Activity,
   RefreshCw,
   Search,
-  Filter,
   ShieldAlert,
   ShieldCheck,
   Clock,
   AlertTriangle,
-  FileText,
   Plus,
   CheckCircle2,
   ExternalLink,
-  ChevronRight,
   Database,
   Building,
   Eye,
-  Info,
+  History,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import {
   datajudService,
@@ -39,6 +38,8 @@ import {
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 
+const PAGE_SIZE = 50
+
 export const MovimentacoesDatajudView: React.FC = () => {
   const [processos, setProcessos] = useState<ProcessoMonitorado[]>([])
   const [movimentacoes, setMovimentacoes] = useState<MovimentacaoProcesso[]>([])
@@ -50,6 +51,7 @@ export const MovimentacoesDatajudView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [selectedProcesso, setSelectedProcesso] = useState<string | null>(null)
   const [filterSigilo, setFilterSigilo] = useState<string>('todos')
+  const [page, setPage] = useState<number>(1)
 
   // Modal de Adicionar Processo
   const [openAddModal, setOpenAddModal] = useState(false)
@@ -57,6 +59,17 @@ export const MovimentacoesDatajudView: React.FC = () => {
   const [novoCliente, setNovoCliente] = useState('')
   const [novoComPrazo, setNovoComPrazo] = useState(false)
   const [submittingAdd, setSubmittingAdd] = useState(false)
+
+  // Consulta INDEPENDENTE ao PocketBase: histórico completo já gravado em
+  // movimentacoes_processo, não o retorno da última chamada ao DataJud.
+  const loadMovimentacoes = useCallback(async () => {
+    try {
+      const movs = await datajudService.getMovimentacoes()
+      setMovimentacoes(movs)
+    } catch (err) {
+      console.error('Erro ao carregar movimentações gravadas do DataJud:', err)
+    }
+  }, [])
 
   // Carregar dados
   const loadData = async () => {
@@ -100,7 +113,6 @@ export const MovimentacoesDatajudView: React.FC = () => {
         toast.success(`Consulta DataJud concluída para ${numero}`, {
           description: `${res.novos_movimentos_inseridos || 0} novas movimentações inseridas (${res.total_movimentos_api || 0} no tribunal).`,
         })
-        await loadData()
       } else {
         if (res.status === 'tribunal_nao_mapeado') {
           toast.warning(`Tribunal não mapeado (J.TR: ${res.jtr})`, {
@@ -113,7 +125,6 @@ export const MovimentacoesDatajudView: React.FC = () => {
             description: res.detalhes ? `Detalhes: ${res.detalhes}` : undefined,
           })
         }
-        await loadData()
       }
     } catch (err: any) {
       console.error(
@@ -122,6 +133,12 @@ export const MovimentacoesDatajudView: React.FC = () => {
       )
       toast.error(`Erro na requisição: ${err?.message || 'Falha de comunicação.'}`)
     } finally {
+      // Refaz a consulta completa ao banco, independente de a chamada ter
+      // tido sucesso ou não. A lista sempre reflete o que está gravado.
+      await loadData()
+      if (numero === selectedProcesso) {
+        setPage(1)
+      }
       setSyncingSingle(null)
     }
   }
@@ -140,7 +157,6 @@ export const MovimentacoesDatajudView: React.FC = () => {
             description: 'Verifique a lista de tribunais pendentes de mapeamento.',
           })
         }
-        await loadData()
       } else {
         const mensagemErro = res.error || 'Não foi possível sincronizar o lote no momento.'
         toast.error(mensagemErro)
@@ -152,6 +168,7 @@ export const MovimentacoesDatajudView: React.FC = () => {
       )
       toast.error(`Erro ao executar lote: ${err?.message || 'Falha de comunicação.'}`)
     } finally {
+      await loadData()
       setSyncingLote(false)
     }
   }
@@ -196,6 +213,14 @@ export const MovimentacoesDatajudView: React.FC = () => {
     setAlertas((prev) => prev.map((a) => (a.id === id ? { ...a, lido: true } : a)))
   }
 
+  // Seleção de processo: reinicia a navegação por página e refaz a consulta
+  // completa, para que a linha do tempo venha sempre do banco.
+  const handleSelectProcesso = async (numero: string | null) => {
+    setSelectedProcesso(numero)
+    setPage(1)
+    await loadMovimentacoes()
+  }
+
   // Filtragem de movimentações
   const filteredMovimentacoes = movimentacoes.filter((m) => {
     if (selectedProcesso && m.numero_processo !== selectedProcesso) return false
@@ -212,6 +237,21 @@ export const MovimentacoesDatajudView: React.FC = () => {
     }
     return true
   })
+
+  // Ordena do mais antigo para o mais recente (ordem cronológica ascendente)
+  const movimentacoesOrdenadas = [...filteredMovimentacoes].sort((a, b) => {
+    const da = new Date(a.data_hora_movimento).getTime() || 0
+    const db = new Date(b.data_hora_movimento).getTime() || 0
+    return da - db
+  })
+
+  const totalMovs = movimentacoesOrdenadas.length
+  const totalPages = Math.max(1, Math.ceil(totalMovs / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const movsPaginadas = movimentacoesOrdenadas.slice(
+    (safePage - 1) * PAGE_SIZE,
+    (safePage - 1) * PAGE_SIZE + PAGE_SIZE,
+  )
 
   // Contagem de alertas não lidos
   const alertasNaoLidos = alertas.filter((a) => !a.lido)
@@ -350,14 +390,20 @@ export const MovimentacoesDatajudView: React.FC = () => {
             <Input
               placeholder="Filtrar movimentação ou processo..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                setPage(1)
+              }}
               className="bg-slate-950 border-slate-800 pl-8 h-8 text-xs text-slate-200"
             />
           </div>
 
           <select
             value={filterSigilo}
-            onChange={(e) => setFilterSigilo(e.target.value)}
+            onChange={(e) => {
+              setFilterSigilo(e.target.value)
+              setPage(1)
+            }}
             className="h-8 bg-slate-950 border border-slate-800 rounded-md px-2 text-xs font-mono text-slate-300 focus:outline-none"
           >
             <option value="todos">Todos os Sigilos</option>
@@ -431,7 +477,7 @@ export const MovimentacoesDatajudView: React.FC = () => {
 
                 <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-800/80 text-[11px] font-mono">
                   <button
-                    onClick={() => setSelectedProcesso(isSelected ? null : p.numero_processo)}
+                    onClick={() => handleSelectProcesso(isSelected ? null : p.numero_processo)}
                     className="text-cyan-400 hover:underline flex items-center gap-1"
                   >
                     <Eye className="w-3 h-3" /> {countMovs} movimentos
@@ -498,130 +544,366 @@ export const MovimentacoesDatajudView: React.FC = () => {
         </div>
       )}
 
-      {/* Timeline de Movimentações Processuais Registradas */}
-      <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 nox-glass-card space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-              <Activity className="w-5 h-5 text-cyan-400" />
-              Linha do Tempo de Movimentações (DataJud / CNJ)
-            </h3>
-            <p className="text-xs text-slate-400">
-              {selectedProcesso
-                ? `Filtrado para o processo: ${selectedProcesso}`
-                : 'Todas as movimentações capturadas e deduplicadas via SHA-256'}
-            </p>
-          </div>
+      {/* Linha do Tempo do Processo Selecionado (histórico completo do banco) */}
+      {selectedProcesso && (
+        <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 nox-glass-card space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <History className="w-5 h-5 text-cyan-400" />
+                Linha do Tempo do Processo
+              </h3>
+              <p className="text-xs text-slate-400 font-mono">
+                {selectedProcesso} • {totalMovs} movimentações gravadas, do mais antigo ao mais
+                recente
+              </p>
+            </div>
 
-          {selectedProcesso && (
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setSelectedProcesso(null)}
+              onClick={() => handleSelectProcesso(null)}
               className="h-7 text-xs border-slate-700 text-slate-300"
             >
               Remover Filtro de Processo
             </Button>
-          )}
-        </div>
-
-        {filteredMovimentacoes.length === 0 ? (
-          <div className="p-10 text-center rounded-lg bg-slate-950/40 border border-slate-800 text-slate-500 text-xs">
-            {loading
-              ? 'Carregando movimentações...'
-              : 'Nenhuma movimentação encontrada com os filtros selecionados. Clique em "Consultar" em um dos processos ou em "Sincronizar Todos".'}
           </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredMovimentacoes.map((mov) => {
-              const isSigiloso = mov.nivel_sigilo_processo > 0
-              return (
-                <div
-                  key={mov.id}
-                  className={`p-4 rounded-xl border transition-all ${
-                    isSigiloso
-                      ? 'bg-amber-950/15 border-amber-900/50'
-                      : 'bg-slate-950/70 border-slate-800/80 hover:border-slate-700'
-                  }`}
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Badge className="bg-slate-900 text-cyan-300 border-slate-700 text-[10px] font-mono">
-                        {mov.tribunal_alias.toUpperCase()}
-                      </Badge>
-                      <span className="text-xs font-mono font-bold text-slate-200">
-                        {mov.numero_processo}
-                      </span>
-                      {isSigiloso ? (
-                        <Badge className="bg-amber-950 text-amber-300 border-amber-800 text-[10px] font-mono flex items-center gap-1">
-                          <ShieldAlert className="w-3 h-3" />
-                          {SIGILO_DESCRICOES[mov.nivel_sigilo_processo] || 'SIGILO'}
-                        </Badge>
-                      ) : (
-                        <Badge className="bg-emerald-950 text-emerald-400 border-emerald-800 text-[10px] font-mono flex items-center gap-1">
-                          <ShieldCheck className="w-3 h-3" /> PÚBLICO
-                        </Badge>
-                      )}
-                    </div>
 
-                    <div className="text-xs font-mono text-slate-400 flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-slate-500" />
-                      {new Date(mov.data_hora_movimento).toLocaleString('pt-BR', {
-                        dateStyle: 'short',
-                        timeStyle: 'medium',
-                      })}
-                    </div>
-                  </div>
+          {movsPaginadas.length === 0 ? (
+            <div className="p-10 text-center rounded-lg bg-slate-950/40 border border-slate-800 text-slate-500 text-xs">
+              Nenhuma movimentação gravada ainda para este processo. Clique em "Consultar" acima
+              para buscar o histórico no DataJud.
+            </div>
+          ) : (
+            <div className="relative pl-6">
+              {/* Linha vertical da timeline */}
+              <div className="absolute left-2 top-2 bottom-2 w-px bg-slate-700/60"></div>
+              {movsPaginadas.map((mov) => {
+                const isSigiloso = mov.nivel_sigilo_processo > 0
+                return (
+                  <div key={mov.id} className="relative pb-4 last:pb-0">
+                    {/* Marcador da linha do tempo */}
+                    <span
+                      className={`absolute -left-6 top-1.5 w-2.5 h-2.5 rounded-full border-2 ${
+                        isSigiloso ? 'bg-amber-400 border-amber-800' : 'bg-cyan-400 border-cyan-800'
+                      }`}
+                    ></span>
 
-                  <div className="mt-2">
-                    <h4
-                      className={`text-sm font-semibold ${
-                        isSigiloso ? 'text-amber-200 italic' : 'text-slate-100'
+                    <div
+                      className={`p-3.5 rounded-xl border transition-all ${
+                        isSigiloso
+                          ? 'bg-amber-950/15 border-amber-900/50'
+                          : 'bg-slate-950/70 border-slate-800/80 hover:border-slate-700'
                       }`}
                     >
-                      {mov.nome_movimento}
-                    </h4>
-                    {mov.orgao_nome_movimento && (
-                      <p className="text-xs text-slate-400 font-mono mt-0.5">
-                        Órgão Julgador do Movimento: {mov.orgao_nome_movimento}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Complementos Tabelados se houver e não for sigiloso */}
-                  {!isSigiloso &&
-                    mov.complementos_json &&
-                    Array.isArray(mov.complementos_json) &&
-                    mov.complementos_json.length > 0 && (
-                      <div className="mt-2.5 p-2 rounded bg-slate-900/60 border border-slate-800/80 text-[11px] font-mono space-y-1">
-                        <div className="text-[10px] text-slate-400 uppercase font-semibold">
-                          Complementos Tabelados (TPU)
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge className="bg-slate-900 text-cyan-300 border-slate-700 text-[10px] font-mono">
+                            {mov.tribunal_alias.toUpperCase()}
+                          </Badge>
+                          {isSigiloso ? (
+                            <Badge className="bg-amber-950 text-amber-300 border-amber-800 text-[10px] font-mono flex items-center gap-1">
+                              <ShieldAlert className="w-3 h-3" />
+                              {SIGILO_DESCRICOES[mov.nivel_sigilo_processo] || 'SIGILO'}
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-emerald-950 text-emerald-400 border-emerald-800 text-[10px] font-mono flex items-center gap-1">
+                              <ShieldCheck className="w-3 h-3" /> PÚBLICO
+                            </Badge>
+                          )}
                         </div>
-                        {mov.complementos_json.map((comp: any, idx: number) => (
-                          <div key={idx} className="text-slate-300">
-                            • {comp.nome || comp.descricao || 'Item'}:{' '}
-                            {comp.valor || comp.descricao}
-                          </div>
-                        ))}
-                      </div>
-                    )}
 
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 mt-3 border-t border-slate-800/60 text-[10px] font-mono text-slate-500">
-                    <div>
-                      Código TPU:{' '}
-                      <span className="text-slate-400 font-bold">{mov.codigo_movimento}</span>
-                    </div>
-                    <div className="truncate max-w-xs" title={mov.hash_dedup}>
-                      Hash Dedup:{' '}
-                      <span className="text-slate-400">{mov.hash_dedup.substring(0, 16)}...</span>
+                        <div className="text-xs font-mono text-slate-300 flex items-center gap-1 shrink-0">
+                          <Clock className="w-3.5 h-3.5 text-slate-500" />
+                          {new Date(mov.data_hora_movimento).toLocaleString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="mt-2">
+                        <h4
+                          className={`text-sm font-semibold ${
+                            isSigiloso ? 'text-amber-200 italic' : 'text-slate-100'
+                          }`}
+                        >
+                          {mov.nome_movimento}
+                        </h4>
+                        {mov.orgao_nome_movimento && (
+                          <p className="text-xs text-slate-400 font-mono mt-0.5">
+                            Órgão: {mov.orgao_nome_movimento}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Complementos Tabelados se houver e não for sigiloso */}
+                      {!isSigiloso &&
+                        mov.complementos_json &&
+                        Array.isArray(mov.complementos_json) &&
+                        mov.complementos_json.length > 0 && (
+                          <div className="mt-2.5 p-2 rounded bg-slate-900/60 border border-slate-800/80 text-[11px] font-mono space-y-1">
+                            <div className="text-[10px] text-slate-400 uppercase font-semibold">
+                              Complementos Tabelados (TPU)
+                            </div>
+                            {mov.complementos_json.map((comp: any, idx: number) => (
+                              <div key={idx} className="text-slate-300">
+                                • {comp.nome || comp.descricao || 'Item'}:{' '}
+                                {comp.valor || comp.descricao}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 mt-2 border-t border-slate-800/60 text-[10px] font-mono text-slate-500">
+                        <div>
+                          Código TPU:{' '}
+                          <span className="text-slate-400 font-bold">{mov.codigo_movimento}</span>
+                        </div>
+                        <div className="truncate max-w-xs" title={mov.hash_dedup}>
+                          Hash Dedup:{' '}
+                          <span className="text-slate-400">
+                            {mov.hash_dedup.substring(0, 16)}...
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
+          )}
+
+          {/* Paginação da linha do tempo */}
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-800/80 text-xs font-mono text-slate-400">
+              <div>
+                Página {safePage} de {totalPages} ({totalMovs} movimentações no total, {PAGE_SIZE}{' '}
+                por página)
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={safePage <= 1}
+                  onClick={() => setPage(1)}
+                  className="h-7 text-[11px] bg-slate-900 border-slate-700 text-slate-300"
+                >
+                  Primeira
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={safePage <= 1}
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                  className="h-7 text-[11px] bg-slate-900 border-slate-700 text-slate-300"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5 mr-1" /> Anterior
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                  className="h-7 text-[11px] bg-slate-900 border-slate-700 text-slate-300"
+                >
+                  Próxima <ChevronRight className="w-3.5 h-3.5 ml-1" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage(totalPages)}
+                  className="h-7 text-[11px] bg-slate-900 border-slate-700 text-slate-300"
+                >
+                  Última
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Timeline geral (sem processo selecionado): consulta independente ao banco */}
+      {!selectedProcesso && (
+        <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 nox-glass-card space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <Activity className="w-5 h-5 text-cyan-400" />
+                Linha do Tempo de Movimentações (DataJud / CNJ)
+              </h3>
+              <p className="text-xs text-slate-400">
+                Histórico completo já gravado no banco, deduplicado via SHA-256. Selecione um
+                processo acima para ver a linha do tempo dele.
+              </p>
+            </div>
           </div>
-        )}
-      </div>
+
+          {movsPaginadas.length === 0 ? (
+            <div className="p-10 text-center rounded-lg bg-slate-950/40 border border-slate-800 text-slate-500 text-xs">
+              {loading
+                ? 'Carregando movimentações...'
+                : 'Nenhuma movimentação gravada com os filtros selecionados. Clique em "Consultar" em um dos processos ou em "Sincronizar Todos".'}
+            </div>
+          ) : (
+            <div className="relative pl-6">
+              {/* Linha vertical da timeline */}
+              <div className="absolute left-2 top-2 bottom-2 w-px bg-slate-700/60"></div>
+              {movsPaginadas.map((mov) => {
+                const isSigiloso = mov.nivel_sigilo_processo > 0
+                return (
+                  <div key={mov.id} className="relative pb-4 last:pb-0">
+                    {/* Marcador da linha do tempo */}
+                    <span
+                      className={`absolute -left-6 top-1.5 w-2.5 h-2.5 rounded-full border-2 ${
+                        isSigiloso ? 'bg-amber-400 border-amber-800' : 'bg-cyan-400 border-cyan-800'
+                      }`}
+                    ></span>
+
+                    <div
+                      className={`p-3.5 rounded-xl border transition-all ${
+                        isSigiloso
+                          ? 'bg-amber-950/15 border-amber-900/50'
+                          : 'bg-slate-950/70 border-slate-800/80 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge className="bg-slate-900 text-cyan-300 border-slate-700 text-[10px] font-mono">
+                            {mov.tribunal_alias.toUpperCase()}
+                          </Badge>
+                          <span className="text-xs font-mono font-bold text-slate-200">
+                            {mov.numero_processo}
+                          </span>
+                          {isSigiloso ? (
+                            <Badge className="bg-amber-950 text-amber-300 border-amber-800 text-[10px] font-mono flex items-center gap-1">
+                              <ShieldAlert className="w-3 h-3" />
+                              {SIGILO_DESCRICOES[mov.nivel_sigilo_processo] || 'SIGILO'}
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-emerald-950 text-emerald-400 border-emerald-800 text-[10px] font-mono flex items-center gap-1">
+                              <ShieldCheck className="w-3 h-3" /> PÚBLICO
+                            </Badge>
+                          )}
+                        </div>
+
+                        <div className="text-xs font-mono text-slate-300 flex items-center gap-1 shrink-0">
+                          <Clock className="w-3.5 h-3.5 text-slate-500" />
+                          {new Date(mov.data_hora_movimento).toLocaleString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="mt-2">
+                        <h4
+                          className={`text-sm font-semibold ${
+                            isSigiloso ? 'text-amber-200 italic' : 'text-slate-100'
+                          }`}
+                        >
+                          {mov.nome_movimento}
+                        </h4>
+                        {mov.orgao_nome_movimento && (
+                          <p className="text-xs text-slate-400 font-mono mt-0.5">
+                            Órgão: {mov.orgao_nome_movimento}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Complementos Tabelados se houver e não for sigiloso */}
+                      {!isSigiloso &&
+                        mov.complementos_json &&
+                        Array.isArray(mov.complementos_json) &&
+                        mov.complementos_json.length > 0 && (
+                          <div className="mt-2.5 p-2 rounded bg-slate-900/60 border border-slate-800/80 text-[11px] font-mono space-y-1">
+                            <div className="text-[10px] text-slate-400 uppercase font-semibold">
+                              Complementos Tabelados (TPU)
+                            </div>
+                            {mov.complementos_json.map((comp: any, idx: number) => (
+                              <div key={idx} className="text-slate-300">
+                                • {comp.nome || comp.descricao || 'Item'}:{' '}
+                                {comp.valor || comp.descricao}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 mt-2 border-t border-slate-800/60 text-[10px] font-mono text-slate-500">
+                        <div>
+                          Código TPU:{' '}
+                          <span className="text-slate-400 font-bold">{mov.codigo_movimento}</span>
+                        </div>
+                        <div className="truncate max-w-xs" title={mov.hash_dedup}>
+                          Hash Dedup:{' '}
+                          <span className="text-slate-400">
+                            {mov.hash_dedup.substring(0, 16)}...
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Paginação da linha do tempo */}
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-800/80 text-xs font-mono text-slate-400">
+              <div>
+                Página {safePage} de {totalPages} ({totalMovs} movimentações no total, {PAGE_SIZE}{' '}
+                por página)
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={safePage <= 1}
+                  onClick={() => setPage(1)}
+                  className="h-7 text-[11px] bg-slate-900 border-slate-700 text-slate-300"
+                >
+                  Primeira
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={safePage <= 1}
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                  className="h-7 text-[11px] bg-slate-900 border-slate-700 text-slate-300"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5 mr-1" /> Anterior
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                  className="h-7 text-[11px] bg-slate-900 border-slate-700 text-slate-300"
+                >
+                  Próxima <ChevronRight className="w-3.5 h-3.5 ml-1" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage(totalPages)}
+                  className="h-7 text-[11px] bg-slate-900 border-slate-700 text-slate-300"
+                >
+                  Última
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Modal para Adicionar Processo */}
       <Dialog open={openAddModal} onOpenChange={setOpenAddModal}>
