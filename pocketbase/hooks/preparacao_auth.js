@@ -1,3 +1,4 @@
+console.log('[DEBUG] Hook preparacao_auth loaded')
 routerAdd('POST', '/api/preparacao/auth', (e) => {
   const reqInfo = e.requestInfo()
   const ip = reqInfo.remoteIP || '127.0.0.1'
