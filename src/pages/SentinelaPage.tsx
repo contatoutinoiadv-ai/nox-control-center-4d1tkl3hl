@@ -261,8 +261,12 @@ export const SentinelaHub: React.FC = () => {
         },
       )
 
-      setDjenLastSourceUrl(result.sourceUrl)
-      setDjenApiPage(result.currentPage)
+      if (result.sourceUrl) {
+        setDjenLastSourceUrl(result.sourceUrl)
+      }
+      if (result.currentPage) {
+        setDjenApiPage(result.currentPage)
+      }
 
       if (!result.success) {
         setDjenErrorState(result.error || { type: 'UNKNOWN', message: 'Erro ao consultar DJEN' })
@@ -270,15 +274,18 @@ export const SentinelaHub: React.FC = () => {
         return
       }
 
-      setDjenTotalApiCount(result.totalCount)
-      setDjenCommunicationsFromApi(result.items, targetPage > 1)
+      const safeItems = Array.isArray(result.items) ? result.items : []
+      setDjenTotalApiCount(
+        typeof result.totalCount === 'number' ? result.totalCount : safeItems.length,
+      )
+      setDjenCommunicationsFromApi(safeItems, targetPage > 1)
       setDjenLocalPage(1)
 
       const tribunalLabel = djenTribunal
         ? `Tribunal: ${djenTribunal}`
         : 'Todos os Tribunais do Brasil'
       toast.success(
-        `ComunicaAPI: ${result.items.length} publicação(ões) capturada(s) em tempo real (${tribunalLabel}).`,
+        `ComunicaAPI: ${safeItems.length} publicação(ões) capturada(s) em tempo real (${tribunalLabel}).`,
       )
     } catch (err: any) {
       const msg = err?.message || 'Erro inesperado na consulta ao DJEN.'
@@ -294,7 +301,7 @@ export const SentinelaHub: React.FC = () => {
   // Carregar Próxima Página da API Remota do DJEN (Paginação "Carregar Mais")
   const handleDjenLoadMore = async () => {
     if (isDjenLoadingMore || isDjenSearching) return
-    const nextPage = djenApiPage + 1
+    const nextPage = (djenApiPage || 1) + 1
     setIsDjenLoadingMore(true)
     setDjenErrorState(null)
     setDjenApiStatusMessage(`Buscando página ${nextPage} da ComunicaAPI...`)
@@ -327,7 +334,9 @@ export const SentinelaHub: React.FC = () => {
         },
       )
 
-      setDjenLastSourceUrl(result.sourceUrl)
+      if (result.sourceUrl) {
+        setDjenLastSourceUrl(result.sourceUrl)
+      }
 
       if (!result.success) {
         setDjenErrorState(
@@ -337,10 +346,13 @@ export const SentinelaHub: React.FC = () => {
         return
       }
 
+      const safeItems = Array.isArray(result.items) ? result.items : []
       setDjenApiPage(nextPage)
-      setDjenTotalApiCount(result.totalCount)
-      setDjenCommunicationsFromApi(result.items, true)
-      toast.success(`+${result.items.length} publicações adicionadas do DJEN/CNJ.`)
+      setDjenTotalApiCount(
+        typeof result.totalCount === 'number' ? result.totalCount : safeItems.length,
+      )
+      setDjenCommunicationsFromApi(safeItems, true)
+      toast.success(`+${safeItems.length} publicações adicionadas do DJEN/CNJ.`)
     } catch (err: any) {
       toast.error(err?.message || 'Erro ao carregar mais dados do DJEN.')
     } finally {
@@ -352,13 +364,15 @@ export const SentinelaHub: React.FC = () => {
 
   // Atualiza ou mescla publicações recebidas da ComunicaAPI mantendo o estado local
   const setDjenCommunicationsFromApi = (newItems: SentinelaCommunication[], append = false) => {
+    const safeList = Array.isArray(newItems) ? newItems.filter(Boolean) : []
     if (!append) {
-      setCommunications(newItems)
+      setCommunications(safeList)
     } else {
       setCommunications((prev) => {
-        const existingIds = new Set(prev.map((c) => c.externalId || c.id))
-        const uniqueNew = newItems.filter((c) => !existingIds.has(c.externalId || c.id))
-        return [...prev, ...uniqueNew]
+        const safePrev = Array.isArray(prev) ? prev : []
+        const existingIds = new Set(safePrev.map((c) => c?.externalId || c?.id).filter(Boolean))
+        const uniqueNew = safeList.filter((c) => !existingIds.has(c?.externalId || c?.id))
+        return [...safePrev, ...uniqueNew]
       })
     }
   }
@@ -718,9 +732,13 @@ export const SentinelaHub: React.FC = () => {
   }
 
   // Filtered Communications according to DJEN legacy filters
-  const filteredCommunications = communications.filter((comm) => {
-    if (djenFilterType === 'citacao' && !comm.tipoComunicacao.includes('CIT')) return false
-    if (djenFilterType === 'intimacao' && !comm.tipoComunicacao.includes('INTIM')) return false
+  const safeCommunications = Array.isArray(communications) ? communications.filter(Boolean) : []
+
+  const filteredCommunications = safeCommunications.filter((comm) => {
+    if (!comm) return false
+    const tipo = String(comm.tipoComunicacao || '')
+    if (djenFilterType === 'citacao' && !tipo.includes('CIT')) return false
+    if (djenFilterType === 'intimacao' && !tipo.includes('INTIM')) return false
     if (
       djenFilterType === 'urgente' &&
       comm.urgencyLevel !== 'alta' &&
@@ -737,16 +755,30 @@ export const SentinelaHub: React.FC = () => {
     if (searchComm) {
       const q = searchComm.toLowerCase()
       const match =
-        comm.numeroProcesso.toLowerCase().includes(q) ||
-        comm.tribunal.toLowerCase().includes(q) ||
-        comm.destinatario.toLowerCase().includes(q) ||
-        comm.teorResumido.toLowerCase().includes(q)
+        String(comm.numeroProcesso || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(comm.tribunal || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(comm.destinatario || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(comm.teorResumido || '')
+          .toLowerCase()
+          .includes(q)
       if (!match) return false
     }
 
     if (djenProcessoInput) {
       const p = djenProcessoInput.replace(/\D/g, '')
-      if (p && !comm.numeroProcesso.replace(/\D/g, '').includes(p)) return false
+      if (
+        p &&
+        !String(comm.numeroProcesso || '')
+          .replace(/\D/g, '')
+          .includes(p)
+      )
+        return false
     }
 
     return true
@@ -761,15 +793,19 @@ export const SentinelaHub: React.FC = () => {
   )
 
   // Metrics for the 5 visual cards with sparkbars
-  const totalCount = communications.length
-  const citacoesCount = communications.filter((c) => c.tipoComunicacao === 'CITACAO').length
-  const intimacoesCount = communications.filter((c) => c.tipoComunicacao === 'INTIMACAO').length
-  const urgentesCount = communications.filter(
-    (c) => c.urgencyLevel === 'alta' || c.urgencyLevel === 'critica',
+  const totalCount = safeCommunications.length
+  const citacoesCount = safeCommunications.filter((c) =>
+    String(c?.tipoComunicacao || '').includes('CIT'),
   ).length
-  const analisadasCount = communications.filter(
+  const intimacoesCount = safeCommunications.filter((c) =>
+    String(c?.tipoComunicacao || '').includes('INTIM'),
+  ).length
+  const urgentesCount = safeCommunications.filter(
+    (c) => c?.urgencyLevel === 'alta' || c?.urgencyLevel === 'critica',
+  ).length
+  const analisadasCount = safeCommunications.filter(
     (c) =>
-      c.status === 'ANALISADA' || c.status === 'CONCLUIDA' || c.status === 'PRAZO_TAREFA_AGENDA',
+      c?.status === 'ANALISADA' || c?.status === 'CONCLUIDA' || c?.status === 'PRAZO_TAREFA_AGENDA',
   ).length
 
   return (
@@ -1540,8 +1576,10 @@ export const SentinelaHub: React.FC = () => {
               </div>
             ) : (
               paginatedSlice.map((comm) => {
-                const isCit = comm.tipoComunicacao.includes('CIT')
-                const isInt = comm.tipoComunicacao.includes('INTIM')
+                if (!comm) return null
+                const tipo = String(comm.tipoComunicacao || 'INTIMACAO')
+                const isCit = tipo.includes('CIT')
+                const isInt = tipo.includes('INTIM')
                 const isUrg = comm.urgencyLevel === 'alta' || comm.urgencyLevel === 'critica'
                 const cardBorderColor = isUrg
                   ? 'border-rose-700/60'
@@ -1549,7 +1587,10 @@ export const SentinelaHub: React.FC = () => {
                     ? 'border-blue-700/60'
                     : 'border-amber-700/40'
 
-                const inlineState = inlineCalcState[comm.id] || { days: 15, comarca: comm.tribunal }
+                const inlineState = inlineCalcState[comm.id] || {
+                  days: 15,
+                  comarca: comm.tribunal || 'DJEN',
+                }
 
                 return (
                   <div
@@ -1568,10 +1609,10 @@ export const SentinelaHub: React.FC = () => {
                                 : 'bg-slate-800 text-slate-300'
                           }`}
                         >
-                          {comm.tipoComunicacao}
+                          {tipo}
                         </Badge>
                         <Badge className="bg-slate-950 text-cyan-300 border border-cyan-800 text-[10px] font-mono">
-                          {comm.tribunal} • {comm.orgaoJulgador}
+                          {comm.tribunal || 'DJEN'} • {comm.orgaoJulgador || 'Órgão Julgador'}
                         </Badge>
                         <Badge
                           variant="outline"
@@ -1581,10 +1622,10 @@ export const SentinelaHub: React.FC = () => {
                               : 'bg-slate-950 text-slate-400'
                           }`}
                         >
-                          {comm.urgencyLevel.toUpperCase()}
+                          {String(comm.urgencyLevel || 'baixa').toUpperCase()}
                         </Badge>
                         <span className="text-xs font-mono font-bold text-slate-100">
-                          {comm.numeroProcesso}
+                          {comm.numeroProcesso || 'Processo sem número'}
                         </span>
                       </div>
 
@@ -1611,17 +1652,22 @@ export const SentinelaHub: React.FC = () => {
 
                     {/* Teor Resumido e Completo */}
                     <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/60 p-2.5 rounded border border-slate-800">
-                      {comm.teorCompleto || comm.teorResumido}
+                      {comm.teorCompleto ||
+                        comm.teorResumido ||
+                        'Teor não informado na publicação.'}
                     </p>
 
                     {/* Meta Info Line */}
                     <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-slate-400 pt-1">
                       <div>
-                        Destinatário: <span className="text-slate-200">{comm.destinatario}</span>
+                        Destinatário:{' '}
+                        <span className="text-slate-200">
+                          {comm.destinatario || 'Higor Utinoi de Oliveira (OAB/MS 15.400)'}
+                        </span>
                       </div>
                       <div>
                         Disponibilizado em:{' '}
-                        <span className="text-amber-400">{comm.dataDisponibilizacao}</span>
+                        <span className="text-amber-400">{comm.dataDisponibilizacao || '—'}</span>
                       </div>
                     </div>
 
@@ -1664,9 +1710,9 @@ export const SentinelaHub: React.FC = () => {
                           onClick={() =>
                             handleInlineCalcExecute(
                               comm.id,
-                              comm.dataDisponibilizacao,
+                              comm.dataDisponibilizacao || new Date().toISOString().split('T')[0],
                               inlineState.days,
-                              comm.tribunal,
+                              comm.tribunal || 'DJEN',
                             )
                           }
                           className="bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs h-7 px-2"

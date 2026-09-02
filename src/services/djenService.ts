@@ -11,31 +11,48 @@ export interface DjenRawItem {
   numeroprocessocommascara?: string
   siglaTribunal?: string
   sigla_tribunal?: string
+  sigla?: string
   nomeOrgao?: string
   nome_orgao?: string
   orgaoJulgador?: string
+  orgao_julgador?: string
   tipoComunicacao?: string
   tipo_comunicacao?: string
+  tipo_ato?: string
   nomeClasse?: string
   classeJudicial?: string
+  nome_classe?: string
   data_disponibilizacao?: string
   dataDisponibilizacao?: string
   data_publicacao?: string
   dataPublicacao?: string
+  data_ato?: string
   texto?: string
   teor?: string
+  conteudo?: string
   link?: string
   destinatario?: string
-  destinatarios?: Array<{ nome?: string; polo?: string }>
+  destinatarios?: Array<{ nome?: string; polo?: string; nome_destinatario?: string }>
   [key: string]: unknown
 }
 
 export interface DjenApiResponse {
   items?: DjenRawItem[]
+  itens?: DjenRawItem[]
+  result?:
+    | DjenRawItem[]
+    | { items?: DjenRawItem[]; itens?: DjenRawItem[]; count?: number; total?: number }
+  data?:
+    | DjenRawItem[]
+    | { items?: DjenRawItem[]; itens?: DjenRawItem[]; count?: number; total?: number }
   count?: number
   total?: number
-  status?: string
+  totalCount?: number
+  total_count?: number
+  status?: string | number
+  code?: string | number
   message?: string
+  messages?: string[]
   [key: string]: unknown
 }
 
@@ -78,19 +95,34 @@ export async function mapDjenItemToCommunication(
   index: number,
   fallbackLawyer = 'Higor Utinoi de Oliveira (OAB/MS 15.400)',
 ): Promise<SentinelaCommunication> {
-  const rawId = String(item.id || `djen-${Date.now()}-${index}`)
-  const rawText = item.texto || item.teor || ''
+  const rawId = String(item?.id ?? `djen-${Date.now()}-${index}`)
+  const rawText = String(item?.texto || item?.teor || item?.conteudo || '')
   const sanitized = sanitizeExternalText(rawText)
 
-  const procNum =
-    item.numeroprocessocommascara ||
-    item.numeroProcesso ||
-    item.numero_processo ||
-    '0000000-00.0000.8.00.0000'
+  const procNum = String(
+    item?.numeroprocessocommascara ||
+      item?.numeroProcesso ||
+      item?.numero_processo ||
+      '0000000-00.0000.8.00.0000',
+  ).trim()
 
-  const tribunal = (item.siglaTribunal || item.sigla_tribunal || 'DJEN').toUpperCase()
-  const orgao = item.nomeOrgao || item.nome_orgao || item.orgaoJulgador || 'Vara / Tribunal'
-  const tipoRaw = (item.tipoComunicacao || item.tipo_comunicacao || 'INTIMACAO').toUpperCase()
+  const tribunal =
+    String(item?.siglaTribunal || item?.sigla_tribunal || item?.sigla || 'DJEN')
+      .toUpperCase()
+      .trim() || 'DJEN'
+
+  const orgao =
+    String(
+      item?.nomeOrgao ||
+        item?.nome_orgao ||
+        item?.orgaoJulgador ||
+        item?.orgao_julgador ||
+        'Vara / Tribunal',
+    ).trim() || 'Vara / Tribunal'
+
+  const tipoRaw = String(
+    item?.tipoComunicacao || item?.tipo_comunicacao || item?.tipo_ato || 'INTIMACAO',
+  ).toUpperCase()
 
   let tipo: SentinelaCommunication['tipoComunicacao'] = 'INTIMACAO'
   if (tipoRaw.includes('CIT')) tipo = 'CITACAO'
@@ -100,25 +132,51 @@ export async function mapDjenItemToCommunication(
   else if (tipoRaw.includes('ACOR')) tipo = 'ACORDAO'
   else if (tipoRaw.includes('PUB')) tipo = 'PUBLICACAO'
 
-  const dataDisp =
-    item.data_disponibilizacao ||
-    item.dataDisponibilizacao ||
-    new Date().toISOString().split('T')[0]
-  const dataPub = item.data_publicacao || item.dataPublicacao || dataDisp
+  // Formata data ISO com segurança (fallback para data de hoje)
+  const sanitizeDateIso = (dStr?: string): string => {
+    if (!dStr) return new Date().toISOString().split('T')[0]
+    try {
+      const match = String(dStr).match(/(\d{4})-(\d{2})-(\d{2})/)
+      if (match) return `${match[1]}-${match[2]}-${match[3]}`
+      const brMatch = String(dStr).match(/(\d{2})\/(\d{2})\/(\d{4})/)
+      if (brMatch) return `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}`
+      const parsed = new Date(dStr)
+      if (!isNaN(parsed.getTime())) return parsed.toISOString().split('T')[0]
+    } catch {
+      // fallback
+    }
+    return new Date().toISOString().split('T')[0]
+  }
+
+  const dataDisp = sanitizeDateIso(
+    item?.data_disponibilizacao ||
+      item?.dataDisponibilizacao ||
+      item?.data_publicacao ||
+      item?.dataPublicacao ||
+      item?.data_ato,
+  )
+  const dataPub = sanitizeDateIso(item?.data_publicacao || item?.dataPublicacao || dataDisp)
 
   let destinatarioStr = fallbackLawyer
-  if (Array.isArray(item.destinatarios) && item.destinatarios.length > 0) {
-    destinatarioStr = item.destinatarios
-      .map((d) => d.nome)
+  if (Array.isArray(item?.destinatarios) && item.destinatarios.length > 0) {
+    const names = item.destinatarios
+      .map((d) => (typeof d === 'string' ? d : d?.nome || d?.nome_destinatario))
       .filter(Boolean)
-      .join(', ')
-  } else if (item.destinatario) {
+    if (names.length > 0) {
+      destinatarioStr = names.join(', ')
+    }
+  } else if (item?.destinatario) {
     destinatarioStr = String(item.destinatario)
   }
 
-  const hashSha256 = await generateContentHash(
-    `${rawId}-${procNum}-${dataDisp}-${rawText.slice(0, 500)}`,
-  )
+  let hashSha256 = ''
+  try {
+    hashSha256 = await generateContentHash(
+      `${rawId}-${procNum}-${dataDisp}-${rawText.slice(0, 500)}`,
+    )
+  } catch {
+    hashSha256 = `hash-${Date.now()}-${index}`
+  }
 
   const isUrgent =
     tipo === 'CITACAO' ||
@@ -179,13 +237,15 @@ export async function mapDjenItemToCommunication(
     tribunal,
     orgaoJulgador: orgao,
     comarca: tribunal,
-    classeJudicial: item.nomeClasse || item.classeJudicial || 'Procedimento Judicial',
+    classeJudicial: String(
+      item?.nomeClasse || item?.classeJudicial || item?.nome_classe || 'Procedimento Judicial',
+    ),
     destinatario: destinatarioStr,
     tipoComunicacao: tipo,
     dataDisponibilizacao: dataDisp,
     dataPublicacao: dataPub,
     teorResumido: resume,
-    teorCompleto: sanitized.cleanText,
+    teorCompleto: sanitized.cleanText || resume,
     status: 'VALIDADA',
     triageCategory: urgencyLevel === 'critica' || urgencyLevel === 'alta' ? 'urgente' : 'nova',
     urgencyLevel,
@@ -411,16 +471,81 @@ export async function fetchDjenCommunicationsDirect(
       }
 
       // Sucesso no parse JSON
-      const data: DjenApiResponse = await response.json()
-      const rawItems: DjenRawItem[] = Array.isArray(data.items) ? data.items : []
-      const totalCount = typeof data.count === 'number' ? data.count : rawItems.length
-      const currentPage = params.pagina || 1
-      const perPage = params.itensPorPagina || 100
+      let data: any
+      try {
+        data = await response.json()
+      } catch (jsonErr: any) {
+        return {
+          success: false,
+          items: [],
+          rawItems: [],
+          totalCount: 0,
+          currentPage: params.pagina || 1,
+          hasMore: false,
+          sourceUrl: fullUrl,
+          error: {
+            type: 'UNKNOWN',
+            status: response.status,
+            message:
+              'Resposta da ComunicaAPI não é um JSON válido. O serviço pode estar indisponível ou em manutenção.',
+          },
+        }
+      }
+
+      // Extração resiliente de lista de itens e total
+      let rawItems: DjenRawItem[] = []
+      if (Array.isArray(data)) {
+        rawItems = data
+      } else if (Array.isArray(data?.items)) {
+        rawItems = data.items
+      } else if (Array.isArray(data?.itens)) {
+        rawItems = data.itens
+      } else if (Array.isArray(data?.result)) {
+        rawItems = data.result
+      } else if (Array.isArray(data?.result?.items)) {
+        rawItems = data.result.items
+      } else if (Array.isArray(data?.data)) {
+        rawItems = data.data
+      } else if (Array.isArray(data?.data?.items)) {
+        rawItems = data.data.items
+      }
+
+      // Filtra itens nulos ou inválidos
+      rawItems = rawItems.filter((i) => i && typeof i === 'object')
+
+      let totalCount = rawItems.length
+      if (typeof data?.count === 'number') totalCount = data.count
+      else if (typeof data?.total === 'number') totalCount = data.total
+      else if (typeof data?.totalCount === 'number') totalCount = data.totalCount
+      else if (typeof data?.total_count === 'number') totalCount = data.total_count
+      else if (typeof data?.result?.count === 'number') totalCount = data.result.count
+      else if (typeof data?.data?.count === 'number') totalCount = data.data.count
+
+      const currentPage = Number(params.pagina) || 1
+      const perPage = Number(params.itensPorPagina) || 100
       const hasMore = currentPage * perPage < totalCount
 
-      const mappedItems: SentinelaCommunication[] = await Promise.all(
-        rawItems.map((item, idx) => mapDjenItemToCommunication(item, idx)),
-      )
+      let mappedItems: SentinelaCommunication[] = []
+      try {
+        mappedItems = await Promise.all(
+          rawItems.map((item, idx) => mapDjenItemToCommunication(item, idx)),
+        )
+      } catch (mapErr: any) {
+        console.error('[DJEN] Falha ao mapear itens:', mapErr)
+        return {
+          success: false,
+          items: [],
+          rawItems,
+          totalCount,
+          currentPage,
+          hasMore: false,
+          sourceUrl: fullUrl,
+          error: {
+            type: 'UNKNOWN',
+            message: `Erro ao normalizar dados retornados pelo DJEN: ${mapErr?.message || 'estrutura incompatível'}.`,
+          },
+        }
+      }
 
       return {
         success: true,
