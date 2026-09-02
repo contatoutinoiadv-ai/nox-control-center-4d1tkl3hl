@@ -1727,7 +1727,18 @@ export const CompromissosPage: React.FC = () => {
                       <div className="flex items-center gap-3 text-xs font-mono text-slate-400">
                         <span className="flex items-center gap-1 text-cyan-300">
                           <CalendarIcon className="w-3.5 h-3.5" />
-                          Data: {aud.dataDetectada || 'A confirmar'} às {aud.horaDetectada}
+                          Data:{' '}
+                          {aud.dataDetectada ? (
+                            aud.dataDetectada
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] font-mono text-amber-300 border-amber-800 bg-amber-950/40"
+                            >
+                              Data a confirmar
+                            </Badge>
+                          )}{' '}
+                          às {aud.horaDetectada}
                         </span>
                         <span>•</span>
                         <span className="text-slate-400 truncate">

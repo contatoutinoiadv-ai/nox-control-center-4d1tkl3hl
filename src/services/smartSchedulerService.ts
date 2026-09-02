@@ -51,6 +51,7 @@ export interface DjenAudienciaDetectada {
   processo: string
   tribunal: string
   dataDetectada?: string
+  dataAConfirmar?: boolean
   horaDetectada?: string
   localOuLink?: string
   tipoAudiencia: string
@@ -59,40 +60,296 @@ export interface DjenAudienciaDetectada {
 }
 
 /**
- * Expressões regulares para detecção de audiências em textos do DJEN/Diários
+ * Meses em português (incluindo variações sem acento)
  */
-const AUDIENCIA_REGEX_PATTERNS = [
-  /audi[eê]ncia\s+designada/i,
-  /audi[eê]ncia\s+para\s+o\s+dia/i,
-  /ficam\s+as\s+partes\s+intimadas\s+da\s+audi[eê]ncia/i,
-  /designo\s+audi[eê]ncia/i,
-  /audi[eê]ncia\s+de\s+(concilia[cç][aã]o|instru[cç][aã]o|justifica[cç][aã]o|una|julgamento)/i,
-  /pauta\s+de\s+audi[eê]ncias/i,
-]
-
-const DATA_EXTRACT_REGEX =
-  /(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})|dia\s+(\d{1,2})\s+de\s+(janeiro|fevereiro|mar[cç]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+de\s+(\d{4})/i
-
-const HORA_EXTRACT_REGEX = /(?:[àa]s|as|hor[aá]rio:?)\s*(\d{1,2})[:hH](\d{2})|\b(\d{1,2})h\b/i
-
 const MESES_MAP: Record<string, string> = {
   janeiro: '01',
+  jan: '01',
   fevereiro: '02',
+  fev: '02',
   marco: '03',
   março: '03',
+  mar: '03',
   abril: '04',
+  abr: '04',
   maio: '05',
+  mai: '05',
   junho: '06',
+  jun: '06',
   julho: '07',
+  jul: '07',
   agosto: '08',
+  ago: '08',
   setembro: '09',
+  set: '09',
   outubro: '10',
+  out: '10',
   novembro: '11',
+  nov: '11',
   dezembro: '12',
+  dez: '12',
 }
 
 /**
- * Analisa uma comunicação e verifica se há audiência designada no teor.
+ * Padrões de exclusão: eventos já realizados no passado (não são designação futura)
+ */
+const AUDIENCIA_PASSADA_EXCLUDE_PATTERNS = [
+  /audi[eê]ncia\s+realizada\s+em/i,
+  /ata\s+d[aeo]\s+audi[eê]ncia\s+realizada/i,
+  /termo\s+d[aeo]\s+audi[eê]ncia\s+realizada/i,
+  /audi[eê]ncia\s+ocorrida\s+em/i,
+  /sess[aã]o\s+realizada\s+em/i,
+  /ata\s+da\s+sess[aã]o\s+realizada/i,
+  /per[ií]cia\s+realizada\s+em/i,
+  /laudo\s+da\s+per[ií]cia\s+realizada/i,
+]
+
+/**
+ * Padrões diretos de designação / aprazamento / perícia / atos
+ */
+const DIRECT_TRIGGER_PATTERNS = [
+  /aprazad[oa]\s+audi[eê]ncia/i,
+  /audi[eê]ncia\s+aprazada/i,
+  /fica(?:m)?\s+aprazad[oa]\s+audi[eê]ncia/i,
+  /designe-se\s+audi[eê]ncia/i,
+  /designada\s+audi[eê]ncia/i,
+  /audi[eê]ncia\s+designada/i,
+  /desde\s+j[aá]\s+designada\s+audi[eê]ncia/i,
+  /redesigno\s+a?\s*audi[eê]ncia/i,
+  /audi[eê]ncia\s+redesignada/i,
+  /audi[eê]ncia\s+para\s+o\s+dia/i,
+  /ficam?\s+as\s+partes\s+intimadas\s+da\s+audi[eê]ncia/i,
+  /designo\s+audi[eê]ncia/i,
+  /pauta\s+de\s+audi[eê]ncias/i,
+  /\bAIJ\b/i,
+  /sess[aã]o\s+de\s+concilia[cç][aã]o/i,
+  /sess[aã]o\s+de\s+julgamento\s+designada/i,
+  /ato\s+conciliat[oó]rio\s+designado/i,
+  /solenidade\s+agendada/i,
+  /solenidade\s+designada/i,
+  /per[ií]cia\s+designada/i,
+  /per[ií]cia\s+agendada/i,
+  /per[ií]cia\s+marcada/i,
+  /designo\s+per[ií]cia/i,
+  /designada\s+per[ií]cia/i,
+]
+
+/**
+ * Termos de audiência / solenidade / perícia para busca por proximidade
+ */
+const AUDIENCIA_NOUN_REGEX =
+  /(?:audi[eê]ncia\s+(?:una|de\s+concilia[cç][aã]o|de\s+instru[cç][aã]o\s+e\s+julgamento|de\s+instru[cç][aã]o|conciliat[oó]ria|inaugural|de\s+justifica[cç][aã]o|geral)?|audi[eê]ncia\b|\bAIJ\b|sess[aã]o\s+de\s+concilia[cç][aã]o|sess[aã]o\s+de\s+julgamento|ato\s+conciliat[oó]rio|solenidade|per[ií]cia(?:\s+m[eé]dica|\s+cont[aá]bil|\s+t[eé]cnica)?)/gi
+
+/**
+ * Verbos / expressões de agendamento para busca por proximidade
+ */
+const SCHEDULING_VERB_REGEX =
+  /(?:design(?:ar|o|a-se|e-se|ada|ado|adas|ados|ou|ara)?|apraz(?:ar|o|a-se|e-se|ada|ado|adas|ados|ou|ara)?|marc(?:ar|o|a-se|e-se|ada|ado|adas|ados|ou)?|remarc(?:ar|o|a-se|e-se|ada|ado|adas|ados|ou)?|redesign(?:ar|o|a-se|e-se|ada|ado|adas|ados|ou)?|agend(?:ar|o|a-se|e-se|ada|ado|adas|ados|ou)?|pauta(?:da|do|r)?)/gi
+
+/**
+ * Checa se há proximidade (~150 caracteres) entre um substantivo de audiência/ato e um verbo de agendamento.
+ */
+function testProximityMatch(texto: string): { matched: boolean; index: number; length: number } {
+  AUDIENCIA_NOUN_REGEX.lastIndex = 0
+  let nounMatch: RegExpExecArray | null
+
+  while ((nounMatch = AUDIENCIA_NOUN_REGEX.exec(texto)) !== null) {
+    const nounStart = nounMatch.index
+    const nounEnd = nounStart + nounMatch[0].length
+
+    // Janela de busca: até 150 caracteres antes e depois
+    const windowStart = Math.max(0, nounStart - 150)
+    const windowEnd = Math.min(texto.length, nounEnd + 150)
+    const windowText = texto.substring(windowStart, windowEnd)
+
+    SCHEDULING_VERB_REGEX.lastIndex = 0
+    if (SCHEDULING_VERB_REGEX.test(windowText)) {
+      return {
+        matched: true,
+        index: nounStart,
+        length: nounMatch[0].length,
+      }
+    }
+  }
+
+  return { matched: false, index: -1, length: 0 }
+}
+
+/**
+ * Extrai data tolerante de texto em português:
+ * - dd/mm/aaaa, dd/mm/aa, dd-mm-aaaa, dd.mm.aaaa, dd.mm.aa
+ * - "16 de setembro de 2026", "dia 16 de setembro de 2026", "dia 16 de setembro"
+ */
+export function extrairDataTolerante(texto: string, anoReferencia?: number): string | undefined {
+  const currentYear = anoReferencia || new Date().getFullYear()
+
+  // 1. Regex de data por extenso com ano opcional
+  // Ex: "dia 16 de setembro de 2026", "16 de setembro de 2026", "16 de setembro"
+  const extensoRegex =
+    /(?:dia\s+)?(\d{1,2})\s+de\s+(janeiro|fevereiro|mar[cç]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro|jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)(?:\s+de\s+(\d{4}|\d{2}))?/i
+
+  const extensoMatch = texto.match(extensoRegex)
+  if (extensoMatch) {
+    const d = extensoMatch[1].padStart(2, '0')
+    const mesKey = extensoMatch[2].toLowerCase()
+    const m = MESES_MAP[mesKey]
+    if (m) {
+      let yStr = extensoMatch[3]
+      let y = currentYear
+      if (yStr) {
+        if (yStr.length === 2) {
+          y = 2000 + parseInt(yStr, 10)
+        } else {
+          y = parseInt(yStr, 10)
+        }
+      }
+      const dayNum = parseInt(d, 10)
+      if (dayNum >= 1 && dayNum <= 31) {
+        return `${y}-${m}-${d}`
+      }
+    }
+  }
+
+  // 2. Regex numérico tolerante: dd/mm/aaaa, dd.mm.aaaa, dd-mm-aaaa, dd/mm/aa, dd.mm.aa
+  const numRegex = /\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{4}|\d{2})\b/
+  const numMatch = texto.match(numRegex)
+  if (numMatch) {
+    const d = numMatch[1].padStart(2, '0')
+    const m = numMatch[2].padStart(2, '0')
+    let yStr = numMatch[3]
+    let y = currentYear
+    if (yStr.length === 2) {
+      y = 2000 + parseInt(yStr, 10)
+    } else {
+      y = parseInt(yStr, 10)
+    }
+    const dayNum = parseInt(d, 10)
+    const monthNum = parseInt(m, 10)
+    if (dayNum >= 1 && dayNum <= 31 && monthNum >= 1 && monthNum <= 12) {
+      return `${y}-${m}-${d}`
+    }
+  }
+
+  return undefined
+}
+
+/**
+ * Extrai horário com suporte ampliado:
+ * - 14:00, 14:00h, 14h, 14h00, 14h30, 14h00min, 14h30min
+ * - "às 14 horas", "as 14h", "horário: 14:30"
+ */
+export function extrairHoraTolerante(texto: string): string {
+  // Padrão 1: "14h00min", "14h30min", "14h30", "14h00", "14h"
+  const horaComHRegex = /\b(\d{1,2})h(?:(\d{2})(?:min)?)?\b/i
+  const hMatch = texto.match(horaComHRegex)
+  if (hMatch) {
+    const h = parseInt(hMatch[1], 10)
+    const m = hMatch[2] ? parseInt(hMatch[2], 10) : 0
+    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+    }
+  }
+
+  // Padrão 2: "às 14 horas", "as 9 horas"
+  const horaPorExtensoRegex = /(?:[àa]s|as)\s+(\d{1,2})\s+horas?/i
+  const extMatch = texto.match(horaPorExtensoRegex)
+  if (extMatch) {
+    const h = parseInt(extMatch[1], 10)
+    if (h >= 0 && h <= 23) {
+      return `${String(h).padStart(2, '0')}:00`
+    }
+  }
+
+  // Padrão 3: "14:00", "14:00h", "horário: 14:30"
+  const horaDoisPontosRegex = /(?:[àa]s|as|hor[aá]rio:?)?\s*(\d{1,2}):(\d{2})(?:h)?/i
+  const dpMatch = texto.match(horaDoisPontosRegex)
+  if (dpMatch) {
+    const h = parseInt(dpMatch[1], 10)
+    const m = parseInt(dpMatch[2], 10)
+    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+    }
+  }
+
+  return '14:00'
+}
+
+/**
+ * Determina o tipo descritivo da audiência/perícia/solenidade a partir do texto
+ */
+function identificarTipoEvento(texto: string): {
+  tipoDescricao: string
+  eventType: AgendaEvent['eventType']
+} {
+  // Perícia
+  if (/per[ií]cia/i.test(texto)) {
+    let sub = 'Perícia Judicial'
+    if (/m[eé]dica/i.test(texto)) sub = 'Perícia Médica Judicial'
+    else if (/cont[aá]bil/i.test(texto)) sub = 'Perícia Contábil Judicial'
+    else if (/t[eé]cnica|engenharia/i.test(texto)) sub = 'Perícia Técnica / Engenharia'
+    return { tipoDescricao: sub, eventType: 'PERICIA' }
+  }
+
+  // Ato conciliatório / Sessão de conciliação / Conciliação
+  if (
+    /ato\s+conciliat[oó]rio/i.test(texto) ||
+    /sess[aã]o\s+de\s+concilia[cç][aã]o/i.test(texto) ||
+    /concilia[cç][aã]o/i.test(texto) ||
+    /conciliat[oó]ria/i.test(texto)
+  ) {
+    return {
+      tipoDescricao: 'Audiência / Sessão de Conciliação (CEJUSC/JEC)',
+      eventType: 'AUDIENCIA',
+    }
+  }
+
+  // AIJ / Instrução e Julgamento
+  if (
+    /\bAIJ\b/.test(texto) ||
+    /instru[cç][aã]o\s+e\s+julgamento/i.test(texto) ||
+    /sess[aã]o\s+de\s+julgamento/i.test(texto)
+  ) {
+    return {
+      tipoDescricao: 'Audiência de Instrução e Julgamento (AIJ)',
+      eventType: 'AUDIENCIA',
+    }
+  }
+
+  // Instrução
+  if (/instru[cç][aã]o/i.test(texto)) {
+    return { tipoDescricao: 'Audiência de Instrução', eventType: 'AUDIENCIA' }
+  }
+
+  // Justificação
+  if (/justifica[cç][aã]o/i.test(texto)) {
+    return { tipoDescricao: 'Audiência de Justificação Prévia', eventType: 'AUDIENCIA' }
+  }
+
+  // Una
+  if (/\buna\b/i.test(texto) || /audi[eê]ncia\s+una/i.test(texto)) {
+    return { tipoDescricao: 'Audiência Una', eventType: 'AUDIENCIA' }
+  }
+
+  // Inaugural
+  if (/inaugural/i.test(texto)) {
+    return { tipoDescricao: 'Audiência Inaugural / Inicial', eventType: 'AUDIENCIA' }
+  }
+
+  // Solenidade
+  if (/solenidade/i.test(texto)) {
+    return { tipoDescricao: 'Solenidade Judicial', eventType: 'AUDIENCIA' }
+  }
+
+  return { tipoDescricao: 'Audiência Judicial Designada', eventType: 'AUDIENCIA' }
+}
+
+/**
+ * Analisa uma comunicação e verifica se há audiência/perícia designada no teor.
+ * Atende aos 4 requisitos ampliados:
+ * 1. Gatilhos ampliados + proximidade (~150 chars) + AIJ + exclusão de passadas
+ * 2. Extração tolerante de data/hora (extenso, ponto, formatos de hora) + fallback 'Data a confirmar'
+ * 3. Cobertura de perícia, ato conciliatório e solenidade
+ * 4. Rascunho com humanReviewRequired (sem confirmação automática)
  */
 export function detectarAudienciaNoTeor(
   comm: SentinelaCommunication,
@@ -100,47 +357,38 @@ export function detectarAudienciaNoTeor(
   const texto = `${comm.teorCompleto || ''} ${comm.teorResumido || ''}`
   if (!texto || texto.trim().length === 0) return null
 
-  const isAudienciaMatch = AUDIENCIA_REGEX_PATTERNS.some((pattern) => pattern.test(texto))
-  if (!isAudienciaMatch) return null
-
-  // Extrair tipo de audiência
-  let tipoAudiencia = 'Audiência Geral'
-  if (/concilia[cç][aã]o/i.test(texto)) tipoAudiencia = 'Audiência de Conciliação (JEC/CEJUSC)'
-  else if (/instru[cç][aã]o\s+e\s+julgamento/i.test(texto))
-    tipoAudiencia = 'Audiência de Instrução e Julgamento (AIJ)'
-  else if (/instru[cç][aã]o/i.test(texto)) tipoAudiencia = 'Audiência de Instrução'
-  else if (/justifica[cç][aã]o/i.test(texto)) tipoAudiencia = 'Audiência de Justificação Prévia'
-  else if (/una/i.test(texto)) tipoAudiencia = 'Audiência Una'
-
-  // Extrair data
-  let dataFormatada: string | undefined
-  const dataMatch = texto.match(DATA_EXTRACT_REGEX)
-  if (dataMatch) {
-    if (dataMatch[1] && dataMatch[2] && dataMatch[3]) {
-      const d = dataMatch[1].padStart(2, '0')
-      const m = dataMatch[2].padStart(2, '0')
-      const y = dataMatch[3]
-      dataFormatada = `${y}-${m}-${d}`
-    } else if (dataMatch[4] && dataMatch[5] && dataMatch[6]) {
-      const d = dataMatch[4].padStart(2, '0')
-      const m = MESES_MAP[dataMatch[5].toLowerCase()] || '01'
-      const y = dataMatch[6]
-      dataFormatada = `${y}-${m}-${d}`
+  // Regra de exclusão: Se é apenas menção a audiência / perícia já realizada no passado, ignorar
+  const isPassada = AUDIENCIA_PASSADA_EXCLUDE_PATTERNS.some((pattern) => pattern.test(texto))
+  if (isPassada) {
+    // Se o texto só fala de realizada e não contém nenhuma designação nova explícita, descarta
+    const temDesignacaoNova = DIRECT_TRIGGER_PATTERNS.some((pattern) => pattern.test(texto))
+    if (!temDesignacaoNova) {
+      return null
     }
   }
 
-  // Extrair hora
-  let horaFormatada = '14:00'
-  const horaMatch = texto.match(HORA_EXTRACT_REGEX)
-  if (horaMatch) {
-    if (horaMatch[1] && horaMatch[2]) {
-      horaFormatada = `${horaMatch[1].padStart(2, '0')}:${horaMatch[2]}`
-    } else if (horaMatch[3]) {
-      horaFormatada = `${horaMatch[3].padStart(2, '0')}:00`
-    }
+  // 1. Checagem de gatilhos diretos ou proximidade (~150 chars)
+  const isDirectMatch = DIRECT_TRIGGER_PATTERNS.some((pattern) => pattern.test(texto))
+  const proximityResult = testProximityMatch(texto)
+
+  if (!isDirectMatch && !proximityResult.matched) {
+    return null
   }
 
-  // Extrair link virtual se existir
+  // 2. Identificar Tipo de Evento
+  const { tipoDescricao, eventType } = identificarTipoEvento(texto)
+
+  // 3. Extrair Data Tolerante
+  const anoReferencia = comm.dataDisponibilizacao
+    ? parseInt(comm.dataDisponibilizacao.split('-')[0], 10)
+    : undefined
+  const dataFormatada = extrairDataTolerante(texto, anoReferencia)
+  const isDataAConfirmar = !dataFormatada
+
+  // 4. Extrair Hora Tolerante
+  const horaFormatada = extrairHoraTolerante(texto)
+
+  // 5. Extrair link virtual se existir
   let localOuLink: string | undefined
   const linkMatch = texto.match(
     /(https?:\/\/[^\s]+|teams\.microsoft\.com[^\s]+|zoom\.us[^\s]+|meet\.google\.com[^\s]+)/i,
@@ -153,27 +401,32 @@ export function detectarAudienciaNoTeor(
     !!localOuLink || /virtual|videoconfer[eê]ncia|telepresencial|teams|zoom/i.test(texto)
   const lawyer = dataStore.getLawyerProfile().nome || 'Higor Utinoi de Oliveira'
 
-  // Data final do evento (se não achou no texto, usa a data de disponibilização + 15 dias como placeholder prudente)
+  // Data base do evento (se não encontrada, usa data da publicação para ordenar e sinaliza 'Data a confirmar')
   const eventDate =
     dataFormatada ||
     (comm.dataDisponibilizacao ? comm.dataDisponibilizacao : new Date().toISOString().split('T')[0])
   const startIso = `${eventDate}T${horaFormatada}:00`
   const endIso = `${eventDate}T${calcularHoraFim(horaFormatada, 60)}:00`
 
-  // Trecho snippet
-  const matchIndex = texto.search(/audi[eê]ncia/i)
+  // 6. Trecho snippet para auditoria
+  let matchIndex = texto.search(
+    /audi[eê]ncia|AIJ|sess[aã]o|solenidade|per[ií]cia|aprazad[oa]|designad[oa]/i,
+  )
+  if (matchIndex < 0) matchIndex = 0
   const snippet =
     matchIndex >= 0
       ? texto
           .substring(Math.max(0, matchIndex - 30), Math.min(texto.length, matchIndex + 170))
           .trim()
-      : comm.teorResumido
+      : comm.teorResumido || texto.slice(0, 200)
+
+  const labelData = isDataAConfirmar ? 'Data a confirmar' : dataFormatada
 
   const rascunho: AgendaEvent = {
     id: `auto_aud_${comm.id}`,
-    title: `${tipoAudiencia} - ${comm.numeroProcesso}`,
-    description: `Detectada autonomamente pelo Sentinela via DJEN no processo ${comm.numeroProcesso} (${comm.tribunal} - ${comm.orgaoJulgador}). Trecho: "${snippet}"`,
-    eventType: 'AUDIENCIA',
+    title: `${tipoDescricao}${isDataAConfirmar ? ' (Data a confirmar)' : ''} - ${comm.numeroProcesso}`,
+    description: `Detectada autonomamente pelo Sentinela via DJEN no processo ${comm.numeroProcesso} (${comm.tribunal} - ${comm.orgaoJulgador}). Status da data: ${labelData}. Trecho: "${snippet}"`,
+    eventType,
     startDate: startIso,
     endDate: endIso,
     isAllDay: false,
@@ -185,7 +438,7 @@ export function detectarAudienciaNoTeor(
     participants: [comm.assignedTo || lawyer],
     tribunal: comm.tribunal,
     communicationId: comm.id,
-    status: 'AGENDADO', // Rascunho inicial: 'AGENDADO', pendente de validação humana
+    status: 'AGENDADO', // Rascunho inicial: pendente de revisão e homologação humana
     remindersMinutesBefore: [1440, 120, 30],
     conflictDetected: false,
     createdAt: new Date().toISOString(),
@@ -197,9 +450,10 @@ export function detectarAudienciaNoTeor(
     processo: comm.numeroProcesso,
     tribunal: comm.tribunal,
     dataDetectada: dataFormatada,
+    dataAConfirmar: isDataAConfirmar,
     horaDetectada: horaFormatada,
     localOuLink,
-    tipoAudiencia,
+    tipoAudiencia: tipoDescricao,
     trechoExtraido: snippet,
     rascunhoEvento: rascunho,
   }
