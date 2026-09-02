@@ -1,11 +1,43 @@
 import { NoxRecord, ImportBatch, AuditLogEntry, NoxSystemStats } from '@/types/nox'
 import { generateFullSyntheticDataset, INITIAL_BATCH, INITIAL_AUDIT_LOGS } from '@/data/mockData'
+import {
+  SentinelaCommunication,
+  SentinelaTask,
+  AgendaEvent,
+  AutomationRule,
+  SentinelaApiHealth,
+  DecisionMemoryItem,
+  IncidentCrisisRoom,
+  OperationalTwinCapacity,
+  GapItem,
+  DailyBriefingData,
+  RecoveredTimeMetric,
+  DeadlineMemorial,
+} from '@/types/sentinela'
+import {
+  INITIAL_SENTINELA_COMMUNICATIONS,
+  INITIAL_SENTINELA_TASKS,
+  INITIAL_AGENDA_EVENTS,
+  INITIAL_AUTOMATION_RULES,
+  INITIAL_API_HEALTH,
+  INITIAL_OPERATIONAL_TWIN,
+  INITIAL_GAPS,
+  INITIAL_DECISION_MEMORY,
+  INITIAL_INCIDENT_ROOMS,
+} from '@/data/sentinelaData'
 
 const STORAGE_KEYS = {
   RECORDS: 'nox_control_center_records_v1',
   IMPORTS: 'nox_control_center_imports_v1',
   AUDIT_LOGS: 'nox_control_center_audit_logs_v1',
   SETTINGS: 'nox_control_center_settings_v1',
+  COMMUNICATIONS: 'nox_sentinela_communications_v1',
+  TASKS: 'nox_sentinela_tasks_v1',
+  AGENDA: 'nox_sentinela_agenda_v1',
+  AUTOMATIONS: 'nox_sentinela_automations_v1',
+  API_HEALTH: 'nox_sentinela_api_health_v1',
+  INCIDENTS: 'nox_sentinela_incidents_v1',
+  DECISION_MEMORY: 'nox_sentinela_decision_memory_v1',
 }
 
 export interface AppSettings {
@@ -33,6 +65,13 @@ export class NoxDataStore {
   private records: NoxRecord[] = []
   private imports: ImportBatch[] = []
   private auditLogs: AuditLogEntry[] = []
+  private communications: SentinelaCommunication[] = []
+  private tasks: SentinelaTask[] = []
+  private agendaEvents: AgendaEvent[] = []
+  private automations: AutomationRule[] = []
+  private apiHealth: SentinelaApiHealth[] = []
+  private incidents: IncidentCrisisRoom[] = []
+  private decisionMemory: DecisionMemoryItem[] = []
   private settings: AppSettings = DEFAULT_SETTINGS
   private listeners: Set<() => void> = new Set()
 
@@ -78,10 +117,40 @@ export class NoxDataStore {
       if (storedSettings) {
         this.settings = { ...DEFAULT_SETTINGS, ...JSON.parse(storedSettings) }
       }
+
+      const storedComms = localStorage.getItem(STORAGE_KEYS.COMMUNICATIONS)
+      this.communications = storedComms
+        ? JSON.parse(storedComms)
+        : [...INITIAL_SENTINELA_COMMUNICATIONS]
+
+      const storedTasks = localStorage.getItem(STORAGE_KEYS.TASKS)
+      this.tasks = storedTasks ? JSON.parse(storedTasks) : [...INITIAL_SENTINELA_TASKS]
+
+      const storedAgenda = localStorage.getItem(STORAGE_KEYS.AGENDA)
+      this.agendaEvents = storedAgenda ? JSON.parse(storedAgenda) : [...INITIAL_AGENDA_EVENTS]
+
+      const storedAutos = localStorage.getItem(STORAGE_KEYS.AUTOMATIONS)
+      this.automations = storedAutos ? JSON.parse(storedAutos) : [...INITIAL_AUTOMATION_RULES]
+
+      const storedHealth = localStorage.getItem(STORAGE_KEYS.API_HEALTH)
+      this.apiHealth = storedHealth ? JSON.parse(storedHealth) : [...INITIAL_API_HEALTH]
+
+      const storedIncidents = localStorage.getItem(STORAGE_KEYS.INCIDENTS)
+      this.incidents = storedIncidents ? JSON.parse(storedIncidents) : [...INITIAL_INCIDENT_ROOMS]
+
+      const storedMemory = localStorage.getItem(STORAGE_KEYS.DECISION_MEMORY)
+      this.decisionMemory = storedMemory ? JSON.parse(storedMemory) : [...INITIAL_DECISION_MEMORY]
     } catch {
       this.records = generateFullSyntheticDataset()
       this.imports = [INITIAL_BATCH]
       this.auditLogs = [...INITIAL_AUDIT_LOGS]
+      this.communications = [...INITIAL_SENTINELA_COMMUNICATIONS]
+      this.tasks = [...INITIAL_SENTINELA_TASKS]
+      this.agendaEvents = [...INITIAL_AGENDA_EVENTS]
+      this.automations = [...INITIAL_AUTOMATION_RULES]
+      this.apiHealth = [...INITIAL_API_HEALTH]
+      this.incidents = [...INITIAL_INCIDENT_ROOMS]
+      this.decisionMemory = [...INITIAL_DECISION_MEMORY]
       this.settings = DEFAULT_SETTINGS
     }
   }
@@ -322,14 +391,410 @@ export class NoxDataStore {
     this.saveAuditLogs()
   }
 
+  // ================= Sentinela NOX Getters and Operations =================
+
+  public getCommunications(): SentinelaCommunication[] {
+    return [...this.communications]
+  }
+
+  public getCommunicationById(id: string): SentinelaCommunication | undefined {
+    return this.communications.find((c) => c.id === id || c.externalId === id)
+  }
+
+  public saveCommunications() {
+    try {
+      localStorage.setItem(STORAGE_KEYS.COMMUNICATIONS, JSON.stringify(this.communications))
+    } catch {
+      /* ignore */
+    }
+    this.notify()
+  }
+
+  public advanceCommunicationStatus(
+    commId: string,
+    targetStage: SentinelaCommunication['status'],
+    actor = 'Operador NOX',
+    justification?: string,
+  ): boolean {
+    const comm = this.communications.find((c) => c.id === commId)
+    if (!comm) return false
+
+    const old = comm.status
+    comm.status = targetStage
+    comm.updatedAt = new Date().toISOString()
+
+    const step = {
+      id: `step_${Date.now()}`,
+      stage: targetStage,
+      timestamp: new Date().toISOString(),
+      actor,
+      actorRole: 'ADVOGADO_SENIOR' as const,
+      sourceConfidence: 1.0,
+      actionSummary: `Status da comunicação avançado de "${old}" para "${targetStage}".`,
+      justification,
+    }
+    comm.custody.timeline.unshift(step)
+
+    this.logAction('COMUNICACAO_STATUS_AVANCADO', 'revisao', actor, comm.id, {
+      de: old,
+      para: targetStage,
+      processo: comm.numeroProcesso,
+      justificativa: justification,
+    })
+
+    this.saveCommunications()
+    return true
+  }
+
+  public approveCommunicationDeadline(
+    commId: string,
+    customMemorial: DeadlineMemorial,
+    actor = 'Dra. Mariana Rios',
+  ): { task: SentinelaTask; event: AgendaEvent } | null {
+    const comm = this.communications.find((c) => c.id === commId)
+    if (!comm) return null
+
+    comm.status = 'PRAZO_TAREFA_AGENDA'
+    comm.deadlineCalculated = customMemorial
+    comm.custody.reviewedBy = actor
+    comm.custody.reviewedAt = new Date().toISOString()
+
+    // Create Synchronized Task
+    const taskId = `task_${Date.now()}`
+    const newTask: SentinelaTask = {
+      id: taskId,
+      title: `Tratar prazo: ${customMemorial.legalRuleName} - ${comm.numeroProcesso}`,
+      description: `Originado de ${comm.source} (#${comm.externalId}): ${comm.teorResumido}`,
+      status: 'A_FAZER',
+      priority:
+        comm.urgencyLevel === 'critica' || comm.urgencyLevel === 'alta' ? 'URGENTE' : 'MEDIA',
+      responsible: comm.assignedTo || 'Dra. Mariana Rios',
+      collaborators: [],
+      estimatedHours: 6,
+      startDate: new Date().toISOString().split('T')[0],
+      internalDueDate: customMemorial.internalDeadlineDate,
+      legalDeadlineDate: customMemorial.finalDeadlineDate,
+      processNumber: comm.numeroProcesso,
+      communicationId: comm.id,
+      deadlineId: customMemorial.id,
+      subtasks: [
+        { id: 'st-1', text: 'Análise aprofundada dos autos', completed: false },
+        { id: 'st-2', text: 'Elaboração da peça processual', completed: false },
+        { id: 'st-3', text: 'Revisão técnica e protocolo tempestivo', completed: false },
+      ],
+      dependenciesTaskIds: [],
+      isBlocked: false,
+      tags: [comm.tribunal, 'Prazo Judicial', customMemorial.daysType],
+      comments: [
+        {
+          id: `c_${Date.now()}`,
+          author: actor,
+          text: 'Prazo homologado pelo Motor de Verdade Temporal.',
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    // Create Synchronized Agenda Event
+    const eventId = `agenda_${Date.now()}`
+    const newEvent: AgendaEvent = {
+      id: eventId,
+      title: `Vencimento: ${customMemorial.legalRuleName}`,
+      description: `Processo ${comm.numeroProcesso} (${comm.tribunal}) - ${comm.teorResumido}`,
+      eventType: 'VENCIMENTO_PRAZO',
+      startDate: `${customMemorial.finalDeadlineDate}T23:59:59Z`,
+      endDate: `${customMemorial.finalDeadlineDate}T23:59:59Z`,
+      isAllDay: true,
+      isVirtual: false,
+      processNumber: comm.numeroProcesso,
+      responsible: comm.assignedTo || actor,
+      participants: [actor],
+      tribunal: comm.tribunal,
+      communicationId: comm.id,
+      deadlineId: customMemorial.id,
+      taskId: newTask.id,
+      status: 'AGENDADO',
+      remindersMinutesBefore: [1440, 240, 60],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    comm.custody.generatedArtifacts = {
+      deadlineId: customMemorial.id,
+      taskId: newTask.id,
+      agendaId: newEvent.id,
+    }
+
+    comm.custody.timeline.unshift({
+      id: `step_${Date.now()}`,
+      stage: 'PRAZO_TAREFA_AGENDA',
+      timestamp: new Date().toISOString(),
+      actor,
+      actorRole: 'ADVOGADO_SENIOR',
+      sourceConfidence: 1.0,
+      actionSummary: `Prazo homologado para ${customMemorial.finalDeadlineDate}. Tarefa #${taskId} e Agenda #${eventId} geradas sincronizadamente.`,
+      legalBasis: customMemorial.legalRuleArticle,
+    })
+
+    this.tasks.unshift(newTask)
+    this.agendaEvents.unshift(newEvent)
+
+    this.saveCommunications()
+    this.saveTasks()
+    this.saveAgenda()
+
+    this.logAction('PRAZO_HOMOLOGADO_E_DISTRIBUIDO', 'revisao', actor, comm.id, {
+      fatalDate: customMemorial.finalDeadlineDate,
+      internalDate: customMemorial.internalDeadlineDate,
+      taskId,
+      eventId,
+    })
+
+    return { task: newTask, event: newEvent }
+  }
+
+  // ================= Tasks Operations =================
+
+  public getTasks(): SentinelaTask[] {
+    return [...this.tasks]
+  }
+
+  public saveTasks() {
+    try {
+      localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(this.tasks))
+    } catch {
+      /* ignore */
+    }
+    this.notify()
+  }
+
+  public addTask(task: SentinelaTask) {
+    this.tasks.unshift(task)
+    this.saveTasks()
+    this.logAction('TAREFA_CRIADA', 'sistema', task.responsible, task.id, { title: task.title })
+  }
+
+  public updateTask(id: string, updates: Partial<SentinelaTask>) {
+    const t = this.tasks.find((task) => task.id === id)
+    if (!t) return false
+    Object.assign(t, updates, { updatedAt: new Date().toISOString() })
+    this.saveTasks()
+    return true
+  }
+
+  public toggleSubtask(taskId: string, subtaskId: string, actor = 'Operador NOX') {
+    const t = this.tasks.find((task) => task.id === taskId)
+    if (!t) return false
+    const st = t.subtasks.find((s) => s.id === subtaskId)
+    if (!st) return false
+    st.completed = !st.completed
+    st.completedAt = st.completed ? new Date().toISOString() : undefined
+    st.completedBy = st.completed ? actor : undefined
+    t.updatedAt = new Date().toISOString()
+    this.saveTasks()
+    return true
+  }
+
+  // ================= Agenda Operations =================
+
+  public getAgendaEvents(): AgendaEvent[] {
+    return [...this.agendaEvents]
+  }
+
+  public saveAgenda() {
+    try {
+      localStorage.setItem(STORAGE_KEYS.AGENDA, JSON.stringify(this.agendaEvents))
+    } catch {
+      /* ignore */
+    }
+    this.notify()
+  }
+
+  public addAgendaEvent(event: AgendaEvent) {
+    this.agendaEvents.unshift(event)
+    this.saveAgenda()
+    this.logAction('EVENTO_AGENDA_CRIADO', 'sistema', event.responsible, event.id, {
+      title: event.title,
+      date: event.startDate,
+    })
+  }
+
+  public updateAgendaEvent(id: string, updates: Partial<AgendaEvent>) {
+    const e = this.agendaEvents.find((event) => event.id === id)
+    if (!e) return false
+    Object.assign(e, updates, { updatedAt: new Date().toISOString() })
+    this.saveAgenda()
+    return true
+  }
+
+  // ================= Automations & Health =================
+
+  public getAutomations(): AutomationRule[] {
+    return [...this.automations]
+  }
+
+  public toggleAutomation(id: string) {
+    const a = this.automations.find((item) => item.id === id)
+    if (!a) return
+    a.active = !a.active
+    try {
+      localStorage.setItem(STORAGE_KEYS.AUTOMATIONS, JSON.stringify(this.automations))
+    } catch {
+      /* ignore */
+    }
+    this.notify()
+  }
+
+  public getApiHealth(): SentinelaApiHealth[] {
+    return [...this.apiHealth]
+  }
+
+  public getIncidents(): IncidentCrisisRoom[] {
+    return [...this.incidents]
+  }
+
+  public createIncident(incident: IncidentCrisisRoom) {
+    this.incidents.unshift(incident)
+    try {
+      localStorage.setItem(STORAGE_KEYS.INCIDENTS, JSON.stringify(this.incidents))
+    } catch {
+      /* ignore */
+    }
+    this.logAction('SALA_INCIDENTE_ABERTA', 'sistema', incident.incidentLeader, incident.id, {
+      title: incident.title,
+    })
+    this.notify()
+  }
+
+  public getDecisionMemory(): DecisionMemoryItem[] {
+    return [...this.decisionMemory]
+  }
+
+  public getOperationalTwin(): OperationalTwinCapacity[] {
+    return [...INITIAL_OPERATIONAL_TWIN]
+  }
+
+  public getGaps(): GapItem[] {
+    return [...INITIAL_GAPS]
+  }
+
+  public getRecoveredTimeMetric(): RecoveredTimeMetric {
+    const automatedCommunications = this.communications.length
+    const automatedDeadlines = this.communications.filter((c) => c.deadlineCalculated).length
+    const automatedTasks = this.tasks.length
+
+    const commMins = automatedCommunications * 20 // 20 min per manual capture & check
+    const deadlineMins = automatedDeadlines * 35 // 35 min per manual court holiday calculation
+    const taskMins = automatedTasks * 15 // 15 min per manual distribution
+
+    const totalMins = commMins + deadlineMins + taskMins
+
+    return {
+      totalMinutesSaved: totalMins,
+      totalActionsAutomated: automatedCommunications + automatedDeadlines + automatedTasks,
+      manualBaselineHours: Math.round((totalMins / 60) * 10) / 10,
+      actualProcessingHours: Math.round((totalMins / 60) * 0.05 * 10) / 10,
+      breakdown: [
+        {
+          category: 'Captura & Sanitização DJEN/PJe',
+          count: automatedCommunications,
+          minutesPerUnitSaved: 20,
+          totalHours: Math.round((commMins / 60) * 10) / 10,
+        },
+        {
+          category: 'Cálculo de Prazo & Memorial Temporal',
+          count: automatedDeadlines,
+          minutesPerUnitSaved: 35,
+          totalHours: Math.round((deadlineMins / 60) * 10) / 10,
+        },
+        {
+          category: 'Distribuição e Sincronização de Tarefas',
+          count: automatedTasks,
+          minutesPerUnitSaved: 15,
+          totalHours: Math.round((taskMins / 60) * 10) / 10,
+        },
+      ],
+    }
+  }
+
+  public getDailyBriefing(): DailyBriefingData {
+    const todayStr = new Date().toISOString().split('T')[0]
+    return {
+      date: todayStr,
+      urgentDeadlinesToday: [
+        {
+          id: 'dead-101',
+          process: '1004523-88.2025.8.26.0100',
+          title: 'Apelação Cível TJSP (Fase de Elaboração)',
+          responsible: 'Dra. Mariana Rios',
+          hoursLeft: 14,
+        },
+      ],
+      upcomingCommitments: [
+        {
+          id: 'agenda-102',
+          time: '14:30',
+          title: 'Audiência de Instrução e Julgamento (Zoom TRT2)',
+          type: 'AUDIENCIA',
+          responsible: 'Dr. Lucas Viana',
+        },
+        {
+          id: 'agenda-103',
+          time: '10:00',
+          title: 'Reunião de Alinhamento Estratégico com Diretoria',
+          type: 'REUNIAO',
+          responsible: 'Dr. Roberto Mendes',
+        },
+      ],
+      pendingReviewsCount: this.communications.filter(
+        (c) => c.status === 'REVISAO_HUMANA' || c.status === 'VALIDADA',
+      ).length,
+      highRiskAlertsCount: this.records.filter((r) => r.severity === 'critico').length,
+      captureHealthStatus: 'ESTAVEL',
+      bottlenecks: [
+        'Dr. Lucas Viana atingiu 115% de capacidade com 7 compromissos e 11 tarefas ativas.',
+        'Tarefa #task-103 bloqueada por laudo pericial contábil de terceiro.',
+      ],
+      explainableRecommendations: [
+        {
+          title: 'Redistribuir 2 tarefas do Dr. Lucas Viana para Dr. Roberto',
+          reason:
+            'Lucas está com risco de sobrecarga (115%) enquanto Roberto possui 55% de tempo disponível.',
+          suggestedAction: 'Abrir Gêmeo Operacional e confirmar sugestão.',
+          targetRoute: '/sentinela/saude',
+        },
+        {
+          title: 'Homologar prazo ambíguo em comm-103 (Despacho sobre Laudo)',
+          reason:
+            'Prazo pode vencer em 5 dias ou 15 dias conforme Art. 218 § 3º ou Art. 477 § 1º CPC.',
+          suggestedAction: 'Abrir Triagem Sentinela e validar memorial.',
+          targetRoute: '/sentinela/triagem',
+        },
+      ],
+    }
+  }
+
   public resetToSyntheticDemo(): void {
     this.records = generateFullSyntheticDataset()
     this.imports = [INITIAL_BATCH]
     this.auditLogs = [...INITIAL_AUDIT_LOGS]
+    this.communications = [...INITIAL_SENTINELA_COMMUNICATIONS]
+    this.tasks = [...INITIAL_SENTINELA_TASKS]
+    this.agendaEvents = [...INITIAL_AGENDA_EVENTS]
+    this.automations = [...INITIAL_AUTOMATION_RULES]
+    this.apiHealth = [...INITIAL_API_HEALTH]
+    this.incidents = [...INITIAL_INCIDENT_ROOMS]
+    this.decisionMemory = [...INITIAL_DECISION_MEMORY]
     this.settings = DEFAULT_SETTINGS
+
     this.saveRecords()
     this.saveImports()
     this.saveAuditLogs()
+    this.saveCommunications()
+    this.saveTasks()
+    this.saveAgenda()
     this.saveSettings(DEFAULT_SETTINGS)
   }
 }

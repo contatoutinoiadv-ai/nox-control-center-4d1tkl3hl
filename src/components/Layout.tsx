@@ -54,6 +54,21 @@ export const Layout: React.FC = () => {
   const navLinks = [
     { name: 'Central NOX', path: '/', icon: Activity, badge: null },
     {
+      name: 'Sentinela NOX',
+      path: '/sentinela',
+      icon: Sparkles,
+      badge: 'NOVO',
+      badgeVariant: 'aurora',
+      isSentinela: true,
+    },
+    {
+      name: 'Central de Prazos',
+      path: '/central-prazos',
+      icon: Clock,
+      badge: 'Sincronizado',
+      badgeVariant: 'cyan',
+    },
+    {
       name: 'Radar de Alertas',
       path: '/radar',
       icon: Radio,
@@ -173,13 +188,17 @@ export const Layout: React.FC = () => {
                   <Badge
                     variant="outline"
                     className={`text-[10px] font-mono px-1.5 py-0 h-4.5 ${
-                      link.badgeVariant === 'destructive'
-                        ? 'bg-rose-950/80 text-rose-300 border-rose-800 animate-pulse'
-                        : link.badgeVariant === 'warning'
-                          ? 'bg-amber-950/80 text-amber-300 border-amber-800'
-                          : link.isFuture
-                            ? 'bg-purple-950/60 text-purple-300 border-purple-800/60 text-[9px]'
-                            : 'bg-slate-800 text-slate-300 border-slate-700'
+                      link.badgeVariant === 'aurora'
+                        ? 'bg-gradient-to-r from-purple-950 to-cyan-950 text-cyan-300 border-cyan-500/50 shadow-sm'
+                        : link.badgeVariant === 'cyan'
+                          ? 'bg-cyan-950/80 text-cyan-300 border-cyan-700'
+                          : link.badgeVariant === 'destructive'
+                            ? 'bg-rose-950/80 text-rose-300 border-rose-800 animate-pulse'
+                            : link.badgeVariant === 'warning'
+                              ? 'bg-amber-950/80 text-amber-300 border-amber-800'
+                              : link.isFuture
+                                ? 'bg-purple-950/60 text-purple-300 border-purple-800/60 text-[9px]'
+                                : 'bg-slate-800 text-slate-300 border-slate-700'
                     }`}
                   >
                     {link.badge}

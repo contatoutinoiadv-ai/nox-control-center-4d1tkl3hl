@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-02T00:15:13.053Z",
+  "generatedAt": "2026-09-02T01:10:35.515Z",
   "collections": [
     {
       "name": "users",
@@ -378,6 +378,551 @@
         "CREATE INDEX idx_audit_created ON audit_logs (created DESC)",
         "CREATE INDEX idx_audit_category ON audit_logs (category)"
       ]
+    },
+    {
+      "name": "sentinela_communications",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "external_id",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "source",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "numero_processo",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "tribunal",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "orgao_julgador",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "destinatario",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tipo_comunicacao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_disponibilizacao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_publicacao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "teor_resumido",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "teor_completo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "triage_category",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "urgency_level",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "risk_score",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "assigned_to",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "custody",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "deadline_calculated",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_comm_processo ON sentinela_communications (numero_processo)",
+        "CREATE INDEX idx_comm_status ON sentinela_communications (status)"
+      ]
+    },
+    {
+      "name": "sentinela_tasks",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "title",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "priority",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "responsible",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "estimated_hours",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "internal_due_date",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "legal_deadline_date",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "process_number",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "client_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "communication_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "deadline_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "subtasks",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_blocked",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "block_reason",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tags",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "comments",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_tasks_status ON sentinela_tasks (status)",
+        "CREATE INDEX idx_tasks_responsible ON sentinela_tasks (responsible)"
+      ]
+    },
+    {
+      "name": "sentinela_agenda",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "title",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "event_type",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "start_date",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "end_date",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "is_all_day",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "location_or_link",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_virtual",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "process_number",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "responsible",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "participants",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tribunal",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "communication_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_agenda_start ON sentinela_agenda (start_date)",
+        "CREATE INDEX idx_agenda_resp ON sentinela_agenda (responsible)"
+      ]
+    },
+    {
+      "name": "sentinela_automations",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "trigger_event",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "condition_formula",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "action_formula",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "requires_human_approval",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "active",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "executions_count",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "sentinela_incidents",
+      "type": "base",
+      "apiRules": {
+        "list": "",
+        "view": "",
+        "create": "",
+        "update": "",
+        "delete": ""
+      },
+      "fields": [
+        {
+          "name": "title",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "severity",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "incident_type",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "affected_count",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "affected_items_ids",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "contingency_plan",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "incident_leader",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "timeline_updates",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
     }
   ]
 }

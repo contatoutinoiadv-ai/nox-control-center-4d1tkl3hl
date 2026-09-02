@@ -13,6 +13,8 @@ import ExportsPage from './pages/ExportsPage'
 import LexTempusPage from './pages/LexTempusPage'
 import AuditPage from './pages/AuditPage'
 import SettingsPage from './pages/SettingsPage'
+import SentinelaPage from './pages/SentinelaPage'
+import CentralPrazosPage from './pages/CentralPrazosPage'
 import NotFound from './pages/NotFound'
 
 const App = () => (
@@ -23,6 +25,8 @@ const App = () => (
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<Index />} />
+          <Route path="/sentinela" element={<SentinelaPage />} />
+          <Route path="/central-prazos" element={<CentralPrazosPage />} />
           <Route path="/radar" element={<RadarPage />} />
           <Route path="/processos" element={<ProcessesPage />} />
           <Route path="/importacoes" element={<ImportsPage />} />
