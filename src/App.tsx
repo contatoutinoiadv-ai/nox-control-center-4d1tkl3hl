@@ -1,5 +1,6 @@
 /* Main App Component - Handles routing, query client and other providers */
-import { HashRouter, Routes, Route } from 'react-router-dom'
+import { useEffect } from 'react'
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -22,9 +23,29 @@ import ProducaoPage from './pages/ProducaoPage'
 import IntakePublicPage from './pages/IntakePublicPage'
 import NotFound from './pages/NotFound'
 
+// Component to seamlessly handle legacy hash URLs (e.g. /#/intake or /#/processos)
+const HashToPathSync = () => {
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  useEffect(() => {
+    if (window.location.hash) {
+      const rawHash = window.location.hash.replace(/^#/, '')
+      if (rawHash && rawHash !== '/' && rawHash !== location.pathname) {
+        // Clean leading slash if any
+        const targetPath = rawHash.startsWith('/') ? rawHash : `/${rawHash}`
+        navigate(targetPath, { replace: true })
+      }
+    }
+  }, [navigate, location.pathname])
+
+  return null
+}
+
 const App = () => (
   <div translate="no" className="notranslate min-h-screen">
-    <HashRouter>
+    <BrowserRouter>
+      <HashToPathSync />
       <TooltipProvider>
         <ErrorBoundary moduleName="NOX Control Center (Global)">
           <Toaster />
@@ -40,7 +61,7 @@ const App = () => (
               }
             />
             <Route
-              path="/intake/"
+              path="/intake/*"
               element={
                 <ErrorBoundary moduleName="Intake Público">
                   <IntakePublicPage />
@@ -104,7 +125,7 @@ const App = () => (
           </Routes>
         </ErrorBoundary>
       </TooltipProvider>
-    </HashRouter>
+    </BrowserRouter>
   </div>
 )
 
