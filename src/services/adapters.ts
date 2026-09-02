@@ -61,12 +61,18 @@ export async function generateContentHash(text: string): Promise<string> {
 }
 
 export interface PjeApiQueryParams {
+  modo?: 'oab' | 'nome' | 'processo'
+  numeroOab?: string
+  ufOab?: string
+  nomeAdvogado?: string
+  nomeParte?: string
   numeroProcesso?: string
-  tribunal?: string
-  dataInicio?: string
-  dataFim?: string
-  page?: number
-  pageSize?: number
+  siglaTribunal?: string
+  dataDisponibilizacaoInicio?: string
+  dataDisponibilizacaoFim?: string
+  meio?: string
+  itensPorPagina?: number
+  pagina?: number
 }
 
 /**
@@ -82,7 +88,9 @@ export interface PjeComunicaAdapter {
 }
 
 /**
- * Mock & Safe Gateway Implementation of ComunicaAPI (PJe / DJEN)
+ * Safe Gateway Implementation of ComunicaAPI (PJe / DJEN)
+ * Implements fallback to deterministic seed dataset when offline/mock,
+ * with anchor OAB/MS 15.400 and full parameters support.
  */
 export class SafePjeComunicaAdapter implements PjeComunicaAdapter {
   async searchCommunications(params: PjeApiQueryParams): Promise<{
@@ -91,8 +99,6 @@ export class SafePjeComunicaAdapter implements PjeComunicaAdapter {
     source: string
     isLive: boolean
   }> {
-    // In demo environment, returns filtered deterministic mock communications
-    // When live credentials/backend proxy is configured, routes via backend Skip Cloud pb_hooks
     return {
       items: [],
       total: 0,

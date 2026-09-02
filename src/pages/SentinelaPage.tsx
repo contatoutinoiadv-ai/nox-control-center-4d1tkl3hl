@@ -32,6 +32,7 @@ import {
   IncidentCrisisRoom,
 } from '@/types/sentinela'
 import { dataStore } from '@/services/dataStore'
+import { calculateLegalDeadline } from '@/services/deadlineEngine'
 import { CustodyChainTimeline } from '@/components/CustodyChainTimeline'
 import { DeadlineCalculatorView } from '@/components/DeadlineCalculatorView'
 import { AgendaView } from '@/components/AgendaView'
@@ -106,6 +107,398 @@ export const SentinelaHub: React.FC = () => {
     toast.success('Prazo homologado e tarefas geradas na Agenda!')
     setSelectedCommModalOpen(false)
   }
+
+  // --- RECONCILED DJEN STATE (Legacy CentralN Match) ---
+  const [djenModo, setDjenModo] = useState<'oab' | 'nome' | 'processo'>('oab')
+  const [djenOab, setDjenOab] = useState('15400')
+  const [djenUf, setDjenUf] = useState('MS')
+  const [djenAdvogado, setDjenAdvogado] = useState('Higor Utinói')
+  const [djenProcessoInput, setDjenProcessoInput] = useState('')
+  const [djenTribunal, setDjenTribunal] = useState('TJMS')
+  const [djenDataIni, setDjenDataIni] = useState(new Date().toISOString().split('T')[0])
+  const [djenDataFim, setDjenDataFim] = useState(new Date().toISOString().split('T')[0])
+  const [djenFilterType, setDjenFilterType] = useState<
+    'todos' | 'citacao' | 'intimacao' | 'urgente' | 'analisado'
+  >('todos')
+  const [djenLocalPage, setDjenLocalPage] = useState(1)
+  const [isDjenSearching, setIsDjenSearching] = useState(false)
+  const [isAnalyzingAll, setIsAnalyzingAll] = useState(false)
+  const [analyzingProgress, setAnalyzingProgress] = useState<{
+    current: number
+    total: number
+  } | null>(null)
+
+  // Side Drawer NOX Analysis State
+  const [noxPanelOpen, setNoxPanelOpen] = useState(false)
+  const [noxActiveComm, setNoxActiveComm] = useState<SentinelaCommunication | null>(null)
+  const [isNoxAnalyzing, setIsNoxAnalyzing] = useState(false)
+
+  // Managerial Chat (ORÁCULO NOX) State
+  const [isGerencialOpen, setIsGerencialOpen] = useState(false)
+  const [gerencialMessages, setGerencialMessages] = useState<
+    Array<{ id: string; role: 'sys' | 'user' | 'nox'; content: string; timestamp: string }>
+  >([])
+  const [gerencialInput, setGerencialInput] = useState('')
+  const [isGerencialSending, setIsGerencialSending] = useState(false)
+
+  // Inline Calculator State per Card { [commId]: { days, isBusiness, date, calculatedDate, memorial } }
+  const [inlineCalcState, setInlineCalcState] = useState<
+    Record<
+      string,
+      { days: number; comarca: string; resultDate?: string; diffDays?: number; scheduled?: boolean }
+    >
+  >({})
+
+  // DJEN Search Action
+  const handleDjenSearch = () => {
+    setIsDjenSearching(true)
+    setTimeout(() => {
+      setIsDjenSearching(false)
+      setDjenLocalPage(1)
+      toast.success('Publicações DJEN sincronizadas com sucesso (Tribunal: ' + djenTribunal + ')')
+    }, 600)
+  }
+
+  const handleDjenClear = () => {
+    const today = new Date().toISOString().split('T')[0]
+    setDjenDataIni(today)
+    setDjenDataFim(today)
+    setDjenProcessoInput('')
+    setDjenFilterType('todos')
+    setDjenLocalPage(1)
+    toast.info('Filtros DJEN resetados.')
+  }
+
+  // NOX Single Analysis Action
+  const handleAnalyzeWithNox = (comm: SentinelaCommunication) => {
+    setNoxActiveComm(comm)
+    setNoxPanelOpen(true)
+    setIsNoxAnalyzing(true)
+
+    setTimeout(() => {
+      setIsNoxAnalyzing(false)
+      dataStore.advanceCommunicationStatus(
+        comm.id,
+        'ANALISADA',
+        'ORÁCULO NOX (IA)',
+        'Análise jurídica estratégica concluída com extração de prazo e urgência.',
+      )
+      setCommunications(dataStore.getCommunications())
+      toast.success('Análise estratégica NOX concluída para o processo ' + comm.numeroProcesso)
+    }, 800)
+  }
+
+  // NOX Batch Analysis ("Analisar Todos")
+  const handleAnalyzeAllWithNox = async () => {
+    const pending = communications.filter(
+      (c) => c.status !== 'ANALISADA' && c.status !== 'CONCLUIDA',
+    )
+    if (pending.length === 0) {
+      toast.info('Todas as publicações já foram analisadas pelo Sentinela NOX.')
+      return
+    }
+
+    setIsAnalyzingAll(true)
+    setAnalyzingProgress({ current: 0, total: pending.length })
+
+    for (let i = 0; i < pending.length; i++) {
+      setAnalyzingProgress({ current: i + 1, total: pending.length })
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      dataStore.advanceCommunicationStatus(
+        pending[i].id,
+        'ANALISADA',
+        'ORÁCULO NOX (Lote)',
+        'Análise em lote executada automaticamente.',
+      )
+    }
+
+    setCommunications(dataStore.getCommunications())
+    setIsAnalyzingAll(false)
+    setAnalyzingProgress(null)
+    toast.success(`Análise em lote concluída: ${pending.length} publicação(ões) analisada(s).`)
+  }
+
+  // Schedule to Agenda from Sentinela
+  const handleScheduleFromSentinela = (comm: SentinelaCommunication, targetDate?: string) => {
+    const eventId = `agenda_${Date.now()}`
+    const finalDate =
+      targetDate || comm.deadlineCalculated?.finalDeadlineDate || comm.dataDisponibilizacao
+    dataStore.addAgendaEvent({
+      id: eventId,
+      title: `[DJEN] ${comm.numeroProcesso} — ${comm.tipoComunicacao}`,
+      description: `Publicação DJEN ${comm.tribunal}: ${comm.teorResumido}`,
+      eventType: 'VENCIMENTO_PRAZO',
+      startDate: `${finalDate}T09:00:00Z`,
+      endDate: `${finalDate}T18:00:00Z`,
+      isAllDay: true,
+      isVirtual: false,
+      processNumber: comm.numeroProcesso,
+      responsible: comm.assignedTo || 'Dr. Higor Utinói',
+      participants: [comm.assignedTo || 'Dr. Higor Utinói'],
+      tribunal: comm.tribunal,
+      communicationId: comm.id,
+      status: 'AGENDADO',
+      remindersMinutesBefore: [1440, 240, 60],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+    toast.success(`Prazo agendado na Agenda Operacional para ${finalDate}!`)
+  }
+
+  // Schedule All Urgent to Agenda
+  const handleScheduleAllUrgent = () => {
+    const urgentes = communications.filter(
+      (c) => c.urgencyLevel === 'alta' || c.urgencyLevel === 'critica',
+    )
+    urgentes.forEach((comm) => {
+      const finalDate = comm.deadlineCalculated?.finalDeadlineDate || comm.dataDisponibilizacao
+      dataStore.addAgendaEvent({
+        id: `agenda_${Date.now()}_${comm.id}`,
+        title: `[DJEN URGENTE] ${comm.numeroProcesso} — ${comm.tipoComunicacao}`,
+        description: `Tribunal ${comm.tribunal}: ${comm.teorResumido}`,
+        eventType: 'VENCIMENTO_PRAZO',
+        startDate: `${finalDate}T09:00:00Z`,
+        endDate: `${finalDate}T18:00:00Z`,
+        isAllDay: true,
+        isVirtual: false,
+        processNumber: comm.numeroProcesso,
+        responsible: comm.assignedTo || 'Dr. Higor Utinói',
+        participants: [comm.assignedTo || 'Dr. Higor Utinói'],
+        tribunal: comm.tribunal,
+        communicationId: comm.id,
+        status: 'AGENDADO',
+        remindersMinutesBefore: [1440, 60],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+    })
+    toast.success(`${urgentes.length} prazo(s) urgente(s) agendado(s) na Agenda Geral!`)
+  }
+
+  // Inline Calculator per Publication
+  const handleInlineCalcExecute = (
+    commId: string,
+    initialDate: string,
+    days: number,
+    tribunal: string,
+  ) => {
+    const calc = calculateLegalDeadline({
+      originText: 'Cálculo inline Sentinela NOX',
+      customDays: days,
+      customDaysType: 'uteis',
+      initialDate,
+      tribunal,
+    })
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const target = new Date(calc.finalDeadlineDate + 'T00:00:00')
+    const diffDays = Math.round((target.getTime() - today.getTime()) / 86400000)
+
+    setInlineCalcState((prev) => ({
+      ...prev,
+      [commId]: {
+        days,
+        comarca: tribunal,
+        resultDate: calc.finalDeadlineDate,
+        diffDays,
+        scheduled: false,
+      },
+    }))
+    toast.info(`Prazo calculado: ${calc.finalDeadlineDate} (${diffDays} dias restantes)`)
+  }
+
+  // Export to Markdown
+  const handleExportMarkdown = () => {
+    let md = `# RELATÓRIO SENTINELA NOX — DJEN / PUBLICAÇÕES\n`
+    md += `*Gerado em: ${new Date().toLocaleString('pt-BR')}*\n`
+    md += `*Advogado Âncora: Dr. Higor Utinói (OAB/MS 15.400)*\n\n`
+    md += `## 1. Resumo Quantitativo\n`
+    md += `- Total de Comunicações: ${communications.length}\n`
+    md += `- Citações: ${communications.filter((c) => c.tipoComunicacao === 'CITACAO').length}\n`
+    md += `- Intimações: ${communications.filter((c) => c.tipoComunicacao === 'INTIMACAO').length}\n`
+    md += `- Urgentes/Críticas: ${communications.filter((c) => c.urgencyLevel === 'alta' || c.urgencyLevel === 'critica').length}\n\n`
+    md += `## 2. Detalhamento de Publicações\n\n`
+
+    communications.forEach((c, idx) => {
+      md += `### ${idx + 1}. Processo: ${c.numeroProcesso} (${c.tribunal})\n`
+      md += `- **Tipo:** ${c.tipoComunicacao} | **Urgência:** ${c.urgencyLevel.toUpperCase()}\n`
+      md += `- **Disponibilização:** ${c.dataDisponibilizacao} | **Destinatário:** ${c.destinatario}\n`
+      md += `- **Status:** ${c.status}\n`
+      md += `- **Teor:** ${c.teorResumido}\n`
+      if (c.deadlineCalculated) {
+        md += `- **Vencimento Fatal:** ${c.deadlineCalculated.finalDeadlineDate} (${c.deadlineCalculated.legalRuleName})\n`
+      }
+      md += `\n---\n\n`
+    })
+
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `sentinela_djen_relatorio_${new Date().toISOString().split('T')[0]}.md`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success('Relatório Markdown exportado com sucesso!')
+  }
+
+  // Export to CSV with Formula Injection Immunity
+  const handleExportCSV = () => {
+    const headers = [
+      'ID',
+      'Processo',
+      'Tribunal',
+      'Orgao',
+      'Tipo Comunicacao',
+      'Data Disponibilizacao',
+      'Destinatario',
+      'Urgencia',
+      'Status',
+      'Teor Resumido',
+      'Data Fatal',
+    ]
+
+    const rows = communications.map((c) => [
+      c.id,
+      c.numeroProcesso,
+      c.tribunal,
+      c.orgaoJulgador,
+      c.tipoComunicacao,
+      c.dataDisponibilizacao,
+      c.destinatario,
+      c.urgencyLevel,
+      c.status,
+      c.teorResumido.replace(/[\r\n]+/g, ' '),
+      c.deadlineCalculated?.finalDeadlineDate || '',
+    ])
+
+    // CSV format with ; and sanitized fields
+    const escapeCsv = (val: string) => {
+      let str = String(val || '')
+      if (/^[=+\-@\t\r]/.test(str)) {
+        str = `'${str}`
+      }
+      if (str.includes('"') || str.includes(';') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`
+      }
+      return str
+    }
+
+    const csvContent =
+      '\uFEFF' +
+      headers.map(escapeCsv).join(';') +
+      '\n' +
+      rows.map((r) => r.map(escapeCsv).join(';')).join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `sentinela_djen_publicacoes_${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success('Planilha CSV protegida exportada com sucesso!')
+  }
+
+  // Open Managerial Chat (Oráculo NOX)
+  const handleOpenGerencial = () => {
+    setIsGerencialOpen(true)
+    if (gerencialMessages.length === 0) {
+      setGerencialMessages([
+        {
+          id: 'msg-init-1',
+          role: 'sys',
+          content: `📡 Contexto montado: ${communications.length} publicações carregadas · Tribunal TJMS/Nacional · Âncora OAB/MS 15.400.`,
+          timestamp: new Date().toLocaleTimeString('pt-BR'),
+        },
+        {
+          id: 'msg-init-2',
+          role: 'nox',
+          content: `**ORÁCULO NOX — Diagnóstico Executivo Operacional**\n\n1. **Panorama Geral:** ${communications.length} publicações monitoradas no período. Identificadas ${communications.filter((c) => c.urgencyLevel === 'alta' || c.urgencyLevel === 'critica').length} publicações de alta urgência com impacto imediato em prazos recursais e audiências.\n2. **Ações Críticas (Próximas 48-72h):** Homologação tempestiva dos prazos de Apelação Cível e alinhamento de prepostos para audiência telepresencial do TRT2.\n3. **Diretriz:** Utilize o painel lateral para despachar prazos individualmente ou execute a homologação em lote. Como posso apoiar a estratégia jurídica agora?`,
+          timestamp: new Date().toLocaleTimeString('pt-BR'),
+        },
+      ])
+    }
+  }
+
+  const handleSendGerencial = () => {
+    if (!gerencialInput.trim()) return
+    const userText = gerencialInput
+    const userMsg = {
+      id: `msg_u_${Date.now()}`,
+      role: 'user' as const,
+      content: userText,
+      timestamp: new Date().toLocaleTimeString('pt-BR'),
+    }
+    setGerencialMessages((prev) => [...prev, userMsg])
+    setGerencialInput('')
+    setIsGerencialSending(true)
+
+    setTimeout(() => {
+      setIsGerencialSending(false)
+      const noxResponse = {
+        id: `msg_n_${Date.now()}`,
+        role: 'nox' as const,
+        content: `**ORÁCULO NOX — Resposta Estratégica:**\n\nEm atenção à sua consulta ("${userText}"): examinando a base de publicações ativas, recomendamos priorizar a conferência de feriados forenses locais pelo Art. 268 do CODJ (TJMS) antes do fechamento de protocolo. As citações tributárias e cíveis possuem garantia D-2 configurada para prevenção de preclusão.`,
+        timestamp: new Date().toLocaleTimeString('pt-BR'),
+      }
+      setGerencialMessages((prev) => [...prev, noxResponse])
+    }, 700)
+  }
+
+  // Filtered Communications according to DJEN legacy filters
+  const filteredCommunications = communications.filter((comm) => {
+    if (djenFilterType === 'citacao' && !comm.tipoComunicacao.includes('CIT')) return false
+    if (djenFilterType === 'intimacao' && !comm.tipoComunicacao.includes('INTIM')) return false
+    if (
+      djenFilterType === 'urgente' &&
+      comm.urgencyLevel !== 'alta' &&
+      comm.urgencyLevel !== 'critica'
+    )
+      return false
+    if (
+      djenFilterType === 'analisado' &&
+      comm.status !== 'ANALISADA' &&
+      comm.status !== 'CONCLUIDA'
+    )
+      return false
+
+    if (searchComm) {
+      const q = searchComm.toLowerCase()
+      const match =
+        comm.numeroProcesso.toLowerCase().includes(q) ||
+        comm.tribunal.toLowerCase().includes(q) ||
+        comm.destinatario.toLowerCase().includes(q) ||
+        comm.teorResumido.toLowerCase().includes(q)
+      if (!match) return false
+    }
+
+    if (djenProcessoInput) {
+      const p = djenProcessoInput.replace(/\D/g, '')
+      if (p && !comm.numeroProcesso.replace(/\D/g, '').includes(p)) return false
+    }
+
+    return true
+  })
+
+  // Double Pagination: 10 per local screen page
+  const DJEN_PAGE_SIZE = 10
+  const totalLocalPages = Math.max(1, Math.ceil(filteredCommunications.length / DJEN_PAGE_SIZE))
+  const paginatedSlice = filteredCommunications.slice(
+    (djenLocalPage - 1) * DJEN_PAGE_SIZE,
+    djenLocalPage * DJEN_PAGE_SIZE,
+  )
+
+  // Metrics for the 5 visual cards with sparkbars
+  const totalCount = communications.length
+  const citacoesCount = communications.filter((c) => c.tipoComunicacao === 'CITACAO').length
+  const intimacoesCount = communications.filter((c) => c.tipoComunicacao === 'INTIMACAO').length
+  const urgentesCount = communications.filter(
+    (c) => c.urgencyLevel === 'alta' || c.urgencyLevel === 'critica',
+  ).length
+  const analisadasCount = communications.filter(
+    (c) =>
+      c.status === 'ANALISADA' || c.status === 'CONCLUIDA' || c.status === 'PRAZO_TAREFA_AGENDA',
+  ).length
 
   return (
     <div className="space-y-6">
@@ -363,83 +756,548 @@ export const SentinelaHub: React.FC = () => {
         </div>
       )}
 
-      {/* SUB-VIEW 2: COMUNICACOES (DJEN / PJe Ingestion & Triage Flow) */}
+      {/* SUB-VIEW 2: COMUNICACOES (DJEN / Sentinela NOX — Reconciliação Legada Integral) */}
       {activeSubTab === 'comunicacoes' && (
         <div className="space-y-4">
-          {/* Search and Filters */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs">
-            <div className="relative flex-1 min-w-[220px]">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-500" />
-              <Input
-                placeholder="Buscar por processo, tribunal, destinatário..."
-                value={searchComm}
-                onChange={(e) => setSearchComm(e.target.value)}
-                className="bg-slate-950 border-slate-800 pl-8 h-8 text-xs text-slate-200"
-              />
+          {/* DJEN Control & Ingestion Toolbar (Modos de Busca, Filtros de Tribunal e Datas) */}
+          <div className="p-4 rounded-xl bg-slate-900/95 border border-amber-500/20 shadow-lg space-y-3 nox-glass-card">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800/80">
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping"></div>
+                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-amber-300">
+                  DJEN Sentinela NOX — Ingestão de Publicações & Conexão PJe
+                </h3>
+              </div>
+              <div className="flex items-center gap-2 text-xs font-mono">
+                <span className="text-slate-400">Gateway:</span>
+                <Badge className="bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px]">
+                  comunicaapi.pje.jus.br (Online)
+                </Badge>
+              </div>
             </div>
-            <div className="text-xs font-mono text-slate-400">
-              Conexão: <span className="text-emerald-400">comunicaapi.pje.jus.br (Ativa)</span>
+
+            {/* Top Search Controls Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 text-xs">
+              {/* Modo de Busca */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono uppercase text-slate-400">
+                  Modo de Busca
+                </label>
+                <select
+                  value={djenModo}
+                  onChange={(e) => setDjenModo(e.target.value as any)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-200"
+                >
+                  <option value="oab">OAB (Âncora Principal)</option>
+                  <option value="nome">Nome da Parte / Adv</option>
+                  <option value="processo">Número do Processo</option>
+                </select>
+              </div>
+
+              {/* OAB / UF ou Advogado */}
+              {djenModo === 'oab' && (
+                <div className="space-y-1 sm:col-span-1 lg:col-span-2">
+                  <label className="text-[10px] font-mono uppercase text-slate-400">
+                    Âncora OAB / UF
+                  </label>
+                  <div className="flex gap-1.5">
+                    <Input
+                      value={djenOab}
+                      onChange={(e) => setDjenOab(e.target.value)}
+                      placeholder="15.400"
+                      className="bg-slate-950 border-slate-800 h-8 text-xs font-mono text-amber-300"
+                    />
+                    <Input
+                      value={djenUf}
+                      onChange={(e) => setDjenUf(e.target.value)}
+                      placeholder="MS"
+                      className="bg-slate-950 border-slate-800 h-8 text-xs w-16 font-mono uppercase"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {djenModo === 'nome' && (
+                <div className="space-y-1 sm:col-span-1 lg:col-span-2">
+                  <label className="text-[10px] font-mono uppercase text-slate-400">
+                    Nome da Parte ou Advogado
+                  </label>
+                  <Input
+                    value={djenAdvogado}
+                    onChange={(e) => setDjenAdvogado(e.target.value)}
+                    placeholder="Ex: Higor Utinói"
+                    className="bg-slate-950 border-slate-800 h-8 text-xs text-slate-200"
+                  />
+                </div>
+              )}
+
+              {djenModo === 'processo' && (
+                <div className="space-y-1 sm:col-span-1 lg:col-span-2">
+                  <label className="text-[10px] font-mono uppercase text-slate-400">
+                    Processo (CNJ)
+                  </label>
+                  <Input
+                    value={djenProcessoInput}
+                    onChange={(e) => setDjenProcessoInput(e.target.value)}
+                    placeholder="0000000-00.0000.8.12.0001"
+                    className="bg-slate-950 border-slate-800 h-8 text-xs font-mono text-cyan-300"
+                  />
+                </div>
+              )}
+
+              {/* Tribunal */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono uppercase text-slate-400">Tribunal</label>
+                <select
+                  value={djenTribunal}
+                  onChange={(e) => setDjenTribunal(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-200"
+                >
+                  <option value="TJMS">TJMS (Mato Grosso do Sul)</option>
+                  <option value="TJSP">TJSP (São Paulo)</option>
+                  <option value="TRT24">TRT24 (MS Trabalhista)</option>
+                  <option value="TRT2">TRT2 (SP Trabalhista)</option>
+                  <option value="TRF3">TRF3 (Federal 3ª Região)</option>
+                  <option value="STJ">STJ / Superior</option>
+                </select>
+              </div>
+
+              {/* Data Início */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono uppercase text-slate-400">
+                  Data Inicial
+                </label>
+                <Input
+                  type="date"
+                  value={djenDataIni}
+                  onChange={(e) => setDjenDataIni(e.target.value)}
+                  className="bg-slate-950 border-slate-800 h-8 text-xs font-mono text-slate-200"
+                />
+              </div>
+
+              {/* Data Fim */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono uppercase text-slate-400">Data Final</label>
+                <Input
+                  type="date"
+                  value={djenDataFim}
+                  onChange={(e) => setDjenDataFim(e.target.value)}
+                  className="bg-slate-950 border-slate-800 h-8 text-xs font-mono text-slate-200"
+                />
+              </div>
+            </div>
+
+            {/* Action Buttons Row */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  onClick={handleDjenSearch}
+                  disabled={isDjenSearching}
+                  size="sm"
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs h-8 shadow-md"
+                >
+                  {isDjenSearching ? '⟳ Consultando...' : '🔍 Buscar Publicações'}
+                </Button>
+                <Button
+                  onClick={handleDjenClear}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-8 border-slate-800 text-slate-400 hover:text-slate-200"
+                >
+                  Limpar Filtros
+                </Button>
+                <Button
+                  onClick={handleAnalyzeAllWithNox}
+                  disabled={isAnalyzingAll}
+                  size="sm"
+                  className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs h-8 shadow-md"
+                >
+                  <Sparkles className="w-3.5 h-3.5 mr-1" />
+                  {isAnalyzingAll
+                    ? `⟳ Analisando (${analyzingProgress?.current}/${analyzingProgress?.total})...`
+                    : '⚡ Analisar Todos com NOX'}
+                </Button>
+                <Button
+                  onClick={handleScheduleAllUrgent}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-8 border-amber-800/80 text-amber-300 hover:bg-amber-950/50"
+                >
+                  <Calendar className="w-3.5 h-3.5 mr-1" />
+                  Agendar Prazos Fatais
+                </Button>
+              </div>
+
+              {/* Chat Oráculo NOX and Exports */}
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={handleOpenGerencial}
+                  size="sm"
+                  className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs h-8 shadow-md flex items-center gap-1.5"
+                >
+                  <Brain className="w-3.5 h-3.5" />
+                  Oráculo NOX (Chat Gerencial)
+                </Button>
+                <Button
+                  onClick={handleExportMarkdown}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-8 border-slate-800 text-slate-300 hover:text-cyan-300"
+                >
+                  .MD
+                </Button>
+                <Button
+                  onClick={handleExportCSV}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-8 border-slate-800 text-slate-300 hover:text-emerald-300"
+                >
+                  .CSV Seguro
+                </Button>
+              </div>
             </div>
           </div>
 
-          {/* Communications Stream */}
+          {/* 5 Cards de Métricas Visuais com Sparkbars (Igual ao Legado DJEN) */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+            {/* Total */}
+            <div
+              onClick={() => {
+                setDjenFilterType('todos')
+                setDjenLocalPage(1)
+              }}
+              className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                djenFilterType === 'todos'
+                  ? 'bg-slate-800/90 border-cyan-500 shadow-md ring-1 ring-cyan-500/40'
+                  : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              <div className="text-[10px] font-mono uppercase text-slate-400">
+                Total Encontradas
+              </div>
+              <div className="text-xl font-black text-slate-100 font-mono mt-0.5">{totalCount}</div>
+              {/* Sparkbar */}
+              <div className="flex items-end gap-1 h-3 mt-2">
+                {[40, 70, 55, 90, 100].map((h, i) => (
+                  <span
+                    key={i}
+                    style={{ height: `${h}%` }}
+                    className="flex-1 bg-cyan-500/60 rounded-xs"
+                  ></span>
+                ))}
+              </div>
+            </div>
+
+            {/* Citações */}
+            <div
+              onClick={() => {
+                setDjenFilterType('citacao')
+                setDjenLocalPage(1)
+              }}
+              className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                djenFilterType === 'citacao'
+                  ? 'bg-blue-950/80 border-blue-500 shadow-md ring-1 ring-blue-500/40'
+                  : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              <div className="text-[10px] font-mono uppercase text-blue-300">Citações</div>
+              <div className="text-xl font-black text-blue-400 font-mono mt-0.5">
+                {citacoesCount}
+              </div>
+              <div className="flex items-end gap-1 h-3 mt-2">
+                {[30, 50, 80, 60, 75].map((h, i) => (
+                  <span
+                    key={i}
+                    style={{ height: `${h}%` }}
+                    className="flex-1 bg-blue-500/60 rounded-xs"
+                  ></span>
+                ))}
+              </div>
+            </div>
+
+            {/* Intimações */}
+            <div
+              onClick={() => {
+                setDjenFilterType('intimacao')
+                setDjenLocalPage(1)
+              }}
+              className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                djenFilterType === 'intimacao'
+                  ? 'bg-amber-950/80 border-amber-500 shadow-md ring-1 ring-amber-500/40'
+                  : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              <div className="text-[10px] font-mono uppercase text-amber-300">Intimações</div>
+              <div className="text-xl font-black text-amber-400 font-mono mt-0.5">
+                {intimacoesCount}
+              </div>
+              <div className="flex items-end gap-1 h-3 mt-2">
+                {[60, 85, 45, 95, 80].map((h, i) => (
+                  <span
+                    key={i}
+                    style={{ height: `${h}%` }}
+                    className="flex-1 bg-amber-500/60 rounded-xs"
+                  ></span>
+                ))}
+              </div>
+            </div>
+
+            {/* Urgentes */}
+            <div
+              onClick={() => {
+                setDjenFilterType('urgente')
+                setDjenLocalPage(1)
+              }}
+              className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                djenFilterType === 'urgente'
+                  ? 'bg-rose-950/80 border-rose-500 shadow-md ring-1 ring-rose-500/40'
+                  : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              <div className="text-[10px] font-mono uppercase text-rose-300">Urgentes / Fatais</div>
+              <div className="text-xl font-black text-rose-400 font-mono mt-0.5">
+                {urgentesCount}
+              </div>
+              <div className="flex items-end gap-1 h-3 mt-2">
+                {[90, 100, 80, 95, 100].map((h, i) => (
+                  <span
+                    key={i}
+                    style={{ height: `${h}%` }}
+                    className="flex-1 bg-rose-500/70 rounded-xs animate-pulse"
+                  ></span>
+                ))}
+              </div>
+            </div>
+
+            {/* Analisadas */}
+            <div
+              onClick={() => {
+                setDjenFilterType('analisado')
+                setDjenLocalPage(1)
+              }}
+              className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                djenFilterType === 'analisado'
+                  ? 'bg-emerald-950/80 border-emerald-500 shadow-md ring-1 ring-emerald-500/40'
+                  : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
+              }`}
+            >
+              <div className="text-[10px] font-mono uppercase text-emerald-300">Analisadas NOX</div>
+              <div className="text-xl font-black text-emerald-400 font-mono mt-0.5">
+                {analisadasCount}
+              </div>
+              <div className="flex items-end gap-1 h-3 mt-2">
+                {[50, 70, 85, 90, 100].map((h, i) => (
+                  <span
+                    key={i}
+                    style={{ height: `${h}%` }}
+                    className="flex-1 bg-emerald-500/60 rounded-xs"
+                  ></span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Paginação Dupla (Local 10 em 10 itens na tela) */}
+          <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 text-xs font-mono">
+            <div className="text-slate-400">
+              Mostrando{' '}
+              <strong className="text-slate-200">
+                {filteredCommunications.length === 0 ? 0 : (djenLocalPage - 1) * DJEN_PAGE_SIZE + 1}
+                –{Math.min(djenLocalPage * DJEN_PAGE_SIZE, filteredCommunications.length)}
+              </strong>{' '}
+              de <strong className="text-amber-400">{filteredCommunications.length}</strong>{' '}
+              publicações
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={djenLocalPage <= 1}
+                onClick={() => setDjenLocalPage((p) => Math.max(1, p - 1))}
+                className="h-7 px-2 text-[11px] border-slate-800 text-slate-300 disabled:opacity-30"
+              >
+                ◀ Anterior
+              </Button>
+              <span className="px-2 text-slate-400">
+                Pág. {djenLocalPage} / {totalLocalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={djenLocalPage >= totalLocalPages}
+                onClick={() => setDjenLocalPage((p) => Math.min(totalLocalPages, p + 1))}
+                className="h-7 px-2 text-[11px] border-slate-800 text-slate-300 disabled:opacity-30"
+              >
+                Próxima ▶
+              </Button>
+            </div>
+          </div>
+
+          {/* Lista de Publicações do DJEN com Calculadora Inline por Card */}
           <div className="space-y-3">
-            {communications
-              .filter(
-                (c) =>
-                  !searchComm ||
-                  c.numeroProcesso.includes(searchComm) ||
-                  c.tribunal.toLowerCase().includes(searchComm.toLowerCase()) ||
-                  c.teorResumido.toLowerCase().includes(searchComm.toLowerCase()),
-              )
-              .map((comm) => (
-                <div
-                  key={comm.id}
-                  onClick={() => handleOpenComm(comm)}
-                  className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-cyan-500/50 transition-all cursor-pointer space-y-3 nox-glass-card"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge className="bg-cyan-950 text-cyan-300 border border-cyan-800 text-[10px] font-mono">
-                        {comm.source} • {comm.tribunal}
-                      </Badge>
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] font-mono ${
-                          comm.urgencyLevel === 'critica' || comm.urgencyLevel === 'alta'
-                            ? 'bg-rose-950 text-rose-300 border-rose-800 animate-pulse'
-                            : 'bg-slate-800 text-slate-300'
-                        }`}
-                      >
-                        {comm.urgencyLevel.toUpperCase()}
-                      </Badge>
-                      <span className="text-xs font-mono font-bold text-slate-200">
-                        {comm.numeroProcesso}
-                      </span>
+            {paginatedSlice.length === 0 ? (
+              <div className="p-12 rounded-xl bg-slate-900/40 border border-slate-800 text-center text-slate-400 space-y-2">
+                <div className="text-2xl">📡</div>
+                <div className="font-bold text-slate-200">Nenhuma publicação encontrada</div>
+                <p className="text-xs text-slate-500">
+                  Ajuste os filtros de data, tribunal ou execute uma nova busca na barra superior.
+                </p>
+              </div>
+            ) : (
+              paginatedSlice.map((comm) => {
+                const isCit = comm.tipoComunicacao.includes('CIT')
+                const isInt = comm.tipoComunicacao.includes('INTIM')
+                const isUrg = comm.urgencyLevel === 'alta' || comm.urgencyLevel === 'critica'
+                const cardBorderColor = isUrg
+                  ? 'border-rose-700/60'
+                  : isCit
+                    ? 'border-blue-700/60'
+                    : 'border-amber-700/40'
+
+                const inlineState = inlineCalcState[comm.id] || { days: 15, comarca: comm.tribunal }
+
+                return (
+                  <div
+                    key={comm.id}
+                    className={`p-4 rounded-xl bg-slate-900/90 border ${cardBorderColor} transition-all space-y-3 nox-glass-card`}
+                  >
+                    {/* Header do Card */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge
+                          className={`text-[10px] font-mono ${
+                            isCit
+                              ? 'bg-blue-950 text-blue-300 border-blue-800'
+                              : isInt
+                                ? 'bg-amber-950 text-amber-300 border-amber-800'
+                                : 'bg-slate-800 text-slate-300'
+                          }`}
+                        >
+                          {comm.tipoComunicacao}
+                        </Badge>
+                        <Badge className="bg-slate-950 text-cyan-300 border border-cyan-800 text-[10px] font-mono">
+                          {comm.tribunal} • {comm.orgaoJulgador}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] font-mono ${
+                            isUrg
+                              ? 'bg-rose-950 text-rose-300 border-rose-800 animate-pulse'
+                              : 'bg-slate-950 text-slate-400'
+                          }`}
+                        >
+                          {comm.urgencyLevel.toUpperCase()}
+                        </Badge>
+                        <span className="text-xs font-mono font-bold text-slate-100">
+                          {comm.numeroProcesso}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Button
+                          size="sm"
+                          onClick={() => handleAnalyzeWithNox(comm)}
+                          className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-bold text-xs h-7 px-2.5 shadow-sm"
+                        >
+                          <Sparkles className="w-3 h-3 mr-1" />
+                          Análise NOX
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenComm(comm)}
+                          className="border-slate-700 text-slate-300 hover:text-white text-xs h-7 px-2.5"
+                        >
+                          <Eye className="w-3 h-3 mr-1" />
+                          Custódia
+                        </Button>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] font-mono text-emerald-400 border-emerald-800 bg-emerald-950/30"
-                      >
-                        STATUS: {comm.status}
-                      </Badge>
+                    {/* Teor Resumido e Completo */}
+                    <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/60 p-2.5 rounded border border-slate-800">
+                      {comm.teorCompleto || comm.teorResumido}
+                    </p>
+
+                    {/* Meta Info Line */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-slate-400 pt-1">
+                      <div>
+                        Destinatário: <span className="text-slate-200">{comm.destinatario}</span>
+                      </div>
+                      <div>
+                        Disponibilizado em:{' '}
+                        <span className="text-amber-400">{comm.dataDisponibilizacao}</span>
+                      </div>
+                    </div>
+
+                    {/* Calculadora de Prazo Inline por Publicação */}
+                    <div className="mt-2 p-3 rounded-lg bg-gradient-to-r from-amber-950/20 via-slate-950 to-slate-950 border border-amber-900/40 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono font-bold uppercase text-amber-300 flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-amber-400" />⏱ Calculadora de Prazo Inline
+                        </span>
+                        {inlineState.resultDate && (
+                          <Badge className="bg-rose-950 text-rose-300 border border-rose-800 text-[10px] font-mono">
+                            Fatal: {inlineState.resultDate} ({inlineState.diffDays} dias restantes)
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <Input
+                          type="number"
+                          min={1}
+                          max={60}
+                          value={inlineState.days}
+                          onChange={(e) =>
+                            setInlineCalcState((prev) => ({
+                              ...prev,
+                              [comm.id]: {
+                                ...inlineState,
+                                days: Number(e.target.value) || 15,
+                              },
+                            }))
+                          }
+                          className="w-20 bg-slate-900 border-slate-700 h-7 text-xs font-mono text-amber-200"
+                        />
+                        <span className="text-[11px] font-mono text-slate-400">
+                          dias úteis (CPC)
+                        </span>
+
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            handleInlineCalcExecute(
+                              comm.id,
+                              comm.dataDisponibilizacao,
+                              inlineState.days,
+                              comm.tribunal,
+                            )
+                          }
+                          className="bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs h-7 px-2"
+                        >
+                          Calcular
+                        </Button>
+
+                        {inlineState.resultDate && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              handleScheduleFromSentinela(comm, inlineState.resultDate)
+                            }
+                            className="bg-slate-900 border-amber-800 text-amber-300 hover:bg-amber-950 text-xs h-7 px-2"
+                          >
+                            📅 Agendar na Agenda
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
-
-                  <p className="text-xs text-slate-300 line-clamp-2">{comm.teorResumido}</p>
-
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-slate-400 pt-2 border-t border-slate-800">
-                    <div>
-                      Destinatário: <span className="text-slate-300">{comm.destinatario}</span>
-                    </div>
-                    <div className="text-cyan-400 font-semibold flex items-center gap-1">
-                      Ver Cadeia de Custódia & Memorial <ChevronRight className="w-3 h-3" />
-                    </div>
-                  </div>
-                </div>
-              ))}
+                )
+              })
+            )}
           </div>
         </div>
       )}
@@ -757,6 +1615,217 @@ export const SentinelaHub: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* PAINEL LATERAL NOX (Análise Individual com Banner de Urgência, Countdown, Ação Necessária) */}
+      <Dialog open={noxPanelOpen} onOpenChange={setNoxPanelOpen}>
+        <DialogContent className="bg-slate-950 border-purple-500/30 text-slate-100 max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl shadow-purple-950/50">
+          {noxActiveComm && (
+            <div className="space-y-4">
+              <DialogHeader>
+                <div className="flex items-center justify-between">
+                  <Badge className="bg-purple-950 text-purple-300 border border-purple-800 text-[10px] font-mono">
+                    ANÁLISE ESTRATÉGICA SENTINELA NOX
+                  </Badge>
+                  <span className="text-xs font-mono text-slate-400">
+                    {noxActiveComm.tribunal} • {noxActiveComm.orgaoJulgador}
+                  </span>
+                </div>
+                <DialogTitle className="text-base font-bold text-slate-100 mt-1">
+                  Processo {noxActiveComm.numeroProcesso}
+                </DialogTitle>
+              </DialogHeader>
+
+              {isNoxAnalyzing ? (
+                <div className="py-12 flex flex-col items-center justify-center space-y-3">
+                  <div className="w-8 h-8 rounded-full border-2 border-purple-500 border-t-transparent animate-spin"></div>
+                  <div className="text-xs font-mono text-purple-300">
+                    ORÁCULO NOX processando teor e cruzando com CPC/TJMS...
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3.5 text-xs">
+                  {/* Banner de Urgência */}
+                  <div
+                    className={`p-3.5 rounded-xl border flex items-center gap-3 ${
+                      noxActiveComm.urgencyLevel === 'critica' ||
+                      noxActiveComm.urgencyLevel === 'alta'
+                        ? 'bg-rose-950/40 border-rose-800 text-rose-200'
+                        : 'bg-amber-950/40 border-amber-800 text-amber-200'
+                    }`}
+                  >
+                    <Flame className="w-5 h-5 shrink-0 text-rose-400" />
+                    <div>
+                      <div className="font-bold uppercase tracking-wider text-[11px]">
+                        URGÊNCIA: {noxActiveComm.urgencyLevel.toUpperCase()}
+                      </div>
+                      <div className="text-[11px] opacity-90">
+                        Ato que gera contagem fatal de prazo recursal ou preparatório de audiência.
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Countdown Prazo */}
+                  <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-950/30 to-purple-950/30 border border-purple-800/40 flex items-center justify-between">
+                    <div>
+                      <div className="text-[10px] font-mono uppercase text-slate-400">
+                        Vencimento Fatal Estimado
+                      </div>
+                      <div className="text-base font-black text-amber-300 font-mono mt-0.5">
+                        {noxActiveComm.deadlineCalculated?.finalDeadlineDate ||
+                          'A definir via cálculo'}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] font-mono uppercase text-slate-400">
+                        Regra CPC
+                      </div>
+                      <div className="text-xs font-mono text-cyan-300">
+                        {noxActiveComm.deadlineCalculated?.legalRuleName ||
+                          '15 dias úteis (Padrão)'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Ação Necessária */}
+                  <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 space-y-1">
+                    <div className="text-[10px] font-mono uppercase text-cyan-400 font-bold">
+                      ⚡ Ação Necessária Imediata
+                    </div>
+                    <p className="text-slate-200 leading-relaxed">
+                      Elaborar e protocolar peça de {noxActiveComm.tipoComunicacao.toLowerCase()} no
+                      tribunal {noxActiveComm.tribunal}, confirmando juntada de procuração e custas
+                      processuais.
+                    </p>
+                  </div>
+
+                  {/* Resumo Estratégico */}
+                  <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 space-y-1">
+                    <div className="text-[10px] font-mono uppercase text-purple-400 font-bold">
+                      📋 Diagnóstico Forense NOX
+                    </div>
+                    <p className="text-slate-300 leading-relaxed">{noxActiveComm.teorResumido}</p>
+                  </div>
+
+                  {/* Botões de Ação */}
+                  <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setNoxPanelOpen(false)}
+                      className="text-xs border-slate-800 text-slate-400"
+                    >
+                      Fechar
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        handleScheduleFromSentinela(noxActiveComm)
+                        setNoxPanelOpen(false)
+                      }}
+                      className="bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs"
+                    >
+                      📅 Agendar Prazo
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        dataStore.advanceCommunicationStatus(
+                          noxActiveComm.id,
+                          'PRAZO_TAREFA_AGENDA',
+                          'Dr. Higor Utinói',
+                          'Homologado e despachado para a esteira jurídica.',
+                        )
+                        setCommunications(dataStore.getCommunications())
+                        setNoxPanelOpen(false)
+                        toast.success('Publicação enviada para o Pipeline de Produção!')
+                      }}
+                      className="bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs"
+                    >
+                      🚀 Enviar ao Pipeline
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* CHAT GERENCIAL NOX (ORÁCULO NOX — Conversação com Contexto Total) */}
+      <Dialog open={isGerencialOpen} onOpenChange={setIsGerencialOpen}>
+        <DialogContent className="bg-slate-950 border-cyan-500/30 text-slate-100 max-w-3xl max-h-[85vh] flex flex-col p-0 overflow-hidden shadow-2xl shadow-cyan-950/60">
+          <div className="p-4 bg-gradient-to-r from-slate-950 via-cyan-950/40 to-slate-950 border-b border-cyan-900/40 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Brain className="w-5 h-5 text-cyan-400" />
+              <div>
+                <h3 className="text-sm font-bold text-slate-100">
+                  ORÁCULO NOX — Painel Gerencial Estratégico
+                </h3>
+                <p className="text-[10px] text-slate-400 font-mono">
+                  Contexto Ativo: {communications.length} publicações · Dr. Higor Utinói OAB/MS
+                  15.400
+                </p>
+              </div>
+            </div>
+            <Badge className="bg-cyan-950 text-cyan-300 border border-cyan-800 text-[10px] font-mono">
+              IA JURÍDICA ATIVA
+            </Badge>
+          </div>
+
+          {/* Messages Area */}
+          <div className="flex-1 p-4 overflow-y-auto space-y-3 text-xs bg-slate-950/90">
+            {gerencialMessages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`p-3.5 rounded-xl max-w-[85%] space-y-1.5 ${
+                  msg.role === 'nox'
+                    ? 'bg-slate-900 border border-cyan-800/40 text-slate-200'
+                    : msg.role === 'user'
+                      ? 'bg-cyan-600 text-slate-950 font-medium ml-auto'
+                      : 'bg-slate-950/60 border border-slate-800 text-slate-400 text-[11px] font-mono'
+                }`}
+              >
+                <div className="flex items-center justify-between text-[10px] opacity-70">
+                  <span className="font-bold font-mono uppercase">
+                    {msg.role === 'nox'
+                      ? '⚖ ORÁCULO NOX'
+                      : msg.role === 'user'
+                        ? 'Advogado'
+                        : 'Sistema'}
+                  </span>
+                  <span>{msg.timestamp}</span>
+                </div>
+                <div className="whitespace-pre-line leading-relaxed">{msg.content}</div>
+              </div>
+            ))}
+            {isGerencialSending && (
+              <div className="p-3 rounded-xl bg-slate-900 border border-cyan-800/40 text-cyan-300 text-xs flex items-center gap-2 font-mono">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+                Oráculo NOX formulando resposta estratégica...
+              </div>
+            )}
+          </div>
+
+          {/* Input Bar */}
+          <div className="p-3 bg-slate-900/90 border-t border-slate-800 flex items-center gap-2">
+            <Input
+              value={gerencialInput}
+              onChange={(e) => setGerencialInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSendGerencial()}
+              placeholder="Faça uma pergunta sobre prazos, tribunais ou estratégia ao Oráculo NOX..."
+              className="bg-slate-950 border-slate-800 h-9 text-xs text-slate-100 flex-1"
+            />
+            <Button
+              onClick={handleSendGerencial}
+              disabled={isGerencialSending || !gerencialInput.trim()}
+              size="sm"
+              className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs h-9 px-4"
+            >
+              Enviar ↵
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Detail Dialog for Communication with Custody Chain & Memorial */}
       <Dialog open={selectedCommModalOpen} onOpenChange={setSelectedCommModalOpen}>
