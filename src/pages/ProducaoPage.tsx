@@ -51,10 +51,17 @@ import {
   StressTestValidation,
 } from '@/types/nox'
 import { SentinelaCommunication } from '@/types/sentinela'
-import { DEFAULT_DOCUMENT_TEMPLATES } from '@/pages/ClientesPage'
+import {
+  DEFAULT_DOCUMENT_TEMPLATES,
+  DocumentTemplateItem,
+  documentTemplateService,
+} from '@/services/documentTemplateService'
+import { DocumentReviewEditorModal } from '@/components/DocumentReviewEditorModal'
+import { TemplateManagerModal } from '@/components/TemplateManagerModal'
 import { classificarNivelProducao } from '@/services/complexityService'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import { BookOpen } from 'lucide-react'
 
 // 6 Estágios Fixos do Pipeline na ordem real do Oráculo NOX
 export const PRODUCTION_STAGES: Array<{
@@ -164,11 +171,13 @@ export const ProducaoPage: React.FC = () => {
     completa: false,
   })
 
-  // Gerador de Documento Modal
+  // Gerador e Revisão de Documento Modal
   const [docModalOpen, setDocModalOpen] = useState(false)
-  const [selectedTemplate, setSelectedTemplate] = useState<
-    (typeof DEFAULT_DOCUMENT_TEMPLATES)[0] | null
-  >(null)
+  const [templateManagerModalOpen, setTemplateManagerModalOpen] = useState(false)
+  const [allTemplates, setAllTemplates] = useState<DocumentTemplateItem[]>(
+    DEFAULT_DOCUMENT_TEMPLATES,
+  )
+  const [selectedTemplate, setSelectedTemplate] = useState<DocumentTemplateItem | null>(null)
   const [generatedHtml, setGeneratedHtml] = useState('')
 
   // Form de criação de novo item de produção
@@ -567,45 +576,87 @@ export const ProducaoPage: React.FC = () => {
     if (fresh) setSelectedItem(fresh)
   }
 
-  // Handler de Geração de Documentos (Integração direta com o motor de Clientes)
-  const handleOpenDocGenerator = (item: ProductionItem) => {
+  // Carregar todos os templates
+  const refreshTemplates = React.useCallback(async () => {
+    try {
+      const list = await documentTemplateService.listTemplates()
+      setAllTemplates(list)
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  useEffect(() => {
+    refreshTemplates()
+    const unsub = documentTemplateService.subscribe(() => {
+      refreshTemplates()
+    })
+    return unsub
+  }, [refreshTemplates])
+
+  // Handler de Geração de Documentos (Abre a Etapa de Revisão com Editor)
+  const handleOpenDocGenerator = (item: ProductionItem, chosenTemplate?: DocumentTemplateItem) => {
     setSelectedItem(item)
     const cli = clients.find((c) => c.id === item.clientId)
-    const tpl = DEFAULT_DOCUMENT_TEMPLATES[0]
+    const tpl = chosenTemplate || allTemplates[0] || DEFAULT_DOCUMENT_TEMPLATES[0]
     setSelectedTemplate(tpl)
     if (cli) {
-      const filled = tpl.corpoHtml
-        .replace(/\[NOME_UPPER\]/g, cli.nome.toUpperCase())
-        .replace(/\[NOME\]/g, cli.nome)
-        .replace(/\[CPF\]/g, cli.cpf || 'Não informado')
-        .replace(/\[RG\]/g, cli.rg || 'Não informado')
-        .replace(/\[ENDERECO\]/g, cli.endereco || 'Endereço profissional')
-        .replace(/\[TELEFONE\]/g, cli.telefone || 'Não informado')
-        .replace(/\[PROFISSAO\]/g, cli.profissao || 'autônomo(a)')
-        .replace(/\[NACIONALIDADE\]/g, cli.nacionalidade || 'brasileiro(a)')
-        .replace(/\[ESTADO_CIVIL\]/g, cli.estadoCivil || 'solteiro(a)')
-        .replace(/\[DEMANDA\]/g, cli.demanda.toUpperCase())
-        .replace(/\[DATA\]/g, new Date().toLocaleDateString('pt-BR'))
+      const filled = documentTemplateService.fillTemplateWithClient(tpl.corpoHtml, {
+        nome: cli.nome,
+        cpf: cli.cpf,
+        rg: cli.rg,
+        telefone: cli.telefone,
+        endereco: cli.endereco,
+        profissao: cli.profissao,
+        nacionalidade: cli.nacionalidade,
+        estadoCivil: cli.estadoCivil,
+        demanda: cli.demanda,
+        descricaoCaso: cli.descricaoCaso,
+      })
       setGeneratedHtml(filled)
+    } else {
+      setGeneratedHtml(tpl.corpoHtml)
     }
     setDocModalOpen(true)
   }
 
-  const handleConfirmSaveDoc = () => {
+  // Regerar Documento no Modelo
+  const handleRegenerateCurrentDoc = () => {
+    if (!selectedItem || !selectedTemplate) return
+    const cli = clients.find((c) => c.id === selectedItem.clientId)
+    if (cli) {
+      const filled = documentTemplateService.fillTemplateWithClient(selectedTemplate.corpoHtml, {
+        nome: cli.nome,
+        cpf: cli.cpf,
+        rg: cli.rg,
+        telefone: cli.telefone,
+        endereco: cli.endereco,
+        profissao: cli.profissao,
+        nacionalidade: cli.nacionalidade,
+        estadoCivil: cli.estadoCivil,
+        demanda: cli.demanda,
+        descricaoCaso: cli.descricaoCaso,
+      })
+      setGeneratedHtml(filled)
+    }
+  }
+
+  // Salvar e Finalizar (grava o HTML exato editado pelo usuário)
+  const handleConfirmSaveDoc = (finalEditedHtml: string) => {
     if (!selectedItem || !selectedTemplate) return
     const created = dataStore.addGeneratedDocToClient(
       selectedItem.clientId,
       {
         templateId: selectedTemplate.id,
         nomeModelo: `${selectedTemplate.nome} — ${selectedItem.tituloPeca}`,
-        conteudoHtml: generatedHtml,
+        conteudoHtml: finalEditedHtml,
         status: 'gerado',
         autor: 'Higor Utinoi de Oliveira',
       },
       'Higor Utinoi de Oliveira',
     )
     if (created) {
-      toast.success(`Documento "${created.nomeModelo}" gerado e anexado à ficha do cliente!`)
+      toast.success(`Documento "${created.nomeModelo}" salvo e finalizado na ficha do cliente!`)
       setDocModalOpen(false)
     }
   }
@@ -635,7 +686,16 @@ export const ProducaoPage: React.FC = () => {
         </div>
 
         {/* Actions & New Item */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setTemplateManagerModalOpen(true)}
+            className="h-8 border-cyan-800/80 bg-cyan-950/40 text-cyan-300 hover:bg-cyan-900/60 font-semibold text-xs gap-1.5 font-mono"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-cyan-400" />
+            Biblioteca de Modelos (.docx)
+          </Button>
           <Button
             size="sm"
             onClick={() => setCreateModalOpen(true)}
@@ -2170,89 +2230,34 @@ export const ProducaoPage: React.FC = () => {
       </Dialog>
 
       {/* ======================================================== */}
-      {/* MODAL 5: GERADOR DE DOCUMENTOS (Ao chegar Pronto p/ Protocolo) */}
+      {/* MODAL 5: ETAPA DE REVISÃO E EDITOR (Ao gerar peça no modelo) */}
       {/* ======================================================== */}
-      <Dialog open={docModalOpen} onOpenChange={setDocModalOpen}>
-        <DialogContent className="max-w-2xl bg-slate-950 border border-slate-800 text-slate-100">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base text-white">
-              <FileCheck2 className="w-5 h-5 text-emerald-400" />
-              Gerar Peça no Modelo Padronizado
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-400">
-              Atalho direto do item de produção pronto para o gerador de documentos de Clientes.
-            </DialogDescription>
-          </DialogHeader>
+      <DocumentReviewEditorModal
+        open={docModalOpen}
+        onOpenChange={setDocModalOpen}
+        initialHtml={generatedHtml}
+        documentTitle={selectedItem?.tituloPeca || selectedTemplate?.nome || 'Minuta Jurídica'}
+        clientName={selectedItem?.clientName}
+        templateName={selectedTemplate?.nome}
+        onSaveAndFinalize={handleConfirmSaveDoc}
+        onRegenerate={handleRegenerateCurrentDoc}
+        onDiscard={() => setDocModalOpen(false)}
+      />
 
-          <div className="space-y-3.5 text-xs">
-            <div>
-              <label className="text-[11px] font-mono text-slate-300 font-semibold uppercase block mb-1">
-                Modelo Padronizado:
-              </label>
-              <select
-                value={selectedTemplate?.id}
-                onChange={(e) => {
-                  const tpl = DEFAULT_DOCUMENT_TEMPLATES.find((t) => t.id === e.target.value)
-                  if (tpl && selectedItem) {
-                    setSelectedTemplate(tpl)
-                    const cli = clients.find((c) => c.id === selectedItem.clientId)
-                    if (cli) {
-                      const filled = tpl.corpoHtml
-                        .replace(/\[NOME_UPPER\]/g, cli.nome.toUpperCase())
-                        .replace(/\[NOME\]/g, cli.nome)
-                        .replace(/\[CPF\]/g, cli.cpf || 'Não informado')
-                        .replace(/\[RG\]/g, cli.rg || 'Não informado')
-                        .replace(/\[ENDERECO\]/g, cli.endereco || 'Endereço profissional')
-                        .replace(/\[TELEFONE\]/g, cli.telefone || 'Não informado')
-                        .replace(/\[PROFISSAO\]/g, cli.profissao || 'autônomo(a)')
-                        .replace(/\[NACIONALIDADE\]/g, cli.nacionalidade || 'brasileiro(a)')
-                        .replace(/\[ESTADO_CIVIL\]/g, cli.estadoCivil || 'solteiro(a)')
-                        .replace(/\[DEMANDA\]/g, cli.demanda.toUpperCase())
-                        .replace(/\[DATA\]/g, new Date().toLocaleDateString('pt-BR'))
-                      setGeneratedHtml(filled)
-                    }
-                  }
-                }}
-                className="w-full h-9 bg-slate-900 border border-slate-700 rounded-lg px-3 text-xs text-slate-100 font-mono focus:outline-none focus:border-cyan-500"
-              >
-                {DEFAULT_DOCUMENT_TEMPLATES.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.nome}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-[11px] font-mono text-slate-300 font-semibold uppercase block mb-1">
-                Pré-visualização do Documento:
-              </label>
-              <div
-                dangerouslySetInnerHTML={{ __html: generatedHtml }}
-                className="p-4 bg-white text-black rounded-lg max-h-[300px] overflow-y-auto text-xs leading-relaxed"
-              />
-            </div>
-
-            <DialogFooter className="pt-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setDocModalOpen(false)}
-                className="h-8 text-xs text-slate-400"
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                onClick={handleConfirmSaveDoc}
-                className="h-8 text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold"
-              >
-                Salvar e Anexar ao Cliente
-              </Button>
-            </DialogFooter>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* MODAL: BIBLIOTECA DE MODELOS (.DOCX / TEXTO) */}
+      <TemplateManagerModal
+        open={templateManagerModalOpen}
+        onOpenChange={setTemplateManagerModalOpen}
+        onSelectTemplateToUse={(template) => {
+          if (selectedItem) {
+            handleOpenDocGenerator(selectedItem, template)
+          } else {
+            toast.info(
+              `Modelo "${template.nome}" selecionado. Escolha uma peça em produção para gerar.`,
+            )
+          }
+        }}
+      />
     </div>
   )
 }

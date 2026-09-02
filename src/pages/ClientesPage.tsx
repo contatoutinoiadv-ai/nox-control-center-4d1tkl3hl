@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import {
   Users,
@@ -63,102 +63,17 @@ import {
 } from '@/types/nox'
 import { SentinelaCommunication, AgendaEvent, SentinelaTask } from '@/types/sentinela'
 import { toast } from 'sonner'
+import {
+  DEFAULT_DOCUMENT_TEMPLATES,
+  DocumentTemplateItem,
+  documentTemplateService,
+} from '@/services/documentTemplateService'
+import { DocumentReviewEditorModal } from '@/components/DocumentReviewEditorModal'
+import { TemplateManagerModal } from '@/components/TemplateManagerModal'
+import { BookOpen } from 'lucide-react'
 
-// Modelos padrão pré-carregados para o gerador de documentos
-export const DEFAULT_DOCUMENT_TEMPLATES = [
-  {
-    id: 'tpl-proc-01',
-    nome: 'Procuração Ad Judicia et Extra',
-    icone: '⚖️',
-    area: 'todos, civel, trabalhista, consumidor, bancario',
-    descricao: 'Poderes gerais para o foro e cláusula específica de representação',
-    corpoHtml: `
-      <h1 style="text-align:center;font-size:16px;font-weight:bold;margin-bottom:20px;text-transform:uppercase;">PROCURAÇÃO AD JUDICIA ET EXTRA</h1>
-      <p style="margin-bottom:12px;line-height:1.8;text-align:justify;">
-        <strong>OUTORGANTE:</strong> [NOME_UPPER], [NACIONALIDADE], [ESTADO_CIVIL], [PROFISSAO], portador(a) da cédula de identidade RG nº [RG] e inscrito(a) no CPF/MF sob o nº [CPF], residente e domiciliado(a) na [ENDERECO], telefone de contato [TELEFONE].
-      </p>
-      <p style="margin-bottom:12px;line-height:1.8;text-align:justify;">
-        <strong>OUTORGADO:</strong> <strong>HIGOR UTINOI DE OLIVEIRA</strong>, brasileiro, advogado regularmente inscrito nos quadros da Ordem dos Advogados do Brasil, Seccional de Mato Grosso do Sul sob o nº <strong>OAB/MS 15.400</strong>, com escritório profissional sediado em Campo Grande/MS.
-      </p>
-      <p style="margin-bottom:12px;line-height:1.8;text-align:justify;">
-        <strong>PODERES:</strong> Por este instrumento particular de procuração, o(a) OUTORGANTE confere ao OUTORGADO amplos, gerais e ilimitados poderes para o foro em geral, conferidos pela cláusula <em>"ad judicia et extra"</em>, em qualquer Juízo, Instância ou Tribunal, bem como perante órgãos públicos e entidades privadas, especialmente para ajuizar ações e prestar assessoria jurídica referente à demanda de [DEMANDA].
-      </p>
-      <p style="margin-bottom:12px;line-height:1.8;text-align:justify;">
-        <strong>PODERES ESPECÍFICOS:</strong> Conferem-se ainda poderes especiais para confessar, reconhecer a procedência do pedido, transigir, desistir, renunciar ao direito sobre o qual se funda a ação, receber, dar quitação, firmar compromissos e substabelecer esta a outrem, com ou sem reserva de poderes.
-      </p>
-      <div style="margin-top:40px;text-align:right;">
-        <p>Campo Grande/MS, [DATA].</p>
-      </div>
-      <div style="margin-top:60px;text-align:center;">
-        <div style="border-top:1px solid #000;display:inline-block;width:320px;padding-top:6px;font-weight:bold;">
-          [NOME_UPPER]<br/>
-          <span style="font-weight:normal;font-size:11px;">CPF: [CPF]</span>
-        </div>
-      </div>
-    `,
-  },
-  {
-    id: 'tpl-contrato-02',
-    nome: 'Contrato de Honorários e Prestação de Serviços',
-    icone: '📝',
-    area: 'todos, civel, trabalhista, consumidor, bancario',
-    descricao: 'Contrato de prestação de serviços advocatícios com cláusula quota litis',
-    corpoHtml: `
-      <h1 style="text-align:center;font-size:16px;font-weight:bold;margin-bottom:20px;text-transform:uppercase;">CONTRATO DE HONORÁRIOS ADVOCATÍCIOS</h1>
-      <p style="margin-bottom:12px;line-height:1.8;text-align:justify;">
-        Pelo presente instrumento particular, de um lado <strong>[NOME_UPPER]</strong>, inscrito(a) no CPF nº [CPF], residente na [ENDERECO], doravante denominado(a) <strong>CONTRATANTE</strong>; e de outro lado <strong>HIGOR UTINOI DE OLIVEIRA</strong>, Advogado OAB/MS 15.400, doravante denominado <strong>CONTRATADO</strong>, celebram o presente contrato com as cláusulas a seguir:
-      </p>
-      <p style="margin-bottom:12px;line-height:1.8;text-align:justify;">
-        <strong>CLÁUSULA 1ª — DO OBJETO:</strong> O presente contrato tem por objeto a prestação de serviços profissionais advocatícios em prol do CONTRATANTE, consistente na assessoria, ajuizamento e acompanhamento judicial integral de demanda na área de [DEMANDA].
-      </p>
-      <p style="margin-bottom:12px;line-height:1.8;text-align:justify;">
-        <strong>CLÁUSULA 2ª — DAS OBRIGAÇÕES:</strong> O CONTRATADO se compromete a zelar pelos interesses do CONTRATANTE com dedicação, presteza e o rigor ético aplicável à advocacia, mantendo-o informado sobre os andamentos relevantes.
-      </p>
-      <p style="margin-bottom:12px;line-height:1.8;text-align:justify;">
-        <strong>CLÁUSULA 3ª — DOS HONORÁRIOS:</strong> Em remuneração pelos serviços contratados, o CONTRATANTE pagará os honorários estipulados conforme êxito e tabela da OAB.
-      </p>
-      <div style="margin-top:40px;text-align:right;">
-        <p>Campo Grande/MS, [DATA].</p>
-      </div>
-      <div style="margin-top:50px;display:flex;justify-content:space-between;padding:0 30px;">
-        <div style="border-top:1px solid #000;width:240px;text-align:center;padding-top:6px;font-size:11px;">
-          <strong>[NOME_UPPER]</strong><br/>CONTRATANTE
-        </div>
-        <div style="border-top:1px solid #000;width:240px;text-align:center;padding-top:6px;font-size:11px;">
-          <strong>HIGOR UTINOI DE OLIVEIRA</strong><br/>OAB/MS 15.400 - CONTRATADO
-        </div>
-      </div>
-    `,
-  },
-  {
-    id: 'tpl-hipo-03',
-    nome: 'Declaração de Hipossuficiência (Justiça Gratuita)',
-    icone: '📑',
-    area: 'todos, civel, consumidor, trabalhista',
-    descricao: 'Declaração de impossibilidade de arcar com custas sem prejuízo do sustento',
-    corpoHtml: `
-      <h1 style="text-align:center;font-size:16px;font-weight:bold;margin-bottom:20px;text-transform:uppercase;">DECLARAÇÃO DE HIPOSSUFICIÊNCIA ECONÔMICA</h1>
-      <p style="margin-bottom:14px;line-height:1.9;text-align:justify;">
-        Eu, <strong>[NOME_UPPER]</strong>, [NACIONALIDADE], [ESTADO_CIVIL], [PROFISSAO], portador(a) do RG [RG] e inscrito(a) no CPF [CPF], residente e domiciliado(a) na [ENDERECO], DECLARO, para todos os fins de direito e sob as penas da lei, em especial nos termos do artigo 98 e seguintes do Código de Processo Civil e artigo 5º, inciso LXXIV da Constituição Federal, que:
-      </p>
-      <p style="margin-bottom:14px;line-height:1.9;text-align:justify;">
-        Não possuo condições financeiras de arcar com as custas processuais, taxas judiciárias, despesas com perícias e honorários advocatícios sucumbenciais sem prejuízo do meu próprio sustento e de minha família, fazendo jus aos benefícios da <strong>JUSTIÇA GRATUITA</strong>.
-      </p>
-      <p style="margin-bottom:14px;line-height:1.9;text-align:justify;">
-        Por ser a mais límpida expressão da verdade, firmo a presente declaração.
-      </p>
-      <div style="margin-top:40px;text-align:right;">
-        <p>Campo Grande/MS, [DATA].</p>
-      </div>
-      <div style="margin-top:60px;text-align:center;">
-        <div style="border-top:1px solid #000;display:inline-block;width:320px;padding-top:6px;font-weight:bold;">
-          [NOME_UPPER]<br/>
-          <span style="font-weight:normal;font-size:11px;">CPF: [CPF]</span>
-        </div>
-      </div>
-    `,
-  },
-]
+// Re-exporta para manter compatibilidade total
+export { DEFAULT_DOCUMENT_TEMPLATES }
 
 const STAGE_CONFIG: Record<
   ClientStage,
@@ -257,9 +172,11 @@ export const ClientesPage: React.FC = () => {
   // Modais de Ação
   const [newClientModalOpen, setNewClientModalOpen] = useState(false)
   const [docGeneratorModalOpen, setDocGeneratorModalOpen] = useState(false)
-  const [selectedTemplate, setSelectedTemplate] = useState<
-    (typeof DEFAULT_DOCUMENT_TEMPLATES)[0] | null
-  >(null)
+  const [templateManagerModalOpen, setTemplateManagerModalOpen] = useState(false)
+  const [allTemplates, setAllTemplates] = useState<DocumentTemplateItem[]>(
+    DEFAULT_DOCUMENT_TEMPLATES,
+  )
+  const [selectedTemplate, setSelectedTemplate] = useState<DocumentTemplateItem | null>(null)
   const [docEditorHtml, setDocEditorHtml] = useState('')
   const [linkProcessModalOpen, setLinkProcessModalOpen] = useState(false)
   const [selectedProcessToLink, setSelectedProcessToLink] = useState('')
@@ -301,6 +218,24 @@ export const ClientesPage: React.FC = () => {
     estagio: 'novo' as ClientStage,
     obs: '',
   })
+
+  // Carregar templates unificados (padrão + customizados)
+  const refreshTemplates = useCallback(async () => {
+    try {
+      const list = await documentTemplateService.listTemplates()
+      setAllTemplates(list)
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  useEffect(() => {
+    refreshTemplates()
+    const unsub = documentTemplateService.subscribe(() => {
+      refreshTemplates()
+    })
+    return unsub
+  }, [refreshTemplates])
 
   // Sincronização reativa com dataStore
   useEffect(() => {
@@ -571,40 +506,48 @@ export const ClientesPage: React.FC = () => {
     toast.success(`Estágio alterado para "${stageLabel}".`)
   }
 
-  // Abrir Gerador de Documento
-  const handleOpenDocGenerator = (template: (typeof DEFAULT_DOCUMENT_TEMPLATES)[0]) => {
+  // Abrir Gerador de Documento (entra na Etapa de Revisão)
+  const handleOpenDocGenerator = (template: DocumentTemplateItem) => {
     if (!selectedClient) return
     setSelectedTemplate(template)
 
-    // Preencher variáveis
-    const hoje = new Date().toLocaleDateString('pt-BR')
-    const nm = (selectedClient.nome || '').toUpperCase()
-    const rgStr = selectedClient.rg ? `RG nº ${selectedClient.rg}, ` : ''
-    const map: Record<string, string> = {
-      '[NOME]': selectedClient.nome || '',
-      '[NOME_UPPER]': nm,
-      '[CPF]': selectedClient.cpf || '—',
-      '[RG]': rgStr,
-      '[TELEFONE]': selectedClient.telefone || '—',
-      '[ENDERECO]': selectedClient.endereco || '—',
-      '[PROFISSAO]': selectedClient.profissao || 'autônomo(a)',
-      '[NACIONALIDADE]': selectedClient.nacionalidade || 'brasileiro(a)',
-      '[ESTADO_CIVIL]': selectedClient.estadoCivil || 'solteiro(a)',
-      '[DEMANDA]': (selectedClient.demanda || 'Direito').toUpperCase(),
-      '[DATA]': hoje,
-    }
-
-    let html = template.corpoHtml
-    Object.entries(map).forEach(([k, v]) => {
-      html = html.split(k).join(v)
+    const filledHtml = documentTemplateService.fillTemplateWithClient(template.corpoHtml, {
+      nome: selectedClient.nome,
+      cpf: selectedClient.cpf,
+      rg: selectedClient.rg,
+      telefone: selectedClient.telefone,
+      endereco: selectedClient.endereco,
+      profissao: selectedClient.profissao,
+      nacionalidade: selectedClient.nacionalidade,
+      estadoCivil: selectedClient.estadoCivil,
+      demanda: selectedClient.demanda,
+      descricaoCaso: selectedClient.descricaoCaso,
     })
 
-    setDocEditorHtml(html)
+    setDocEditorHtml(filledHtml)
     setDocGeneratorModalOpen(true)
   }
 
-  // Salvar Documento Gerado na Ficha
-  const handleSaveGeneratedDoc = () => {
+  // Regerar Documento a partir do modelo original
+  const handleRegenerateCurrentDoc = () => {
+    if (!selectedClient || !selectedTemplate) return
+    const filledHtml = documentTemplateService.fillTemplateWithClient(selectedTemplate.corpoHtml, {
+      nome: selectedClient.nome,
+      cpf: selectedClient.cpf,
+      rg: selectedClient.rg,
+      telefone: selectedClient.telefone,
+      endereco: selectedClient.endereco,
+      profissao: selectedClient.profissao,
+      nacionalidade: selectedClient.nacionalidade,
+      estadoCivil: selectedClient.estadoCivil,
+      demanda: selectedClient.demanda,
+      descricaoCaso: selectedClient.descricaoCaso,
+    })
+    setDocEditorHtml(filledHtml)
+  }
+
+  // Salvar e Finalizar Documento Gerado (grava a versão exata do editor)
+  const handleSaveAndFinalizeGeneratedDoc = (finalEditedHtml: string) => {
     if (!selectedClient || !selectedTemplate) return
 
     dataStore.addGeneratedDocToClient(
@@ -613,13 +556,13 @@ export const ClientesPage: React.FC = () => {
         templateId: selectedTemplate.id,
         nomeModelo: selectedTemplate.nome,
         autor: 'Higor Utinoi de Oliveira',
-        conteudoHtml: docEditorHtml,
+        conteudoHtml: finalEditedHtml,
         status: 'gerado',
       },
       'Operador NOX',
     )
 
-    toast.success(`Documento "${selectedTemplate.nome}" registrado na ficha do cliente!`)
+    toast.success(`Documento "${selectedTemplate.nome}" salvo e finalizado na ficha do cliente!`)
     setDocGeneratorModalOpen(false)
   }
 
@@ -656,7 +599,9 @@ export const ClientesPage: React.FC = () => {
     win.document.close()
 
     // Registrar o doc na ficha se ainda não registrado
-    handleSaveGeneratedDoc()
+    if (selectedClient && selectedTemplate) {
+      handleSaveAndFinalizeGeneratedDoc(docEditorHtml)
+    }
   }
 
   // Vincular Processo ao Cliente
@@ -884,7 +829,15 @@ export const ClientesPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          <Button
+            onClick={() => setTemplateManagerModalOpen(true)}
+            variant="outline"
+            className="border-cyan-800/80 bg-cyan-950/40 text-cyan-300 hover:bg-cyan-900/60 font-semibold text-xs h-9 px-3.5 gap-1.5 font-mono"
+          >
+            <BookOpen className="w-4 h-4 text-cyan-400" />
+            Biblioteca de Modelos (.docx)
+          </Button>
           <Button
             onClick={() => setNewClientModalOpen(true)}
             className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs h-9 px-4 gap-1.5 shadow-lg shadow-cyan-500/20"
@@ -1777,30 +1730,61 @@ export const ClientesPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Templates Rápidos para Gerar */}
-                <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
-                  <span className="text-[10px] font-mono text-slate-400 uppercase font-semibold">
-                    Gerar Novo Documento com Dados deste Cliente:
-                  </span>
+                {/* Templates Rápidos para Gerar + Acesso à Biblioteca */}
+                <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono text-slate-400 uppercase font-semibold flex items-center gap-1.5">
+                      <Sparkles className="w-3 h-3 text-cyan-400" />
+                      Gerar Novo Documento com Dados deste Cliente:
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setTemplateManagerModalOpen(true)}
+                      className="h-7 text-xs border-cyan-800/80 bg-cyan-950/40 text-cyan-300 hover:bg-cyan-900/50 gap-1 font-mono"
+                    >
+                      <BookOpen className="w-3 h-3" />
+                      Biblioteca de Modelos (.docx)
+                    </Button>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                    {DEFAULT_DOCUMENT_TEMPLATES.map((tpl) => (
+                    {allTemplates.slice(0, 6).map((tpl) => (
                       <button
                         key={tpl.id}
                         onClick={() => handleOpenDocGenerator(tpl)}
-                        className="p-3 rounded-lg bg-slate-950 hover:bg-slate-900 border border-slate-800 hover:border-cyan-500/50 text-left transition-all group flex items-start gap-2.5"
+                        className="p-3 rounded-lg bg-slate-950 hover:bg-slate-900 border border-slate-800 hover:border-cyan-500/50 text-left transition-all group flex items-start gap-2.5 relative"
                       >
-                        <span className="text-xl shrink-0">{tpl.icone}</span>
+                        <span className="text-xl shrink-0">{tpl.icone || '📄'}</span>
                         <div className="min-w-0">
                           <div className="text-xs font-bold text-slate-200 group-hover:text-cyan-300 line-clamp-1">
                             {tpl.nome}
                           </div>
                           <div className="text-[10px] text-slate-500 line-clamp-2 mt-0.5">
-                            {tpl.descricao}
+                            {tpl.descricao ||
+                              (tpl.tipoOrigem === 'docx'
+                                ? 'Modelo importado via DOCX'
+                                : 'Modelo customizado')}
                           </div>
                         </div>
                       </button>
                     ))}
                   </div>
+
+                  {allTemplates.length > 6 && (
+                    <div className="text-center pt-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setTemplateManagerModalOpen(true)}
+                        className="text-xs text-cyan-400 hover:text-cyan-300 h-6"
+                      >
+                        Ver todos os {allTemplates.length} modelos na biblioteca →
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Lista de Documentos já gerados */}
@@ -2157,61 +2141,34 @@ export const ClientesPage: React.FC = () => {
       </Dialog>
 
       {/* ========================================================================= */}
-      {/* MODAL 2: GERADOR / VISUALIZADOR DE DOCUMENTOS */}
+      {/* MODAL 2: ETAPA DE REVISÃO E EDITOR DE DOCUMENTO */}
       {/* ========================================================================= */}
-      <Dialog open={docGeneratorModalOpen} onOpenChange={setDocGeneratorModalOpen}>
-        <DialogContent className="max-w-4xl bg-slate-950 border border-slate-800 text-slate-100 max-h-[92vh] flex flex-col p-0 overflow-hidden shadow-2xl">
-          <DialogHeader className="p-4 border-b border-slate-800 bg-slate-900/60">
-            <DialogTitle className="text-sm font-bold text-white flex items-center justify-between">
-              <span>
-                Gerar: {selectedTemplate?.nome} — {selectedClient?.nome}
-              </span>
-              <Badge className="bg-cyan-950 text-cyan-300 border-cyan-800 font-mono text-[10px]">
-                Dados Injetados
-              </Badge>
-            </DialogTitle>
-          </DialogHeader>
+      <DocumentReviewEditorModal
+        open={docGeneratorModalOpen}
+        onOpenChange={setDocGeneratorModalOpen}
+        initialHtml={docEditorHtml}
+        documentTitle={selectedTemplate?.nome || 'Documento'}
+        clientName={selectedClient?.nome}
+        templateName={selectedTemplate?.nome}
+        onSaveAndFinalize={handleSaveAndFinalizeGeneratedDoc}
+        onRegenerate={handleRegenerateCurrentDoc}
+        onDiscard={() => setDocGeneratorModalOpen(false)}
+      />
 
-          {/* Editor/Visualizador de Documento */}
-          <div className="flex-1 overflow-y-auto p-6 bg-slate-900/30">
-            <div className="max-w-2xl mx-auto bg-white text-slate-950 p-8 rounded-lg shadow-xl font-serif text-xs leading-relaxed">
-              <div
-                contentEditable
-                suppressContentEditableWarning
-                onBlur={(e) => setDocEditorHtml(e.currentTarget.innerHTML)}
-                dangerouslySetInnerHTML={{ __html: docEditorHtml }}
-                className="focus:outline-none min-h-[400px]"
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="p-4 border-t border-slate-800 bg-slate-950 flex items-center justify-between">
-            <div className="text-[11px] font-mono text-slate-400">
-              * Você pode editar o texto acima diretamente antes de salvar ou imprimir.
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setDocGeneratorModalOpen(false)}
-                className="text-xs border-slate-700 text-slate-300"
-              >
-                Fechar
-              </Button>
-
-              <Button
-                size="sm"
-                onClick={handlePrintDocument}
-                className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs gap-1.5"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                Imprimir / PDF & Salvar na Ficha
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* MODAL: BIBLIOTECA DE MODELOS (.DOCX / TEXTO) */}
+      <TemplateManagerModal
+        open={templateManagerModalOpen}
+        onOpenChange={setTemplateManagerModalOpen}
+        onSelectTemplateToUse={(template) => {
+          if (selectedClient) {
+            handleOpenDocGenerator(template)
+          } else {
+            toast.info(
+              `Modelo "${template.nome}" selecionado. Abra a ficha de um cliente para gerar o documento.`,
+            )
+          }
+        }}
+      />
 
       {/* ========================================================================= */}
       {/* MODAL 3: VINCULAR PROCESSO */}
