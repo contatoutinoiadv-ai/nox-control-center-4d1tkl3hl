@@ -158,6 +158,7 @@ export type AgendaEventType =
   | 'AUDIENCIA'
   | 'COMPROMISSO'
   | 'REUNIAO'
+  | 'ATENDIMENTO'
   | 'DILIGENCIA'
   | 'VENCIMENTO_PRAZO'
   | 'SUSTENTACAO_ORAL'
