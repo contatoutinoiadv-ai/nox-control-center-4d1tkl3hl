@@ -38,9 +38,15 @@ import {
   gerarSugestoesAgendamento,
   buscarAudienciasDetectadasNoDjen,
   calcularCapacidadeOperacionalTitular,
+  detectarAudienciaNoTeor,
   SugestaoHorario,
   DjenAudienciaDetectada,
 } from '@/services/smartSchedulerService'
+import {
+  fetchDjenCommunicationsDirect,
+  DjenSearchResult,
+  TRIBUNAIS_BRASIL,
+} from '@/services/djenService'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -154,6 +160,15 @@ export const CompromissosPage: React.FC = () => {
   const [periodoTermoBusca, setPeriodoTermoBusca] = useState('')
   const [periodoTribunalFiltro, setPeriodoTribunalFiltro] = useState('TODOS')
   const [periodoHasConsulted, setPeriodoHasConsulted] = useState(false)
+  const [periodoIsSearching, setPeriodoIsSearching] = useState(false)
+  const [periodoStatusMessage, setPeriodoStatusMessage] = useState<string | null>(null)
+  const [periodoErrorState, setPeriodoErrorState] = useState<DjenSearchResult['error'] | null>(null)
+  const [periodoLastApiUrl, setPeriodoLastApiUrl] = useState<string>('')
+  const [periodoApiStats, setPeriodoApiStats] = useState<{
+    totalApiFound: number
+    audienciasDetectadas: number
+    salvasNoDataStore: number
+  } | null>(null)
   const [periodoResultados, setPeriodoResultados] = useState<
     Array<{
       id: string
@@ -207,7 +222,7 @@ export const CompromissosPage: React.FC = () => {
     setAudienciasDjen(detectedDjen)
     setTwinCapacity(calcularCapacidadeOperacionalTitular())
     if (periodoHasConsulted) {
-      executarConsultaPeriodo(
+      filtrarResultadosLocais(
         periodoDataInicio,
         periodoDataFim,
         periodoStatusFiltro,
@@ -227,15 +242,15 @@ export const CompromissosPage: React.FC = () => {
     return unsub
   }, [])
 
-  // Execução da Consulta por Período de Audiências DJEN
-  const executarConsultaPeriodo = (
+  // Filtragem puramente local de audiências do dataStore / agenda (usada pelo subscribe e reset de filtros)
+  const filtrarResultadosLocais = (
     dataIni = periodoDataInicio,
     dataFim = periodoDataFim,
     statusFiltro = periodoStatusFiltro,
     tribunalFiltro = periodoTribunalFiltro,
     termo = periodoTermoBusca,
-    agendaData = events,
-    detectedData = audienciasDjen,
+    agendaData = dataStore.getAgendaEvents(),
+    detectedData = buscarAudienciasDetectadasNoDjen(),
   ) => {
     const resultadosUnificados: Array<{
       id: string
@@ -319,7 +334,6 @@ export const CompromissosPage: React.FC = () => {
 
       let statusRev: 'PENDENTE_HOMOLOGACAO' | 'CONFIRMADA' | 'RASCUNHO' | 'CANCELADA' = 'CONFIRMADA'
       if (ev.status === 'AGENDADO') {
-        // Se for um rascunho de audiência não confirmado
         statusRev = ev.communicationId ? 'PENDENTE_HOMOLOGACAO' : 'RASCUNHO'
       } else if (ev.status === 'CANCELADO') {
         statusRev = 'CANCELADA'
@@ -362,22 +376,151 @@ export const CompromissosPage: React.FC = () => {
       })
     }
 
-    // Ordenar por data cronológica crescente
     resultadosUnificados.sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora))
-
     setPeriodoResultados(resultadosUnificados)
     setPeriodoHasConsulted(true)
+    return resultadosUnificados
   }
 
-  const handleDispararConsultaPeriodo = () => {
-    if (periodoDataInicio && periodoDataFim && periodoDataInicio > periodoDataFim) {
+  // Execução da Consulta REAL na API ComunicaAPI/DJEN ao clicar em "Consultar Período"
+  const executarConsultaPeriodo = async (
+    dataIni = periodoDataInicio,
+    dataFim = periodoDataFim,
+    statusFiltro = periodoStatusFiltro,
+    tribunalFiltro = periodoTribunalFiltro,
+    termo = periodoTermoBusca,
+  ) => {
+    if (dataIni && dataFim && dataIni > dataFim) {
       toast.error('Data inicial não pode ser posterior à data final')
       return
     }
-    executarConsultaPeriodo()
-    toast.success('Consulta de audiências realizada!', {
-      description: `Período: ${periodoDataInicio || 'Início'} até ${periodoDataFim || 'Fim'}`,
-    })
+
+    setPeriodoIsSearching(true)
+    setPeriodoErrorState(null)
+    setPeriodoStatusMessage('Conectando à ComunicaAPI do CNJ (DJEN) em tempo real...')
+
+    const lawyerProfile = dataStore.getLawyerProfile()
+    const oabRaw = lawyerProfile.oab || '15400'
+    const oabNum = oabRaw.replace(/\D/g, '') || '15400'
+    const oabUf = lawyerProfile.uf || 'MS'
+    const lawyerName = lawyerProfile.nome || 'Higor Utinoi de Oliveira'
+
+    try {
+      // 1. Chamada direta à ComunicaAPI do CNJ/DJEN
+      const searchResult = await fetchDjenCommunicationsDirect(
+        {
+          itensPorPagina: 100,
+          pagina: 1,
+          meio: 'D',
+          numeroOab: oabNum,
+          ufOab: oabUf,
+          nomeAdvogado: lawyerName,
+          siglaTribunal: tribunalFiltro !== 'TODOS' ? tribunalFiltro : '',
+          dataDisponibilizacaoInicio: dataIni || undefined,
+          dataDisponibilizacaoFim: dataFim || undefined,
+          modo: 'oab',
+        },
+        undefined,
+        (status) => {
+          setPeriodoStatusMessage(status.message)
+        },
+      )
+
+      if (searchResult.sourceUrl) {
+        setPeriodoLastApiUrl(searchResult.sourceUrl)
+      }
+
+      // Se a API retornou erro (403, 429, rede, cors)
+      if (!searchResult.success) {
+        setPeriodoErrorState(
+          searchResult.error || {
+            type: 'UNKNOWN',
+            message: 'Erro desconhecido ao consultar o tribunal.',
+          },
+        )
+
+        // Fallback gracioso: filtra a base local para não deixar o usuário sem visualização
+        const fallbackList = filtrarResultadosLocais(
+          dataIni,
+          dataFim,
+          statusFiltro,
+          tribunalFiltro,
+          termo,
+        )
+
+        toast.error(
+          searchResult.error?.message || 'Falha na conexão com o tribunal (ComunicaAPI/DJEN).',
+          {
+            description: `Exibindo ${fallbackList.length} registro(s) já presentes na base local.`,
+          },
+        )
+        return
+      }
+
+      const rawItems = Array.isArray(searchResult.items) ? searchResult.items : []
+
+      // 2. Salvar novas publicações no dataStore
+      const savedCount = dataStore.addCommunications(rawItems)
+
+      // 3. Processar comunicações com detectarAudienciaNoTeor
+      let audienciasDetectadasNovas = 0
+      for (const comm of rawItems) {
+        const det = detectarAudienciaNoTeor(comm)
+        if (det) {
+          audienciasDetectadasNovas++
+        }
+      }
+
+      // 4. Recarregar e unificar com a agenda oficial
+      const updatedAgenda = dataStore.getAgendaEvents()
+      const updatedDetected = buscarAudienciasDetectadasNoDjen()
+      setAudienciasDjen(updatedDetected)
+      setEvents(updatedAgenda)
+      setComms(dataStore.getCommunications())
+
+      setPeriodoApiStats({
+        totalApiFound: searchResult.totalCount || rawItems.length,
+        audienciasDetectadas: audienciasDetectadasNovas,
+        salvasNoDataStore: savedCount,
+      })
+
+      const finalUnificados = filtrarResultadosLocais(
+        dataIni,
+        dataFim,
+        statusFiltro,
+        tribunalFiltro,
+        termo,
+        updatedAgenda,
+        updatedDetected,
+      )
+
+      toast.success(`Busca no DJEN realizada com sucesso!`, {
+        description: `${rawItems.length} publicação(ões) consultada(s) no CNJ • ${finalUnificados.length} audiência(s) no período.`,
+      })
+    } catch (err: any) {
+      console.error('[Compromissos] Erro na consulta do período DJEN:', err)
+      const msg = err?.message || 'Erro inesperado ao consultar a API pública do DJEN.'
+      setPeriodoErrorState({
+        type: 'NETWORK',
+        message: msg,
+      })
+      // Fallback para base local
+      filtrarResultadosLocais(dataIni, dataFim, statusFiltro, tribunalFiltro, termo)
+      toast.error(msg)
+    } finally {
+      setPeriodoIsSearching(false)
+      setPeriodoStatusMessage(null)
+    }
+  }
+
+  const handleDispararConsultaPeriodo = () => {
+    executarConsultaPeriodo(
+      periodoDataInicio,
+      periodoDataFim,
+      periodoStatusFiltro,
+      periodoTribunalFiltro,
+      periodoTermoBusca,
+    )
   }
 
   // Lista de tribunais distintos presentes nas audiências e comunicações
@@ -971,6 +1114,79 @@ export const CompromissosPage: React.FC = () => {
 
         {/* TAB 2: CONSULTAR POR PERÍODO AS AUDIÊNCIAS DJEN */}
         <TabsContent value="consulta_periodo" className="space-y-5 mt-4">
+          {/* Banner Indicador de Busca em Tempo Real no DJEN Ativa */}
+          {periodoIsSearching && (
+            <div className="p-3.5 rounded-xl bg-purple-950/80 border-2 border-purple-500 shadow-lg shadow-purple-900/40 flex items-center justify-between gap-3 animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center text-white shrink-0">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black tracking-wider text-purple-200 font-mono uppercase">
+                      BUSCA EM TEMPO REAL NO DJEN ATIVA
+                    </span>
+                    <Badge className="text-[9px] bg-purple-500 text-slate-950 font-bold">
+                      COMUNICAAPI CNJ
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-purple-300 font-mono mt-0.5">
+                    {periodoStatusMessage || 'Varrendo comunicações e audiências no tribunal...'}
+                  </p>
+                </div>
+              </div>
+              <Badge
+                variant="outline"
+                className="text-[10px] font-mono border-purple-400 text-purple-200 hidden sm:inline-flex"
+              >
+                Âncora: OAB/MS 15.400
+              </Badge>
+            </div>
+          )}
+
+          {/* Banner de Erro na Conexão com Tribunal (HTTP 403, 429, CORS, Rede) */}
+          {periodoErrorState && (
+            <div className="p-3.5 rounded-xl bg-rose-950/60 border border-rose-700 space-y-2 text-xs text-rose-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 font-bold text-rose-300">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>
+                    {periodoErrorState.type === 'RATE_LIMIT_429'
+                      ? 'Limite de Requisições da ComunicaAPI Atingido (HTTP 429)'
+                      : periodoErrorState.type === 'FORBIDDEN_403'
+                        ? 'Acesso Bloqueado pela Infraestrutura do Tribunal (HTTP 403 / CloudFront)'
+                        : periodoErrorState.type === 'CORS'
+                          ? 'Restrição de Conexão / CORS com o Tribunal'
+                          : 'Falha na Comunicação Direta com o Tribunal'}
+                  </span>
+                </div>
+                <Badge
+                  variant="outline"
+                  className="text-[9px] font-mono border-rose-600 text-rose-300 bg-rose-950"
+                >
+                  {periodoErrorState.type}
+                </Badge>
+              </div>
+              <p className="text-slate-300 text-[11px] leading-relaxed">
+                {periodoErrorState.message}
+              </p>
+              <div className="flex items-center justify-between pt-1 text-[10px] font-mono text-slate-400 flex-wrap gap-2">
+                <span className="truncate max-w-md text-slate-500">
+                  {periodoLastApiUrl
+                    ? `Endpoint: ${periodoLastApiUrl}`
+                    : 'Modo fallback local ativado.'}
+                </span>
+                <Button
+                  size="sm"
+                  onClick={handleDispararConsultaPeriodo}
+                  className="h-6 px-2 text-[10px] bg-rose-900 hover:bg-rose-800 text-white"
+                >
+                  Tentar Novamente
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Caixa de Filtros de Período */}
           <div className="p-4 rounded-xl bg-slate-900/90 border border-purple-800/60 shadow-lg shadow-purple-950/20 space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
@@ -989,13 +1205,19 @@ export const CompromissosPage: React.FC = () => {
                     </Badge>
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Consulte todas as audiências do período selecionado — incluindo as detectadas
-                    autonomamente nos diários e as cadastradas na agenda oficial.
+                    Realize uma busca real na ComunicaAPI/DJEN do tribunal (OAB/MS 15.400) para
+                    encontrar e cadastrar audiências do período com detecção autônoma.
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2 self-end md:self-auto">
+                <Badge
+                  variant="outline"
+                  className="text-[10px] font-mono border-cyan-800 text-cyan-300 bg-cyan-950/40"
+                >
+                  Âncora: Higor Utinói (OAB/MS 15.400)
+                </Badge>
                 <Badge
                   variant="outline"
                   className="text-[10px] font-mono border-slate-700 text-slate-400 bg-slate-950"
@@ -1074,15 +1296,25 @@ export const CompromissosPage: React.FC = () => {
                 </select>
               </div>
 
-              {/* Botão de Disparo da Consulta */}
+              {/* Botão de Disparo da Consulta Real */}
               <div className="space-y-1 flex flex-col justify-end">
                 <Label className="opacity-0 hidden lg:block text-[11px]">Ação</Label>
                 <Button
                   onClick={handleDispararConsultaPeriodo}
-                  className="w-full h-9 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md shadow-purple-950/40 flex items-center justify-center gap-2"
+                  disabled={periodoIsSearching}
+                  className="w-full h-9 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md shadow-purple-950/40 flex items-center justify-center gap-2 disabled:opacity-70"
                 >
-                  <Search className="w-3.5 h-3.5" />
-                  Consultar Período
+                  {periodoIsSearching ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      Consultando DJEN...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-3.5 h-3.5" />
+                      Consultar Período
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
@@ -1110,7 +1342,8 @@ export const CompromissosPage: React.FC = () => {
                     setPeriodoStatusFiltro('TODOS')
                     setPeriodoTribunalFiltro('TODOS')
                     setPeriodoTermoBusca('')
-                    executarConsultaPeriodo(ini, fim, 'TODOS', 'TODOS', '', events, audienciasDjen)
+                    setPeriodoErrorState(null)
+                    filtrarResultadosLocais(ini, fim, 'TODOS', 'TODOS', '')
                   }}
                   variant="outline"
                   size="sm"
@@ -1133,13 +1366,12 @@ export const CompromissosPage: React.FC = () => {
                       periodoStatusFiltro,
                       periodoTribunalFiltro,
                       periodoTermoBusca,
-                      events,
-                      audienciasDjen,
                     )
                   }}
                   variant="outline"
                   size="sm"
-                  className="h-8 text-xs bg-slate-950 border-purple-800/60 text-purple-300 hover:bg-purple-950/40"
+                  disabled={periodoIsSearching}
+                  className="h-8 text-xs bg-slate-950 border-purple-800/60 text-purple-300 hover:bg-purple-950/40 disabled:opacity-60"
                 >
                   Próximos 30 dias
                 </Button>
@@ -1161,6 +1393,15 @@ export const CompromissosPage: React.FC = () => {
                     className="text-[10px] font-mono border-purple-800/80 text-purple-300 bg-purple-950/30"
                   >
                     {periodoDataInicio || '...'} até {periodoDataFim || '...'}
+                  </Badge>
+                )}
+                {periodoApiStats && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] font-mono border-emerald-800/80 text-emerald-300 bg-emerald-950/30 hidden md:inline-flex"
+                  >
+                    CNJ: {periodoApiStats.totalApiFound} capturadas •{' '}
+                    {periodoApiStats.audienciasDetectadas} audiência(s)
                   </Badge>
                 )}
               </div>
@@ -1197,19 +1438,30 @@ export const CompromissosPage: React.FC = () => {
                       : 'Defina o período desejado e clique em "Consultar Período".'}
                   </p>
                   <p className="text-xs text-slate-500 max-w-md mx-auto">
-                    O Sentinela busca eventos do tipo AUDIENCIA no dataStore e na fila autônoma de
-                    detecção do DJEN (padrões &quot;audiência designada&quot;, &quot;audiência para
-                    o dia&quot;, &quot;ficam as partes intimadas da audiência&quot;).
+                    O Sentinela realiza a chamada em tempo real na ComunicaAPI (DJEN) usando a
+                    OAB/MS 15.400 e filtra eventos do tipo AUDIENCIA com extração inteligente de
+                    termos (&quot;audiência designada&quot;, &quot;audiência para o dia&quot;,
+                    &quot;ficam as partes intimadas da audiência&quot;).
                   </p>
                 </div>
                 {!periodoHasConsulted && (
                   <Button
                     onClick={handleDispararConsultaPeriodo}
+                    disabled={periodoIsSearching}
                     size="sm"
                     className="h-8 text-xs bg-purple-600 hover:bg-purple-500 text-white font-bold"
                   >
-                    <Search className="w-3.5 h-3.5 mr-1.5" />
-                    Consultar Audiências Agora
+                    {periodoIsSearching ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                        Consultando DJEN...
+                      </>
+                    ) : (
+                      <>
+                        <Search className="w-3.5 h-3.5 mr-1.5" />
+                        Consultar Audiências Agora
+                      </>
+                    )}
                   </Button>
                 )}
               </div>

@@ -637,6 +637,38 @@ export class NoxDataStore {
     this.notify()
   }
 
+  public addCommunications(newComms: SentinelaCommunication[]): number {
+    if (!Array.isArray(newComms) || newComms.length === 0) return 0
+    const existingIds = new Set(
+      this.communications.map((c) => c.externalId || c.id).filter(Boolean),
+    )
+    let addedCount = 0
+    const toAdd: SentinelaCommunication[] = []
+
+    for (const comm of newComms) {
+      const key = comm.externalId || comm.id
+      if (key && !existingIds.has(key)) {
+        existingIds.add(key)
+        toAdd.push(comm)
+        addedCount++
+      }
+    }
+
+    if (toAdd.length > 0) {
+      this.communications = [...toAdd, ...this.communications]
+      this.saveCommunications()
+      this.logAction(
+        'COMUNICACOES_DJEN_IMPORTADAS_API',
+        'sistema',
+        this.getLawyerProfile().nome || 'Operador NOX',
+        `LOTE_DJEN_${Date.now()}`,
+        { totalAdicionadas: addedCount },
+      )
+    }
+
+    return addedCount
+  }
+
   public advanceCommunicationStatus(
     commId: string,
     targetStage: SentinelaCommunication['status'],
