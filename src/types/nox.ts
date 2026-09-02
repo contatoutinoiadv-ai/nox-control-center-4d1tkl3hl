@@ -85,6 +85,14 @@ export interface NoxClient {
   processosVinculados: string[] // lista de numero_processo ou record_code vinculados
   obs?: string
   responsavel?: string
+  alegacoesProcesso?: {
+    revisado_por?: string
+    data_revisao?: string
+    o_que_voce_contou?: string
+    o_que_outra_parte_respondeu?: string
+    o_que_esta_em_aberto?: string
+  }
+  aprovadoParaCliente?: boolean
   createdAt: string
   updatedAt: string
 }

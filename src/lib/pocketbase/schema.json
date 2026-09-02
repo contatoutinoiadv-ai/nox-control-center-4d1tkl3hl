@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-02T08:24:13.765Z",
+  "generatedAt": "2026-09-02T08:37:53.911Z",
   "collections": [
     {
       "name": "users",
@@ -802,6 +802,48 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "preparacao_habilitada",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "client_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "client_cpf",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "client_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "alegacoes_processo",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "aprovado_para_cliente",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tipo_audiencia",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -1114,6 +1156,18 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "alegacoes_processo",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "aprovado_para_cliente",
+          "type": "bool",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [

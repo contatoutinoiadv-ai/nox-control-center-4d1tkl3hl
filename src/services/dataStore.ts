@@ -2430,6 +2430,67 @@ export class NoxDataStore {
     return true
   }
 
+  public togglePreparacaoAudiencia(id: string, habilitar?: boolean) {
+    const e = this.agendaEvents.find((event) => event.id === id)
+    if (!e) return false
+    const novoStatus = habilitar !== undefined ? habilitar : !e.preparacaoHabilitada
+    e.preparacaoHabilitada = novoStatus
+    e.updatedAt = new Date().toISOString()
+    this.saveAgenda()
+    this.logAction(
+      novoStatus ? 'PREPARACAO_AUDIENCIA_HABILITADA' : 'PREPARACAO_AUDIENCIA_DESABILITADA',
+      'sistema',
+      'Operador NOX',
+      e.id,
+      { title: e.title, processo: e.processNumber, preparacaoHabilitada: novoStatus },
+    )
+    return true
+  }
+
+  public updateAlegacoesProcesso(
+    clientIdOrAgendaId: string,
+    alegacoes: {
+      revisado_por?: string
+      data_revisao?: string
+      o_que_voce_contou?: string
+      o_que_outra_parte_respondeu?: string
+      o_que_esta_em_aberto?: string
+    },
+    aprovadoParaCliente = true,
+  ) {
+    // Atualiza na agenda caso seja ID de agenda
+    const ev = this.agendaEvents.find(
+      (e) => e.id === clientIdOrAgendaId || e.clientId === clientIdOrAgendaId,
+    )
+    if (ev) {
+      ev.alegacoesProcesso = alegacoes
+      ev.aprovadoParaCliente = aprovadoParaCliente
+      ev.updatedAt = new Date().toISOString()
+      this.saveAgenda()
+    }
+
+    // Atualiza no cliente
+    const cl = this.clients.find((c) => c.id === clientIdOrAgendaId || (ev && ev.clientId === c.id))
+    if (cl) {
+      cl.alegacoesProcesso = alegacoes
+      cl.aprovadoParaCliente = aprovadoParaCliente
+      cl.updatedAt = new Date().toISOString()
+      this.saveClients()
+    }
+
+    this.logAction(
+      'ALEGACOES_PROCESSO_ATUALIZADAS',
+      'sistema',
+      'Operador NOX',
+      clientIdOrAgendaId,
+      {
+        aprovadoParaCliente,
+        revisado_por: alegacoes.revisado_por,
+      },
+    )
+    return true
+  }
+
   // ================= Automations & Health =================
 
   public getAutomations(): AutomationRule[] {

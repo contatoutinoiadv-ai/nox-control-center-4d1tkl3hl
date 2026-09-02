@@ -25,6 +25,7 @@ import CompromissosPage from './pages/CompromissosPage'
 import ClientesPage from './pages/ClientesPage'
 import ProducaoPage from './pages/ProducaoPage'
 import IntakePublicPage from './pages/IntakePublicPage'
+import PreparacaoPublicPage from './pages/PreparacaoPublicPage'
 import NotFound from './pages/NotFound'
 
 // Guarda de Autenticação Geral: Se não estiver autenticado, redireciona para /login
@@ -118,6 +119,24 @@ const App = () => (
               element={
                 <ErrorBoundary moduleName="Intake Público">
                   <IntakePublicPage />
+                </ErrorBoundary>
+              }
+            />
+
+            {/* Rota pública de Preparação para Audiência (Acesso por CPF) */}
+            <Route
+              path="/preparacao"
+              element={
+                <ErrorBoundary moduleName="Preparação para Audiência">
+                  <PreparacaoPublicPage />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/preparacao/*"
+              element={
+                <ErrorBoundary moduleName="Preparação para Audiência">
+                  <PreparacaoPublicPage />
                 </ErrorBoundary>
               }
             />

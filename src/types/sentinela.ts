@@ -190,6 +190,18 @@ export interface AgendaEvent {
   remindersMinutesBefore: number[]
   conflictDetected?: boolean
   conflictNotes?: string
+  preparacaoHabilitada?: boolean
+  clientId?: string
+  clientCpf?: string
+  tipoAudiencia?: 'CONCILIACAO' | 'INSTRUCAO_E_JULGAMENTO' | string
+  aprovadoParaCliente?: boolean
+  alegacoesProcesso?: {
+    revisado_por?: string
+    data_revisao?: string
+    o_que_voce_contou?: string
+    o_que_outra_parte_respondeu?: string
+    o_que_esta_em_aberto?: string
+  }
   createdAt: string
   updatedAt: string
 }

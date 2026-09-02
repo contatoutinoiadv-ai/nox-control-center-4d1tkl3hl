@@ -88,6 +88,37 @@
 }
 
 @layer utilities {
+  .font-playfair {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+  .font-inter {
+    font-family:
+      'Inter',
+      system-ui,
+      -apple-system,
+      sans-serif;
+  }
+  .bg-prep-root {
+    background-color: #07070a;
+    background-image: radial-gradient(rgba(212, 175, 110, 0.12) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  .border-prep-gold {
+    border-color: rgba(212, 175, 110, 0.18);
+  }
+  .border-prep-gold-strong {
+    border-color: rgba(212, 175, 110, 0.45);
+  }
+  .text-prep-gold {
+    color: #d4af6e;
+  }
+  .bg-prep-card {
+    background-color: #0f0f14;
+  }
+  .bg-prep-card-alt {
+    background-color: #131319;
+  }
+
   .font-mono-nums {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
