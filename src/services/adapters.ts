@@ -89,8 +89,8 @@ export interface PjeComunicaAdapter {
 
 /**
  * Safe Gateway Implementation of ComunicaAPI (PJe / DJEN)
- * Implements fallback to deterministic seed dataset when offline/mock,
- * with anchor OAB/MS 15.400 and full parameters support.
+ * Direct browser client fetch connecting directly to https://comunicaapi.pje.jus.br/api/v1/comunicacao
+ * without PocketBase or custom proxy.
  */
 export class SafePjeComunicaAdapter implements PjeComunicaAdapter {
   async searchCommunications(params: PjeApiQueryParams): Promise<{
@@ -98,12 +98,52 @@ export class SafePjeComunicaAdapter implements PjeComunicaAdapter {
     total: number
     source: string
     isLive: boolean
+    hasMore?: boolean
+    error?: string
   }> {
-    return {
-      items: [],
-      total: 0,
-      source: 'comunicaapi.pje.jus.br (Adapter Seguro NOX)',
-      isLive: false,
+    try {
+      const { fetchDjenCommunicationsDirect } = await import('./djenService')
+      const result = await fetchDjenCommunicationsDirect({
+        itensPorPagina: params.itensPorPagina || 100,
+        pagina: params.pagina || 1,
+        meio: params.meio || 'D',
+        numeroProcesso: params.numeroProcesso,
+        numeroOab: params.numeroOab || '15400',
+        ufOab: params.ufOab || 'MS',
+        nomeAdvogado: params.nomeAdvogado,
+        nomeParte: params.nomeParte,
+        siglaTribunal: params.siglaTribunal,
+        dataDisponibilizacaoInicio: params.dataDisponibilizacaoInicio,
+        dataDisponibilizacaoFim: params.dataDisponibilizacaoFim,
+        modo: params.modo || 'oab',
+      })
+
+      if (!result.success) {
+        return {
+          items: [],
+          total: 0,
+          source: result.sourceUrl,
+          isLive: false,
+          hasMore: false,
+          error: result.error?.message,
+        }
+      }
+
+      return {
+        items: result.items,
+        total: result.totalCount,
+        source: result.sourceUrl,
+        isLive: true,
+        hasMore: result.hasMore,
+      }
+    } catch (err: any) {
+      return {
+        items: [],
+        total: 0,
+        source: 'comunicaapi.pje.jus.br (Cliente Browser Fetch Direto)',
+        isLive: false,
+        error: err?.message || 'Falha ao consultar ComunicaAPI',
+      }
     }
   }
 }

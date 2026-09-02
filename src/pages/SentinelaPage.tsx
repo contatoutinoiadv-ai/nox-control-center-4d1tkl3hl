@@ -32,6 +32,11 @@ import {
   DecisionMemoryItem,
   IncidentCrisisRoom,
 } from '@/types/sentinela'
+import {
+  fetchDjenCommunicationsDirect,
+  TRIBUNAIS_BRASIL,
+  DjenSearchResult,
+} from '@/services/djenService'
 import { dataStore } from '@/services/dataStore'
 import { calculateLegalDeadline } from '@/services/deadlineEngine'
 import {
@@ -167,13 +172,15 @@ export const SentinelaHub: React.FC = () => {
     setSelectedCommModalOpen(false)
   }
 
-  // --- RECONCILED DJEN STATE (Legacy CentralN Match) ---
+  // --- RECONCILED DJEN STATE (Browser Client Fetch Direto à ComunicaAPI) ---
   const [djenModo, setDjenModo] = useState<'oab' | 'nome' | 'processo'>('oab')
   const [djenOab, setDjenOab] = useState('15400')
   const [djenUf, setDjenUf] = useState('MS')
   const [djenAdvogado, setDjenAdvogado] = useState('Higor Utinói')
+  const [djenParte, setDjenParte] = useState('')
   const [djenProcessoInput, setDjenProcessoInput] = useState('')
-  const [djenTribunal, setDjenTribunal] = useState('TJMS')
+  // Padrão: VAZIO = todos os tribunais do Brasil (exigência explícita do DJEN)
+  const [djenTribunal, setDjenTribunal] = useState('')
   const [djenDataIni, setDjenDataIni] = useState(new Date().toISOString().split('T')[0])
   const [djenDataFim, setDjenDataFim] = useState(new Date().toISOString().split('T')[0])
   const [djenFilterType, setDjenFilterType] = useState<
@@ -182,6 +189,18 @@ export const SentinelaHub: React.FC = () => {
   const [djenLocalPage, setDjenLocalPage] = useState(1)
   const [isDjenSearching, setIsDjenSearching] = useState(false)
   const [isAnalyzingAll, setIsAnalyzingAll] = useState(false)
+
+  // Estado da API Remota (ComunicaAPI / DJEN CNJ)
+  const [djenApiPage, setDjenApiPage] = useState(1)
+  const [djenTotalApiCount, setDjenTotalApiCount] = useState<number | null>(null)
+  const [isDjenLoadingMore, setIsDjenLoadingMore] = useState(false)
+  const [djenApiStatusMessage, setDjenApiStatusMessage] = useState<string | null>(null)
+  const [djenErrorState, setDjenErrorState] = useState<DjenSearchResult['error'] | null>(null)
+  const [djenRetryRemaining, setDjenRetryRemaining] = useState<number | null>(null)
+  const [djenLastSourceUrl, setDjenLastSourceUrl] = useState<string>(
+    'https://comunicaapi.pje.jus.br/api/v1/comunicacao',
+  )
+
   const [analyzingProgress, setAnalyzingProgress] = useState<{
     current: number
     total: number
@@ -210,14 +229,138 @@ export const SentinelaHub: React.FC = () => {
     >
   >({})
 
-  // DJEN Search Action
-  const handleDjenSearch = () => {
+  // DJEN Search Action — Chamada DIRETA via fetch() do navegador à API pública ComunicaAPI/DJEN
+  const handleDjenSearch = async (targetPage = 1) => {
     setIsDjenSearching(true)
-    setTimeout(() => {
-      setIsDjenSearching(false)
+    setDjenErrorState(null)
+    setDjenApiStatusMessage('Consultando ComunicaAPI do CNJ diretamente do navegador...')
+    setDjenRetryRemaining(null)
+
+    try {
+      const result = await fetchDjenCommunicationsDirect(
+        {
+          itensPorPagina: 100,
+          pagina: targetPage,
+          meio: 'D',
+          numeroProcesso: djenProcessoInput,
+          numeroOab: djenOab,
+          ufOab: djenUf,
+          nomeAdvogado: djenAdvogado,
+          nomeParte: djenParte,
+          siglaTribunal: djenTribunal,
+          dataDisponibilizacaoInicio: djenDataIni,
+          dataDisponibilizacaoFim: djenDataFim,
+          modo: djenModo,
+        },
+        undefined,
+        (status) => {
+          setDjenApiStatusMessage(status.message)
+          if (status.secondsRemaining !== undefined) {
+            setDjenRetryRemaining(status.secondsRemaining)
+          }
+        },
+      )
+
+      setDjenLastSourceUrl(result.sourceUrl)
+      setDjenApiPage(result.currentPage)
+
+      if (!result.success) {
+        setDjenErrorState(result.error || { type: 'UNKNOWN', message: 'Erro ao consultar DJEN' })
+        toast.error(result.error?.message || 'Falha na comunicação direta com DJEN/CNJ.')
+        return
+      }
+
+      setDjenTotalApiCount(result.totalCount)
+      setDjenCommunicationsFromApi(result.items, targetPage > 1)
       setDjenLocalPage(1)
-      toast.success('Publicações DJEN sincronizadas com sucesso (Tribunal: ' + djenTribunal + ')')
-    }, 600)
+
+      const tribunalLabel = djenTribunal
+        ? `Tribunal: ${djenTribunal}`
+        : 'Todos os Tribunais do Brasil'
+      toast.success(
+        `ComunicaAPI: ${result.items.length} publicação(ões) capturada(s) em tempo real (${tribunalLabel}).`,
+      )
+    } catch (err: any) {
+      const msg = err?.message || 'Erro inesperado na consulta ao DJEN.'
+      setDjenErrorState({ type: 'NETWORK', message: msg })
+      toast.error(msg)
+    } finally {
+      setIsDjenSearching(false)
+      setDjenApiStatusMessage(null)
+      setDjenRetryRemaining(null)
+    }
+  }
+
+  // Carregar Próxima Página da API Remota do DJEN (Paginação "Carregar Mais")
+  const handleDjenLoadMore = async () => {
+    if (isDjenLoadingMore || isDjenSearching) return
+    const nextPage = djenApiPage + 1
+    setIsDjenLoadingMore(true)
+    setDjenErrorState(null)
+    setDjenApiStatusMessage(`Buscando página ${nextPage} da ComunicaAPI...`)
+
+    try {
+      // Intervalo de segurança preventivo entre chamadas consecutivas para evitar 429
+      await new Promise((resolve) => setTimeout(resolve, 800))
+
+      const result = await fetchDjenCommunicationsDirect(
+        {
+          itensPorPagina: 100,
+          pagina: nextPage,
+          meio: 'D',
+          numeroProcesso: djenProcessoInput,
+          numeroOab: djenOab,
+          ufOab: djenUf,
+          nomeAdvogado: djenAdvogado,
+          nomeParte: djenParte,
+          siglaTribunal: djenTribunal,
+          dataDisponibilizacaoInicio: djenDataIni,
+          dataDisponibilizacaoFim: djenDataFim,
+          modo: djenModo,
+        },
+        undefined,
+        (status) => {
+          setDjenApiStatusMessage(status.message)
+          if (status.secondsRemaining !== undefined) {
+            setDjenRetryRemaining(status.secondsRemaining)
+          }
+        },
+      )
+
+      setDjenLastSourceUrl(result.sourceUrl)
+
+      if (!result.success) {
+        setDjenErrorState(
+          result.error || { type: 'UNKNOWN', message: 'Erro ao carregar mais publicações' },
+        )
+        toast.error(result.error?.message || 'Falha ao carregar página adicional do DJEN.')
+        return
+      }
+
+      setDjenApiPage(nextPage)
+      setDjenTotalApiCount(result.totalCount)
+      setDjenCommunicationsFromApi(result.items, true)
+      toast.success(`+${result.items.length} publicações adicionadas do DJEN/CNJ.`)
+    } catch (err: any) {
+      toast.error(err?.message || 'Erro ao carregar mais dados do DJEN.')
+    } finally {
+      setIsDjenLoadingMore(false)
+      setDjenApiStatusMessage(null)
+      setDjenRetryRemaining(null)
+    }
+  }
+
+  // Atualiza ou mescla publicações recebidas da ComunicaAPI mantendo o estado local
+  const setDjenCommunicationsFromApi = (newItems: SentinelaCommunication[], append = false) => {
+    if (!append) {
+      setCommunications(newItems)
+    } else {
+      setCommunications((prev) => {
+        const existingIds = new Set(prev.map((c) => c.externalId || c.id))
+        const uniqueNew = newItems.filter((c) => !existingIds.has(c.externalId || c.id))
+        return [...prev, ...uniqueNew]
+      })
+    }
   }
 
   const handleDjenClear = () => {
@@ -225,9 +368,21 @@ export const SentinelaHub: React.FC = () => {
     setDjenDataIni(today)
     setDjenDataFim(today)
     setDjenProcessoInput('')
+    setDjenParte('')
+    setDjenTribunal('') // Padrão: VAZIO = todos os tribunais
+    setDjenModo('oab')
+    setDjenOab('15400')
+    setDjenUf('MS')
+    setDjenAdvogado('Higor Utinói')
     setDjenFilterType('todos')
     setDjenLocalPage(1)
-    toast.info('Filtros DJEN resetados.')
+    setDjenApiPage(1)
+    setDjenTotalApiCount(null)
+    setDjenErrorState(null)
+    setDjenApiStatusMessage(null)
+    toast.info(
+      'Filtros DJEN resetados para os valores padrão (OAB/MS 15.400 - Todos os Tribunais).',
+    )
   }
 
   // NOX Single Analysis Action
@@ -902,18 +1057,72 @@ export const SentinelaHub: React.FC = () => {
           <div className="p-4 rounded-xl bg-slate-900/95 border border-amber-500/20 shadow-lg space-y-3 nox-glass-card">
             <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800/80">
               <div className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping"></div>
+                <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></div>
                 <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-amber-300">
-                  DJEN Sentinela NOX — Ingestão de Publicações & Conexão PJe
+                  DJEN Sentinela NOX — Ingestão de Publicações & Conexão Direta CNJ/PJe
                 </h3>
               </div>
               <div className="flex items-center gap-2 text-xs font-mono">
-                <span className="text-slate-400">Gateway:</span>
-                <Badge className="bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px]">
-                  comunicaapi.pje.jus.br (Online)
+                <span className="text-slate-400">Endpoint:</span>
+                <Badge className="bg-emerald-950/90 text-emerald-300 border border-emerald-800 text-[10px] font-mono">
+                  comunicaapi.pje.jus.br (Fetch Direto no Navegador)
                 </Badge>
               </div>
             </div>
+
+            {/* Banner de Estado da API / Rate Limit / CORS / Notificação */}
+            {djenApiStatusMessage && (
+              <div className="p-3 rounded-lg bg-cyan-950/60 border border-cyan-800/80 flex items-center justify-between gap-3 text-xs text-cyan-200">
+                <div className="flex items-center gap-2">
+                  <div className="w-3.5 h-3.5 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin"></div>
+                  <span>{djenApiStatusMessage}</span>
+                </div>
+                {djenRetryRemaining !== null && (
+                  <Badge className="bg-amber-950 text-amber-300 border border-amber-700 text-[10px] font-mono animate-pulse">
+                    Retry em {djenRetryRemaining}s
+                  </Badge>
+                )}
+              </div>
+            )}
+
+            {/* Alerta de Erro Honesto e Visível (Sem Mock Oculto) */}
+            {djenErrorState && (
+              <div className="p-3.5 rounded-lg bg-rose-950/40 border border-rose-800/80 space-y-2 text-xs text-rose-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-bold text-rose-300">
+                    <AlertTriangle className="w-4 h-4 text-rose-400" />
+                    <span>
+                      {djenErrorState.type === 'RATE_LIMIT_429'
+                        ? 'Limite de Requisições Atingido (HTTP 429)'
+                        : djenErrorState.type === 'FORBIDDEN_403'
+                          ? 'Acesso Bloqueado pelo CNJ (HTTP 403 / CloudFront)'
+                          : djenErrorState.type === 'CORS'
+                            ? 'Restrição de CORS / Rede ao Conectar com o CNJ'
+                            : 'Falha na Conexão com a ComunicaAPI'}
+                    </span>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className="text-[9px] font-mono border-rose-700 text-rose-300"
+                  >
+                    {djenErrorState.type}
+                  </Badge>
+                </div>
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  {djenErrorState.message}
+                </p>
+                <div className="flex items-center justify-between pt-1 text-[10px] font-mono text-slate-400">
+                  <span className="truncate max-w-md">URL: {djenLastSourceUrl}</span>
+                  <Button
+                    size="sm"
+                    onClick={() => handleDjenSearch(1)}
+                    className="h-6 px-2 text-[10px] bg-rose-900 hover:bg-rose-800 text-white"
+                  >
+                    Tentar Novamente
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* Top Search Controls Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 text-xs">
@@ -984,20 +1193,34 @@ export const SentinelaHub: React.FC = () => {
                 </div>
               )}
 
-              {/* Tribunal */}
+              {/* Nome da Parte Opcional */}
               <div className="space-y-1">
-                <label className="text-[10px] font-mono uppercase text-slate-400">Tribunal</label>
+                <label className="text-[10px] font-mono uppercase text-slate-400">
+                  Nome da Parte
+                </label>
+                <Input
+                  value={djenParte}
+                  onChange={(e) => setDjenParte(e.target.value)}
+                  placeholder="Filtrar por parte..."
+                  className="bg-slate-950 border-slate-800 h-8 text-xs text-slate-200"
+                />
+              </div>
+
+              {/* Tribunal Seletor com Siglas */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono uppercase text-slate-400">
+                  Tribunal {djenTribunal ? `(${djenTribunal})` : '(Todos)'}
+                </label>
                 <select
                   value={djenTribunal}
                   onChange={(e) => setDjenTribunal(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-200"
+                  className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-200 focus:border-amber-500 focus:outline-hidden"
                 >
-                  <option value="TJMS">TJMS (Mato Grosso do Sul)</option>
-                  <option value="TJSP">TJSP (São Paulo)</option>
-                  <option value="TRT24">TRT24 (MS Trabalhista)</option>
-                  <option value="TRT2">TRT2 (SP Trabalhista)</option>
-                  <option value="TRF3">TRF3 (Federal 3ª Região)</option>
-                  <option value="STJ">STJ / Superior</option>
+                  {TRIBUNAIS_BRASIL.map((trib) => (
+                    <option key={trib.sigla || 'all'} value={trib.sigla}>
+                      {trib.nome}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -1030,7 +1253,7 @@ export const SentinelaHub: React.FC = () => {
             <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
               <div className="flex items-center gap-2 flex-wrap">
                 <Button
-                  onClick={handleDjenSearch}
+                  onClick={() => handleDjenSearch(1)}
                   disabled={isDjenSearching}
                   size="sm"
                   className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs h-8 shadow-md"
@@ -1236,40 +1459,72 @@ export const SentinelaHub: React.FC = () => {
             </div>
           </div>
 
-          {/* Paginação Dupla (Local 10 em 10 itens na tela) */}
-          <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 text-xs font-mono">
-            <div className="text-slate-400">
-              Mostrando{' '}
-              <strong className="text-slate-200">
-                {filteredCommunications.length === 0 ? 0 : (djenLocalPage - 1) * DJEN_PAGE_SIZE + 1}
-                –{Math.min(djenLocalPage * DJEN_PAGE_SIZE, filteredCommunications.length)}
-              </strong>{' '}
-              de <strong className="text-amber-400">{filteredCommunications.length}</strong>{' '}
-              publicações
+          {/* Barra de Controle de Paginação e Botão "Carregar Mais" da API Remota */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between p-3 rounded-lg bg-slate-950/90 border border-slate-800 gap-3 text-xs font-mono">
+            <div className="text-slate-400 flex items-center gap-2 flex-wrap">
+              <span>
+                Visualizando{' '}
+                <strong className="text-slate-200">
+                  {filteredCommunications.length === 0
+                    ? 0
+                    : (djenLocalPage - 1) * DJEN_PAGE_SIZE + 1}
+                  –{Math.min(djenLocalPage * DJEN_PAGE_SIZE, filteredCommunications.length)}
+                </strong>{' '}
+                de <strong className="text-amber-400">{filteredCommunications.length}</strong> em
+                tela
+              </span>
+              {djenTotalApiCount !== null && (
+                <Badge variant="outline" className="text-[10px] border-slate-700 text-cyan-300">
+                  Total no DJEN/CNJ: {djenTotalApiCount}
+                </Badge>
+              )}
             </div>
 
-            <div className="flex items-center gap-1.5">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={djenLocalPage <= 1}
-                onClick={() => setDjenLocalPage((p) => Math.max(1, p - 1))}
-                className="h-7 px-2 text-[11px] border-slate-800 text-slate-300 disabled:opacity-30"
-              >
-                ◀ Anterior
-              </Button>
-              <span className="px-2 text-slate-400">
-                Pág. {djenLocalPage} / {totalLocalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={djenLocalPage >= totalLocalPages}
-                onClick={() => setDjenLocalPage((p) => Math.min(totalLocalPages, p + 1))}
-                className="h-7 px-2 text-[11px] border-slate-800 text-slate-300 disabled:opacity-30"
-              >
-                Próxima ▶
-              </Button>
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              {/* Botão Carregar Mais direto da ComunicaAPI quando houver mais itens no total do servidor */}
+              {djenTotalApiCount !== null && djenTotalApiCount > communications.length && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDjenLoadMore}
+                  disabled={isDjenLoadingMore || isDjenSearching}
+                  className="h-7 px-3 text-[11px] bg-cyan-950/40 border-cyan-800 text-cyan-300 hover:bg-cyan-900/60 font-semibold"
+                >
+                  {isDjenLoadingMore ? (
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full border border-cyan-300 border-t-transparent animate-spin"></span>
+                      Carregando pág. {djenApiPage + 1}...
+                    </span>
+                  ) : (
+                    `+ Carregar Mais do DJEN (${communications.length}/${djenTotalApiCount})`
+                  )}
+                </Button>
+              )}
+
+              {/* Controles de Navegação da Página Local */}
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={djenLocalPage <= 1}
+                  onClick={() => setDjenLocalPage((p) => Math.max(1, p - 1))}
+                  className="h-7 px-2 text-[11px] border-slate-800 text-slate-300 disabled:opacity-30"
+                >
+                  ◀
+                </Button>
+                <span className="px-2 text-slate-400 text-[11px]">
+                  {djenLocalPage}/{totalLocalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={djenLocalPage >= totalLocalPages}
+                  onClick={() => setDjenLocalPage((p) => Math.min(totalLocalPages, p + 1))}
+                  className="h-7 px-2 text-[11px] border-slate-800 text-slate-300 disabled:opacity-30"
+                >
+                  ▶
+                </Button>
+              </div>
             </div>
           </div>
 
