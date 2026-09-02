@@ -42,6 +42,7 @@ import { calculateLegalDeadline } from '@/services/deadlineEngine'
 import {
   queryOraculoGemini,
   analyzeBatchWithGemini,
+  analyzeCommunicationWithGemini,
   buildSentinelaContext,
   OraculoMessage,
 } from '@/services/aiOraculoService'
@@ -399,23 +400,65 @@ export const SentinelaHub: React.FC = () => {
     )
   }
 
-  // NOX Single Analysis Action
-  const handleAnalyzeWithNox = (comm: SentinelaCommunication) => {
+  // NOX Single Analysis Action (Integração Real Gemini gemini-3.5-flash-lite)
+  const handleAnalyzeWithNox = async (comm: SentinelaCommunication) => {
     setNoxActiveComm(comm)
     setNoxPanelOpen(true)
     setIsNoxAnalyzing(true)
 
-    setTimeout(() => {
-      setIsNoxAnalyzing(false)
-      dataStore.advanceCommunicationStatus(
-        comm.id,
-        'ANALISADA',
-        'ORÁCULO NOX (IA)',
-        'Análise jurídica estratégica concluída com extração de prazo e urgência.',
-      )
+    try {
+      // Dispara a análise real via endpoint seguro gemini-proxy
+      const result = await analyzeCommunicationWithGemini(comm)
+
+      // Atualiza a custódia do registro preservando humanReviewRequired: true
+      const targetComm = dataStore.getCommunicationById(comm.id) || comm
+      const updatedCustody = {
+        ...targetComm.custody,
+        suggestedClassification: result.analysis.classificacao,
+        confidence: Math.round(100 - result.analysis.riscoScore * 0.3) / 100, // 0.7 - 1.0
+        humanReviewRequired: true,
+        humanReviewReason: result.analysis.justificativa,
+      }
+
+      // Atualiza o objeto da comunicação
+      targetComm.urgencyLevel = result.analysis.urgencia
+      targetComm.riskScore = result.analysis.riscoScore
+      targetComm.custody = updatedCustody
+      targetComm.status = 'ANALISADA'
+      targetComm.updatedAt = new Date().toISOString()
+
+      // Registra o passo na timeline da cadeia de custódia
+      targetComm.custody.timeline.unshift({
+        id: `step_ia_${Date.now()}`,
+        stage: 'ANALISADA',
+        timestamp: new Date().toISOString(),
+        actor: result.isFallback ? 'Sentinela IA (Motor Local)' : `Sentinela IA (${result.model})`,
+        actorRole: 'SISTEMA_IA',
+        sourceConfidence: updatedCustody.confidence,
+        actionSummary: `Análise IA realizada: ${result.analysis.classificacao} (Urgência ${result.analysis.urgencia.toUpperCase()}).`,
+        justification: result.analysis.justificativa,
+      })
+
+      // Salva no dataStore
+      dataStore.saveCommunications()
       setCommunications(dataStore.getCommunications())
-      toast.success('Análise estratégica NOX concluída para o processo ' + comm.numeroProcesso)
-    }, 800)
+      setNoxActiveComm({ ...targetComm })
+
+      if (result.isFallback) {
+        toast.info(
+          `Análise NOX concluída (Modo Local): ${result.analysis.classificacao}. Revisão humana pendente.`,
+        )
+      } else {
+        toast.success(
+          `Análise NOX (Google Gemini) concluída para o processo ${comm.numeroProcesso}. Sugestão: ${result.analysis.classificacao}.`,
+        )
+      }
+    } catch (err) {
+      console.error('[Sentinela] Erro ao analisar com Gemini:', err)
+      toast.error('Erro ao executar análise com IA. Mantendo dados atuais.')
+    } finally {
+      setIsNoxAnalyzing(false)
+    }
   }
 
   // NOX Batch Analysis ("Analisar Todos") com Google Gemini
@@ -2137,6 +2180,34 @@ export const SentinelaHub: React.FC = () => {
                       processuais.
                     </p>
                   </div>
+
+                  {/* Classificação Sugerida e Diagnóstico Gemini */}
+                  {noxActiveComm.custody?.suggestedClassification && (
+                    <div className="p-3 rounded-lg bg-purple-950/40 border border-purple-800/60 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="text-[10px] font-mono uppercase text-purple-300 font-bold flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                          Classificação Sugerida pela IA (gemini-3.5-flash-lite)
+                        </div>
+                        <Badge className="bg-purple-900/80 text-purple-200 text-[9px] font-mono border-purple-700">
+                          Confiança: {Math.round((noxActiveComm.custody.confidence || 0.85) * 100)}%
+                        </Badge>
+                      </div>
+                      <div className="text-xs font-semibold text-purple-100">
+                        {noxActiveComm.custody.suggestedClassification}
+                      </div>
+                      {noxActiveComm.custody.humanReviewReason && (
+                        <p className="text-[11px] text-purple-200/90 leading-relaxed pt-0.5 border-t border-purple-800/40 font-sans">
+                          <strong>Justificativa técnica:</strong>{' '}
+                          {noxActiveComm.custody.humanReviewReason}
+                        </p>
+                      )}
+                      <div className="text-[9px] text-amber-300 font-mono pt-1">
+                        ⚠️ Decisão assistida: Revisão humana obrigatória mantida para homologação de
+                        prazo.
+                      </div>
+                    </div>
+                  )}
 
                   {/* Resumo Estratégico */}
                   <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 space-y-1">

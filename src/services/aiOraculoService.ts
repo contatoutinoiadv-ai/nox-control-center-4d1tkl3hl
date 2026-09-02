@@ -1,12 +1,16 @@
 /**
  * Serviço de IA Oráculo NOX & Google Gemini via Skip Cloud Backend
  *
- * Executa chamadas seguras para o endpoint de backend `/backend/v1/ai/oraculo`
+ * Executa chamadas seguras para o endpoint de backend `/backend/v1/gemini-proxy`
  * sem expor nenhuma chave no navegador. Mantém fallback automático e transparente
  * quando o backend não estiver autenticado, rede falhar ou a IA estiver indisponível.
+ *
+ * O texto da publicação SEMPRE passa por sanitizeExternalText antes de qualquer envio.
  */
 import pb from '@/lib/pocketbase/client'
 import { SentinelaCommunication } from '@/types/sentinela'
+import { sanitizeExternalText } from '@/services/adapters'
+import { dataStore } from '@/services/dataStore'
 
 export interface OraculoMessage {
   id: string
@@ -19,13 +23,21 @@ export interface OraculoMessage {
   sourceInfo?: string
 }
 
-export interface OraculoApiResponse {
+export interface GeminiStructuredAnalysis {
+  classificacao: string
+  urgencia: 'baixa' | 'media' | 'alta' | 'critica'
+  resumo: string
+  riscoScore: number
+  justificativa: string
+}
+
+export interface GeminiProxyResponse {
   ok: boolean
-  content?: string
   model?: string
-  modo?: string
-  usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
   source?: string
+  content?: string
+  result?: GeminiStructuredAnalysis
+  humanReviewRequired?: boolean
   disclaimer?: string
   error?: string
   code?: string
@@ -122,7 +134,128 @@ export function generateLocalFallbackResponse(
 }
 
 /**
- * Consulta o Oráculo NOX (Google Gemini via Skip Cloud Backend)
+ * Análise individual de publicação via Google Gemini (`gemini-3.5-flash-lite`)
+ * Passa o texto sanitizado via sanitizeExternalText antes do envio.
+ * Preenche a classificação sugerida mantendo humanReviewRequired: true.
+ */
+export async function analyzeCommunicationWithGemini(comm: SentinelaCommunication): Promise<{
+  success: boolean
+  analysis: GeminiStructuredAnalysis
+  model: string
+  source: string
+  isFallback: boolean
+}> {
+  // 1. Sanitização rigorosa do texto da publicação
+  const rawText = comm.teorCompleto || comm.teorResumido || ''
+  const sanitized = sanitizeExternalText(rawText)
+
+  try {
+    const isAuth = await ensurePocketBaseAuth()
+    if (isAuth) {
+      const endpoint = `${pb.baseUrl}/backend/v1/gemini-proxy`
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 25000)
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: pb.authStore.token,
+        },
+        body: JSON.stringify({
+          modo: 'analise',
+          communicationId: comm.id,
+          processo: comm.numeroProcesso,
+          tribunal: `${comm.tribunal} - ${comm.orgaoJulgador}`,
+          tipo: comm.tipoComunicacao,
+          texto: sanitized.cleanText,
+        }),
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
+
+      if (res.ok) {
+        const data = (await res.json()) as GeminiProxyResponse
+        if (data.ok && data.result) {
+          // Log de auditoria local síncrono
+          dataStore.logAction(
+            'IA_ANALISE_PUBLICACAO_GEMINI',
+            'revisao',
+            'Sentinela IA (gemini-3.5-flash-lite)',
+            comm.id,
+            {
+              processo: comm.numeroProcesso,
+              tribunal: comm.tribunal,
+              classificacaoSugerida: data.result.classificacao,
+              urgencia: data.result.urgencia,
+              riscoScore: data.result.riscoScore,
+              resumo: data.result.resumo,
+              humanReviewRequired: true,
+              modelo: data.model || 'gemini-3.5-flash-lite',
+            },
+          )
+
+          return {
+            success: true,
+            analysis: data.result,
+            model: data.model || 'gemini-3.5-flash-lite',
+            source: data.source || 'Google Gemini (gemini-3.5-flash-lite)',
+            isFallback: false,
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Oraculo NOX] Erro na análise individual Gemini:', err)
+  }
+
+  // Fallback determinístico inteligente
+  const lower = sanitized.cleanText.toLowerCase()
+  let calculatedUrg: 'baixa' | 'media' | 'alta' | 'critica' = comm.urgencyLevel || 'media'
+  if (lower.includes('agravo') || lower.includes('apelação') || lower.includes('sentença')) {
+    calculatedUrg = 'alta'
+  } else if (
+    lower.includes('impenhorabilidade') ||
+    lower.includes('bloqueio') ||
+    lower.includes('tutela de urgência')
+  ) {
+    calculatedUrg = 'critica'
+  }
+
+  const fallbackAnalysis: GeminiStructuredAnalysis = {
+    classificacao:
+      comm.tipoComunicacao === 'CITACAO' ? 'Citação Judicial Cível' : 'Intimação Processual',
+    urgencia: calculatedUrg,
+    resumo: comm.teorResumido || 'Publicação processual disponibilizada no DJEN.',
+    riscoScore: calculatedUrg === 'critica' ? 90 : calculatedUrg === 'alta' ? 75 : 40,
+    justificativa: 'Classificação extraída via motor determinístico local de contingência.',
+  }
+
+  dataStore.logAction(
+    'IA_ANALISE_PUBLICACAO_FALLBACK',
+    'revisao',
+    'Sentinela Heurístico Local',
+    comm.id,
+    {
+      processo: comm.numeroProcesso,
+      classificacaoSugerida: fallbackAnalysis.classificacao,
+      urgencia: fallbackAnalysis.urgencia,
+      humanReviewRequired: true,
+    },
+  )
+
+  return {
+    success: true,
+    analysis: fallbackAnalysis,
+    model: 'Motor Local Heurístico (Fallback)',
+    source: 'Sentinela Local',
+    isFallback: true,
+  }
+}
+
+/**
+ * Consulta o Oráculo NOX (Google Gemini via backend gemini-proxy)
  */
 export async function queryOraculoGemini(params: {
   messages: Array<{ role: 'user' | 'assistant'; content: string }>
@@ -153,8 +286,16 @@ export async function queryOraculoGemini(params: {
       }
     }
 
-    // 2. Dispara a chamada ao hook seguro pb_hooks
-    const endpoint = `${pb.baseUrl}/backend/v1/ai/oraculo`
+    // 2. Sanitiza mensagens antes de enviar
+    const sanitizedMessages = params.messages.map((m) => ({
+      role: m.role,
+      content: sanitizeExternalText(m.content).cleanText,
+    }))
+    const sanitizedContexto = sanitizeExternalText(params.contexto).cleanText
+    const sanitizedPayload = params.payload ? sanitizeExternalText(params.payload).cleanText : ''
+
+    // 3. Dispara a chamada ao hook seguro pb_hooks /backend/v1/gemini-proxy
+    const endpoint = `${pb.baseUrl}/backend/v1/gemini-proxy`
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 28000)
 
@@ -165,10 +306,10 @@ export async function queryOraculoGemini(params: {
         Authorization: pb.authStore.token,
       },
       body: JSON.stringify({
-        messages: params.messages,
-        contexto: params.contexto,
-        modo: params.modo || 'oraculo',
-        payload: params.payload || '',
+        messages: sanitizedMessages,
+        contexto: sanitizedContexto,
+        modo: params.modo === 'analise-lote' ? 'lote' : 'chat',
+        texto: sanitizedPayload,
       }),
       signal: controller.signal,
     })
@@ -176,13 +317,27 @@ export async function queryOraculoGemini(params: {
     clearTimeout(timeoutId)
 
     if (res.ok) {
-      const data = (await res.json()) as OraculoApiResponse
+      const data = (await res.json()) as GeminiProxyResponse
       if (data.ok && data.content) {
+        // Registra na trilha de auditoria
+        dataStore.logAction(
+          'IA_CONSULTA_ORACULO_GEMINI',
+          'revisao',
+          'Advogado / Operador',
+          'oraculo_nox',
+          {
+            modelo: data.model || 'gemini-3.5-flash-lite',
+            modo: params.modo || 'chat',
+            tamanhoResposta: data.content.length,
+            humanReviewRequired: true,
+          },
+        )
+
         return {
           content: data.content,
-          model: data.model || 'Google Gemini (Skip AI)',
+          model: data.model || 'Google Gemini (gemini-3.5-flash-lite)',
           isFallback: false,
-          source: data.source || 'Google Gemini (Skip AI Gateway)',
+          source: data.source || 'Google Gemini (gemini-3.5-flash-lite)',
           confidence: 'ALTA',
         }
       }
@@ -226,14 +381,14 @@ export async function analyzeBatchWithGemini(communications: SentinelaCommunicat
     .slice(0, 15)
     .map(
       (c, i) =>
-        `#${i + 1}: Processo ${c.numeroProcesso} (${c.tribunal} - ${c.orgaoJulgador})\nTipo: ${c.tipoComunicacao} | Urgência Atual: ${c.urgencyLevel}\nTeor: "${c.teorResumido}"`,
+        `#${i + 1}: Processo ${c.numeroProcesso} (${c.tribunal} - ${c.orgaoJulgador})\nTipo: ${c.tipoComunicacao} | Urgência Atual: ${c.urgencyLevel}\nTeor: "${sanitizeExternalText(c.teorResumido).cleanText}"`,
     )
     .join('\n\n')
 
   try {
     const isAuth = await ensurePocketBaseAuth()
     if (isAuth) {
-      const endpoint = `${pb.baseUrl}/backend/v1/ai/oraculo`
+      const endpoint = `${pb.baseUrl}/backend/v1/gemini-proxy`
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 30000)
 
@@ -244,8 +399,8 @@ export async function analyzeBatchWithGemini(communications: SentinelaCommunicat
           Authorization: pb.authStore.token,
         },
         body: JSON.stringify({
-          modo: 'analise-lote',
-          payload: batchPayload,
+          modo: 'lote',
+          texto: batchPayload,
           contexto: `Total de publicações no lote: ${pending.length}`,
         }),
         signal: controller.signal,
@@ -254,11 +409,23 @@ export async function analyzeBatchWithGemini(communications: SentinelaCommunicat
       clearTimeout(timeoutId)
 
       if (res.ok) {
-        const data = (await res.json()) as OraculoApiResponse
+        const data = (await res.json()) as GeminiProxyResponse
         if (data.ok && data.content) {
+          dataStore.logAction(
+            'IA_ANALISE_LOTE_GEMINI',
+            'revisao',
+            'Sentinela IA (gemini-3.5-flash-lite)',
+            'lote_publicacoes',
+            {
+              totalAnalisadas: pending.length,
+              modelo: data.model || 'gemini-3.5-flash-lite',
+              humanReviewRequired: true,
+            },
+          )
+
           return {
             summary: data.content,
-            model: data.model || 'Google Gemini (Skip AI)',
+            model: data.model || 'Google Gemini (gemini-3.5-flash-lite)',
             isFallback: false,
           }
         }
