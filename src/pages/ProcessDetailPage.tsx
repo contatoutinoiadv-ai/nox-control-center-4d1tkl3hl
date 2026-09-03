@@ -174,14 +174,20 @@ export default function ProcessDetailPage() {
           loadedMovs = resMovs.value
           falhaTotal = false
         } else {
-          console.warn('[ProcessDetailPage] Falha ao carregar movimentacoes_processo:', resMovs.reason)
+          console.warn(
+            '[ProcessDetailPage] Falha ao carregar movimentacoes_processo:',
+            resMovs.reason,
+          )
         }
 
         if (resComms.status === 'fulfilled') {
           loadedComms = resComms.value
           falhaTotal = false
         } else {
-          console.warn('[ProcessDetailPage] Falha ao carregar sentinela_communications:', resComms.reason)
+          console.warn(
+            '[ProcessDetailPage] Falha ao carregar sentinela_communications:',
+            resComms.reason,
+          )
         }
 
         if (falhaTotal) {
@@ -245,7 +251,7 @@ export default function ProcessDetailPage() {
 
   const toggleExpand = (id: string) => {
     setExpandedTeors((prev) => ({ ...prev, [id]: !prev[id] }))
-  },
+  }
 
   // Dados auxiliares para o cabeçalho
   const tribunalDestaque =
@@ -253,9 +259,7 @@ export default function ProcessDetailPage() {
     comunicacoes[0]?.tribunal?.toUpperCase() ||
     'TJ'
   const orgaoDestaque =
-    movimentacoes[0]?.orgao_nome_movimento ||
-    comunicacoes[0]?.orgao_julgador ||
-    'Órgão judicial'
+    movimentacoes[0]?.orgao_nome_movimento || comunicacoes[0]?.orgao_julgador || 'Órgão judicial'
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -280,8 +284,8 @@ export default function ProcessDetailPage() {
               Processo {numeroProcesso}
             </h1>
             <p className="mt-1.5 text-sm text-slate-400">
-              Linha do tempo cronológica unificada: atos e movimentações do tribunal (DataJud) e o teor
-              completo das publicações do diário oficial (Sentinela).
+              Linha do tempo cronológica unificada: atos e movimentações do tribunal (DataJud) e o
+              teor completo das publicações do diário oficial (Sentinela).
             </p>
           </div>
 
@@ -348,12 +352,16 @@ export default function ProcessDetailPage() {
             <p className="text-sm font-mono">Carregando movimentações e publicações…</p>
           </div>
         ) : erro ? (
-          <div className="rounded-xl border border-rose-900/50 bg-rose-950/20 p-4 text-sm text-rose-300" role="alert">
+          <div
+            className="rounded-xl border border-rose-900/50 bg-rose-950/20 p-4 text-sm text-rose-300"
+            role="alert"
+          >
             {erro}
           </div>
         ) : filteredEvents.length === 0 ? (
           <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-8 text-center text-sm text-slate-400">
-            Nenhum evento encontrado para este processo{filtroTipo !== 'todos' ? ' com o filtro selecionado' : ''}.
+            Nenhum evento encontrado para este processo
+            {filtroTipo !== 'todos' ? ' com o filtro selecionado' : ''}.
           </div>
         ) : (
           <ol className="relative space-y-5 border-l-2 border-slate-800 pl-6 ml-2">
@@ -500,7 +508,8 @@ export default function ProcessDetailPage() {
                         </h2>
                         {comm.destinatario && (
                           <p className="mt-0.5 text-xs text-slate-300 font-mono">
-                            Destinatário: <span className="text-white font-medium">{comm.destinatario}</span>
+                            Destinatário:{' '}
+                            <span className="text-white font-medium">{comm.destinatario}</span>
                           </p>
                         )}
                         {comm.orgao_julgador && (
@@ -558,14 +567,17 @@ export default function ProcessDetailPage() {
                                 </>
                               ) : (
                                 <>
-                                  <ChevronDown className="w-3.5 h-3.5" /> Ver teor completo ({teorCompleto.length} caracteres)
+                                  <ChevronDown className="w-3.5 h-3.5" /> Ver teor completo (
+                                  {teorCompleto.length} caracteres)
                                 </>
                               )}
                             </button>
                           )}
                         </div>
                       ) : (
-                        <p className="text-xs italic text-slate-500">Teor não disponível na captura.</p>
+                        <p className="text-xs italic text-slate-500">
+                          Teor não disponível na captura.
+                        </p>
                       )}
                     </div>
                   </article>
