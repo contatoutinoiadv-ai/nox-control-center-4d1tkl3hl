@@ -228,6 +228,17 @@ class DatajudService {
         }
       }
 
+      // Ao finalizar uma consulta ao DataJud com sucesso, tenta puxar publicações
+      // correspondentes na collection sentinela_communications de forma resiliente
+      try {
+        await this.puxarPublicacoesProcesso(numeroProcesso)
+      } catch (pullErr) {
+        console.warn(
+          `[${timestamp}] [DataJud] Aviso ao puxar publicações para ${numeroProcesso}:`,
+          pullErr,
+        )
+      }
+
       return data as DatajudConsultaResult
     } catch (err: any) {
       console.error(
@@ -320,6 +331,19 @@ class DatajudService {
           nao_mapeados: [],
           resultados: [],
           error: 'Servidor retornou uma resposta vazia na sincronização em lote.',
+        }
+      }
+
+      // Se o lote foi executado com sucesso, tenta puxar publicações para os processos retornados
+      if (data?.resultados && Array.isArray(data.resultados)) {
+        for (const item of data.resultados) {
+          if (item?.numero_processo) {
+            try {
+              await this.puxarPublicacoesProcesso(item.numero_processo)
+            } catch {
+              /* intentionally ignored */
+            }
+          }
         }
       }
 
@@ -520,6 +544,176 @@ class DatajudService {
     } catch (err) {
       console.error('Erro ao marcar alerta como lido:', err)
       return false
+    }
+  }
+
+  /**
+  /**
+   * Limpa formatação deixando apenas os dígitos do CNJ
+   */
+  limparNumeroProcesso(numero: string): string {
+    return (numero || '').replace(/\D/g, '')
+  }
+
+  /**
+   * Formata número de processo para o padrão CNJ (NNNNNNN-DD.AAAA.J.TR.OOOO)
+   */
+  formatarNumeroProcesso(numero: string): string {
+    const limpo = this.limparNumeroProcesso(numero)
+    if (limpo.length !== 20) return numero
+    return `${limpo.slice(0, 7)}-${limpo.slice(7, 9)}.${limpo.slice(9, 13)}.${limpo.slice(13, 14)}.${limpo.slice(14, 16)}.${limpo.slice(16, 20)}`
+  }
+
+  /**
+   * Puxa e vincula publicações do Sentinela (sentinela_communications) para um processo.
+   * Busca no PocketBase e no dataStore local usando variações com e sem máscara.
+   * Se não encontrar na collection mas encontrar no DJEN ou no dataStore, persiste
+   * na collection sentinela_communications para consolidar a base unificada.
+   */
+  async puxarPublicacoesProcesso(numeroProcesso: string): Promise<number> {
+    const raw = (numeroProcesso || '').trim()
+    if (!raw) return 0
+
+    const limpo = this.limparNumeroProcesso(raw)
+    const formatado = this.formatarNumeroProcesso(raw)
+    const variantes = Array.from(new Set([raw, formatado, limpo].filter(Boolean)))
+
+    let totalVinculadas = 0
+
+    try {
+      // 1. Verificar se já existem na collection sentinela_communications do PocketBase
+      let filterExpr = ''
+      if (variantes.length === 1) {
+        filterExpr = pb.filter('numero_processo = {:v0}', { v0: variantes[0] })
+      } else if (variantes.length === 2) {
+        filterExpr = pb.filter('numero_processo = {:v0} || numero_processo = {:v1}', {
+          v0: variantes[0],
+          v1: variantes[1],
+        })
+      } else {
+        filterExpr = pb.filter(
+          'numero_processo = {:v0} || numero_processo = {:v1} || numero_processo = {:v2}',
+          {
+            v0: variantes[0],
+            v1: variantes[1],
+            v2: variantes[2],
+          },
+        )
+      }
+
+      const pbComms = await pb.collection('sentinela_communications').getFullList({
+        filter: filterExpr,
+      })
+
+      const pbExternalIds = new Set(
+        pbComms.map((c: any) => String(c.external_id || c.id)).filter(Boolean),
+      )
+
+      // 2. Verificar no dataStore local se há publicações desse processo
+      try {
+        const { dataStore } = await import('@/services/dataStore')
+        const allLocal = dataStore.getCommunications()
+        const locaisDoProcesso = allLocal.filter((c) => {
+          const cLimpo = (c.numeroProcesso || '').replace(/\D/g, '')
+          return variantes.includes(c.numeroProcesso) || (limpo && cLimpo === limpo)
+        })
+
+        for (const localComm of locaisDoProcesso) {
+          const extId = String(localComm.externalId || localComm.id)
+          if (!pbExternalIds.has(extId)) {
+            try {
+              await pb.collection('sentinela_communications').create({
+                external_id: extId,
+                source: localComm.source || 'DJEN',
+                numero_processo: formatado || localComm.numeroProcesso,
+                tribunal: localComm.tribunal || 'TJMS',
+                orgao_julgador: localComm.orgaoJulgador || '',
+                destinatario: localComm.destinatario || '',
+                tipo_comunicacao: localComm.tipoComunicacao || 'INTIMACAO',
+                data_disponibilizacao: localComm.dataDisponibilizacao || '',
+                data_publicacao: localComm.dataPublicacao || '',
+                teor_resumido: localComm.teorResumido || '',
+                teor_completo: localComm.teorCompleto || '',
+                status: localComm.status || 'VALIDADA',
+                triage_category: localComm.triageCategory || 'nova',
+                urgency_level: localComm.urgencyLevel || 'media',
+                risk_score: localComm.riskScore || 50,
+                assigned_to: localComm.assignedTo || '',
+                custody: localComm.custody || null,
+                deadline_calculated: localComm.deadlineCalculated || null,
+                client_id: localComm.clientId || '',
+                client_code: localComm.clientCode || '',
+                client_name: localComm.clientName || '',
+              })
+              pbExternalIds.add(extId)
+              totalVinculadas++
+            } catch (createErr) {
+              console.warn('[DatajudService] Erro ao sincronizar comunicação para PB:', createErr)
+            }
+          }
+        }
+      } catch (storeErr) {
+        console.warn('[DatajudService] Erro ao checar dataStore local:', storeErr)
+      }
+
+      // 3. Busca sob demanda na ComunicaAPI / DJEN se não houver publicações no PB
+      if (pbComms.length === 0 && totalVinculadas === 0 && limpo.length === 20) {
+        try {
+          const { fetchDjenCommunicationsDirect } = await import('@/services/djenService')
+          const djenRes = await fetchDjenCommunicationsDirect({
+            numeroProcesso: formatado,
+            itensPorPagina: 50,
+            pagina: 1,
+          })
+
+          if (djenRes.success && djenRes.items.length > 0) {
+            const { dataStore } = await import('@/services/dataStore')
+            dataStore.addCommunications(djenRes.items)
+
+            for (const item of djenRes.items) {
+              const extId = String(item.externalId || item.id)
+              if (!pbExternalIds.has(extId)) {
+                try {
+                  await pb.collection('sentinela_communications').create({
+                    external_id: extId,
+                    source: item.source || 'DJEN',
+                    numero_processo: formatado,
+                    tribunal: item.tribunal || 'DJEN',
+                    orgao_julgador: item.orgaoJulgador || '',
+                    destinatario: item.destinatario || '',
+                    tipo_comunicacao: item.tipoComunicacao || 'INTIMACAO',
+                    data_disponibilizacao: item.dataDisponibilizacao || '',
+                    data_publicacao: item.dataPublicacao || '',
+                    teor_resumido: item.teorResumido || '',
+                    teor_completo: item.teorCompleto || '',
+                    status: item.status || 'VALIDADA',
+                    triage_category: item.triageCategory || 'nova',
+                    urgency_level: item.urgencyLevel || 'media',
+                    risk_score: item.riskScore || 50,
+                    assigned_to: item.assignedTo || '',
+                    custody: item.custody || null,
+                    deadline_calculated: item.deadlineCalculated || null,
+                  })
+                  pbExternalIds.add(extId)
+                  totalVinculadas++
+                } catch (saveErr) {
+                  console.warn('[DatajudService] Erro ao gravar comunicacao DJEN no PB:', saveErr)
+                }
+              }
+            }
+          }
+        } catch (djenErr) {
+          console.warn(
+            '[DatajudService] Busca de publicações DJEN ignorada ou indisponível:',
+            djenErr,
+          )
+        }
+      }
+
+      return totalVinculadas
+    } catch (err) {
+      console.error('[DatajudService] Falha ao puxar comunicações do processo:', err)
+      return totalVinculadas
     }
   }
 

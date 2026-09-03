@@ -9,9 +9,12 @@ import {
   Lock,
   ChevronDown,
   ChevronUp,
+  RefreshCw,
+  Eye,
+  SlidersHorizontal,
 } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
-import { SIGILO_DESCRICOES } from '@/services/datajudService'
+import { SIGILO_DESCRICOES, datajudService } from '@/services/datajudService'
 import { Badge } from '@/components/ui/badge'
 
 /**
@@ -137,9 +140,15 @@ export default function ProcessDetailPage() {
   const [movimentacoes, setMovimentacoes] = useState<MovimentacaoProcesso[]>([])
   const [comunicacoes, setComunicacoes] = useState<SentinelaCommunicationRecord[]>([])
   const [carregando, setCarregando] = useState(true)
+  const [sincronizandoPublicacoes, setSincronizandoPublicacoes] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [filtroTipo, setFiltroTipo] = useState<'todos' | 'datajud' | 'sentinela'>('todos')
   const [expandedTeors, setExpandedTeors] = useState<Record<string, boolean>>({})
+
+  // Reseta sempre para 'todos' ao trocar de processo ou montar
+  useEffect(() => {
+    setFiltroTipo('todos')
+  }, [numeroProcesso])
 
   useEffect(() => {
     let ativo = true
@@ -150,9 +159,31 @@ export default function ProcessDetailPage() {
         setErro(null)
 
         const procNum = numeroProcesso?.trim() ?? ''
-        const filterExpr = pb.filter('numero_processo = {:num}', { num: procNum })
+        const procLimpo = datajudService.limparNumeroProcesso(procNum)
+        const procFormatado = datajudService.formatarNumeroProcesso(procNum)
 
-        // 1. Busca paralela das duas coleções no PocketBase
+        const variantes = Array.from(new Set([procNum, procFormatado, procLimpo].filter(Boolean)))
+
+        let filterExpr = ''
+        if (variantes.length === 1) {
+          filterExpr = pb.filter('numero_processo = {:v0}', { v0: variantes[0] })
+        } else if (variantes.length === 2) {
+          filterExpr = pb.filter('numero_processo = {:v0} || numero_processo = {:v1}', {
+            v0: variantes[0],
+            v1: variantes[1],
+          })
+        } else {
+          filterExpr = pb.filter(
+            'numero_processo = {:v0} || numero_processo = {:v1} || numero_processo = {:v2}',
+            {
+              v0: variantes[0],
+              v1: variantes[1],
+              v2: variantes[2],
+            },
+          )
+        }
+
+        // 1. Busca paralela das duas coleções no PocketBase com filtro tolerante
         const [resMovs, resComms] = await Promise.allSettled([
           pb.collection('movimentacoes_processo').getFullList<MovimentacaoProcesso>({
             filter: filterExpr,
@@ -193,6 +224,27 @@ export default function ProcessDetailPage() {
         if (falhaTotal) {
           setErro('Não foi possível carregar as informações do processo.')
         } else {
+          // Se não encontrou publicações no PocketBase, tenta puxar do dataStore/DJEN em segundo plano
+          if (loadedComms.length === 0 && procNum) {
+            try {
+              const vinculadas = await datajudService.puxarPublicacoesProcesso(procNum)
+              if (vinculadas > 0 && ativo) {
+                const recarregadas = await pb
+                  .collection('sentinela_communications')
+                  .getFullList<SentinelaCommunicationRecord>({
+                    filter: filterExpr,
+                    sort: 'data_disponibilizacao',
+                  })
+                loadedComms = recarregadas
+              }
+            } catch (puxarErr) {
+              console.warn(
+                '[ProcessDetailPage] Aviso ao puxar publicações em background:',
+                puxarErr,
+              )
+            }
+          }
+
           setMovimentacoes(loadedMovs)
           setComunicacoes(loadedComms)
         }
@@ -249,6 +301,50 @@ export default function ProcessDetailPage() {
     return timelineEvents
   }, [timelineEvents, filtroTipo])
 
+  const handlePuxarPublicacoes = async () => {
+    if (!numeroProcesso || sincronizandoPublicacoes) return
+    setSincronizandoPublicacoes(true)
+    try {
+      await datajudService.puxarPublicacoesProcesso(numeroProcesso)
+      const procLimpo = datajudService.limparNumeroProcesso(numeroProcesso)
+      const procFormatado = datajudService.formatarNumeroProcesso(numeroProcesso)
+      const variantes = Array.from(
+        new Set([numeroProcesso, procFormatado, procLimpo].filter(Boolean)),
+      )
+
+      let filterExpr = ''
+      if (variantes.length === 1) {
+        filterExpr = pb.filter('numero_processo = {:v0}', { v0: variantes[0] })
+      } else if (variantes.length === 2) {
+        filterExpr = pb.filter('numero_processo = {:v0} || numero_processo = {:v1}', {
+          v0: variantes[0],
+          v1: variantes[1],
+        })
+      } else {
+        filterExpr = pb.filter(
+          'numero_processo = {:v0} || numero_processo = {:v1} || numero_processo = {:v2}',
+          {
+            v0: variantes[0],
+            v1: variantes[1],
+            v2: variantes[2],
+          },
+        )
+      }
+
+      const recs = await pb
+        .collection('sentinela_communications')
+        .getFullList<SentinelaCommunicationRecord>({
+          filter: filterExpr,
+          sort: 'data_disponibilizacao',
+        })
+      setComunicacoes(recs)
+    } catch (err) {
+      console.error('[ProcessDetailPage] Erro ao sincronizar publicações sob demanda:', err)
+    } finally {
+      setSincronizandoPublicacoes(false)
+    }
+  }
+
   const toggleExpand = (id: string) => {
     setExpandedTeors((prev) => ({ ...prev, [id]: !prev[id] }))
   }
@@ -289,14 +385,26 @@ export default function ProcessDetailPage() {
             </p>
           </div>
 
-          {/* Resumo de contagem */}
-          <div className="flex items-center gap-2 self-start md:self-auto shrink-0 font-mono text-xs">
+          {/* Resumo de contagem e botão de pull manual */}
+          <div className="flex items-center gap-2 self-start md:self-auto shrink-0 font-mono text-xs flex-wrap">
             <span className="rounded-lg border border-cyan-500/30 bg-cyan-950/40 px-3 py-1.5 text-cyan-300">
               <span className="font-bold">{movimentacoes.length}</span> DataJud
             </span>
             <span className="rounded-lg border border-amber-500/30 bg-amber-950/40 px-3 py-1.5 text-amber-300">
               <span className="font-bold">{comunicacoes.length}</span> Publicações
             </span>
+            <button
+              type="button"
+              onClick={handlePuxarPublicacoes}
+              disabled={sincronizandoPublicacoes}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/90 px-3 py-1.5 text-slate-300 hover:text-cyan-300 hover:border-cyan-500/50 transition-colors disabled:opacity-50"
+              title="Buscar e sincronizar publicações do diário oficial para este processo"
+            >
+              <RefreshCw
+                className={`w-3 h-3 ${sincronizandoPublicacoes ? 'animate-spin text-cyan-400' : ''}`}
+              />
+              <span>{sincronizandoPublicacoes ? 'Puxando...' : 'Puxar Publicações'}</span>
+            </button>
           </div>
         </div>
 
@@ -308,7 +416,7 @@ export default function ProcessDetailPage() {
               onClick={() => setFiltroTipo('todos')}
               className={`px-2.5 py-1 rounded-md transition-colors ${
                 filtroTipo === 'todos'
-                  ? 'bg-slate-800 text-white font-bold'
+                  ? 'bg-slate-800 text-white font-bold ring-1 ring-slate-700'
                   : 'bg-slate-900/60 text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -318,7 +426,7 @@ export default function ProcessDetailPage() {
               onClick={() => setFiltroTipo('datajud')}
               className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-colors ${
                 filtroTipo === 'datajud'
-                  ? 'bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold'
+                  ? 'bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold ring-1 ring-cyan-700'
                   : 'bg-slate-900/60 text-slate-400 hover:text-cyan-300'
               }`}
             >
@@ -329,7 +437,7 @@ export default function ProcessDetailPage() {
               onClick={() => setFiltroTipo('sentinela')}
               className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-colors ${
                 filtroTipo === 'sentinela'
-                  ? 'bg-amber-950 text-amber-300 border border-amber-800 font-bold'
+                  ? 'bg-amber-950 text-amber-300 border border-amber-800 font-bold ring-1 ring-amber-700'
                   : 'bg-slate-900/60 text-slate-400 hover:text-amber-300'
               }`}
             >
@@ -359,9 +467,112 @@ export default function ProcessDetailPage() {
             {erro}
           </div>
         ) : filteredEvents.length === 0 ? (
-          <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-8 text-center text-sm text-slate-400">
-            Nenhum evento encontrado para este processo
-            {filtroTipo !== 'todos' ? ' com o filtro selecionado' : ''}.
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-8 text-center space-y-4">
+            {filtroTipo === 'sentinela' && movimentacoes.length > 0 ? (
+              <div className="space-y-3">
+                <div className="inline-flex p-3 rounded-full bg-amber-950/40 border border-amber-800/60 text-amber-300">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-200">
+                    Nenhuma publicação encontrada para este processo
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-400 max-w-md mx-auto">
+                    O filtro "Publicações" está ativo, mas o processo possui{' '}
+                    <span className="text-cyan-300 font-bold font-mono">
+                      {movimentacoes.length}
+                    </span>{' '}
+                    movimentações registradas no DataJud.
+                  </p>
+                </div>
+                <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setFiltroTipo('todos')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500 text-slate-950 text-xs font-bold hover:bg-cyan-400 transition-colors"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    Ver todos os eventos ({timelineEvents.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFiltroTipo('datajud')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cyan-800 bg-cyan-950/60 text-cyan-300 text-xs font-medium hover:bg-cyan-900/60 transition-colors"
+                  >
+                    <Activity className="w-3.5 h-3.5" />
+                    Ver apenas DataJud ({movimentacoes.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePuxarPublicacoes}
+                    disabled={sincronizandoPublicacoes}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-200 text-xs font-medium hover:bg-slate-700 transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCw
+                      className={`w-3.5 h-3.5 ${sincronizandoPublicacoes ? 'animate-spin' : ''}`}
+                    />
+                    {sincronizandoPublicacoes
+                      ? 'Buscando publicações...'
+                      : 'Buscar publicações no DJEN'}
+                  </button>
+                </div>
+              </div>
+            ) : filtroTipo === 'datajud' && comunicacoes.length > 0 ? (
+              <div className="space-y-3">
+                <div className="inline-flex p-3 rounded-full bg-cyan-950/40 border border-cyan-800/60 text-cyan-300">
+                  <Activity className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-200">
+                    Nenhuma movimentação DataJud encontrada para este processo
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-400 max-w-md mx-auto">
+                    O filtro "DataJud" está ativo, mas o processo possui{' '}
+                    <span className="text-amber-300 font-bold font-mono">
+                      {comunicacoes.length}
+                    </span>{' '}
+                    publicações registradas no Sentinela.
+                  </p>
+                </div>
+                <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setFiltroTipo('todos')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500 text-slate-950 text-xs font-bold hover:bg-cyan-400 transition-colors"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    Ver todos os eventos ({timelineEvents.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFiltroTipo('sentinela')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-800 bg-amber-950/60 text-amber-300 text-xs font-medium hover:bg-amber-900/60 transition-colors"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    Ver apenas Publicações ({comunicacoes.length})
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3 text-slate-400 text-xs">
+                <SlidersHorizontal className="w-8 h-8 text-slate-600 mx-auto" />
+                <p className="text-sm text-slate-300 font-medium">
+                  Nenhum evento encontrado para este processo com o filtro selecionado.
+                </p>
+                <p className="text-slate-500">
+                  Tente o filtro "Todos" ou consulte os dados do tribunal na Central de Prazos.
+                </p>
+                {filtroTipo !== 'todos' && (
+                  <button
+                    type="button"
+                    onClick={() => setFiltroTipo('todos')}
+                    className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-colors"
+                  >
+                    Ver todos os eventos ({timelineEvents.length})
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <ol className="relative space-y-5 border-l-2 border-slate-800 pl-6 ml-2">
@@ -504,7 +715,7 @@ export default function ProcessDetailPage() {
                     <div className="mt-2.5 flex items-start justify-between gap-3">
                       <div>
                         <h2 className="text-base font-semibold text-amber-100 flex items-center gap-1.5">
-                          <span>Comunicação Oficial — {tipoBadge}</span>
+                          <span>Comunicação Oficial: {tipoBadge}</span>
                         </h2>
                         {comm.destinatario && (
                           <p className="mt-0.5 text-xs text-slate-300 font-mono">

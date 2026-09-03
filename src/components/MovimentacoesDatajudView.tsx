@@ -507,6 +507,7 @@ export const MovimentacoesDatajudView: React.FC = () => {
                       handleConsultarProcesso(p.numero_processo)
                     }}
                     className="h-6 px-2 text-[10px] text-cyan-300 hover:bg-slate-800"
+                    title="Consultar DataJud e puxar publicações do diário oficial"
                   >
                     <RefreshCw className={`w-3 h-3 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
                     Consultar
