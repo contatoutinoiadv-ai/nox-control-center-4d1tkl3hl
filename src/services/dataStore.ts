@@ -1632,14 +1632,14 @@ export class NoxDataStore {
       cliente: item.clientName,
     })
 
-    // Propagar delete para PocketBase Source of Truth
-    import('@/lib/pocketbase/client').then(({ default: pb }) => {
-      pb.collection('production_items')
-        .delete(id)
-        .catch((err) => {
+    // Propagar delete para PocketBase Source of Truth via repository
+    import('@/repositories/pocketbase/PocketBaseProductionRepository').then(
+      ({ pocketBaseProductionRepository }) => {
+        pocketBaseProductionRepository.delete(id).catch((err) => {
           console.warn('PocketBase delete production_items error:', err)
         })
-    })
+      },
+    )
 
     return true
   }
@@ -1777,8 +1777,13 @@ export class NoxDataStore {
       },
     )
 
-    this.syncClientToPocketBase(newClient).catch((e) =>
-      console.warn('Background sync create client error:', e),
+    // Sincronizacao controlada com PocketBaseClientRepository
+    import('@/repositories/pocketbase/PocketBaseClientRepository').then(
+      ({ pocketBaseClientRepository }) => {
+        pocketBaseClientRepository.create(newClient).catch((e) => {
+          console.warn('PocketBaseClientRepository sync create warning:', e)
+        })
+      },
     )
 
     return newClient
@@ -1946,14 +1951,14 @@ export class NoxDataStore {
       client_code: cli.clientCode,
     })
 
-    // Propagar delete para PocketBase Source of Truth
-    import('@/lib/pocketbase/client').then(({ default: pb }) => {
-      pb.collection('clients')
-        .delete(cli.id)
-        .catch((err) => {
+    // Propagar delete para PocketBase Source of Truth via repository
+    import('@/repositories/pocketbase/PocketBaseClientRepository').then(
+      ({ pocketBaseClientRepository }) => {
+        pocketBaseClientRepository.delete(cli.id).catch((err) => {
           console.warn('PocketBase delete clients error:', err)
         })
-    })
+      },
+    )
 
     return true
   }
@@ -2863,8 +2868,9 @@ export class NoxDataStore {
     this.saveTasks()
     this.logAction('TAREFA_EXCLUIDA', 'sistema', actor, id, { title: task.title })
     try {
-      const pb = (await import('@/lib/pocketbase/client')).default
-      await pb.collection('sentinela_tasks').delete(id)
+      const { pocketBaseTaskRepository } =
+        await import('@/repositories/pocketbase/PocketBaseTaskRepository')
+      await pocketBaseTaskRepository.delete(id)
     } catch (_) {
       /* soft fallback */
     }
@@ -2972,8 +2978,9 @@ export class NoxDataStore {
     this.saveAgenda()
     this.logAction('EVENTO_AGENDA_EXCLUIDO', 'sistema', actor, id, { title: ev.title })
     try {
-      const pb = (await import('@/lib/pocketbase/client')).default
-      await pb.collection('sentinela_agenda').delete(id)
+      const { pocketBaseAppointmentRepository } =
+        await import('@/repositories/pocketbase/PocketBaseAppointmentRepository')
+      await pocketBaseAppointmentRepository.delete(id)
     } catch (_) {
       /* soft fallback */
     }

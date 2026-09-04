@@ -158,97 +158,30 @@ class DatajudService {
   async consultarProcesso(numeroProcesso: string): Promise<DatajudConsultaResult> {
     const timestamp = new Date().toISOString()
     try {
-      const token = pb.authStore.token
-      const baseUrl = pb.baseUrl.replace(/\/$/, '')
-      const response = await fetch(`${baseUrl}/backend/v1/datajud/consultar`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token || '',
-        },
-        body: JSON.stringify({ numero_processo: numeroProcesso }),
-      })
+      const { dataJudClient } = await import('@/services/datajud/DataJudClient')
+      const data = await dataJudClient.postConsultar(numeroProcesso)
 
-      const rawText = await response.text()
-      let data: any = null
-
-      if (rawText && rawText.trim()) {
-        try {
-          data = JSON.parse(rawText)
-        } catch (jsonErr: any) {
-          console.error(
-            `[${timestamp}] [DataJud] Resposta não-JSON recebida ao consultar processo ${numeroProcesso} (HTTP ${response.status}):`,
-            rawText.slice(0, 300),
-          )
-          return {
-            ok: false,
-            numero_processo: numeroProcesso,
-            error:
-              'Não foi possível consultar o DataJud no momento. Resposta do servidor em formato inesperado.',
-            detalhes: rawText.slice(0, 300),
-          }
-        }
-      }
-
-      if (!response.ok) {
-        const errorMsg =
-          (data && data.error) ||
-          (response.status === 404
-            ? 'Endpoint de consulta do DataJud não encontrado no servidor.'
-            : response.status === 401 || response.status === 403
-              ? 'Sessão expirada ou sem permissão para consultar o DataJud.'
-              : response.status === 502
-                ? (data && data.error) ||
-                  'Instabilidade ou indisponibilidade na API do DataJud/CNJ.'
-                : `Falha na requisição ao DataJud (HTTP ${response.status}).`)
-
-        console.error(
-          `[${timestamp}] [DataJud] Erro HTTP ${response.status} ao consultar ${numeroProcesso}:`,
-          data || rawText,
-        )
-
-        return {
-          ok: false,
-          numero_processo: numeroProcesso,
-          error: errorMsg,
-          status: data?.status,
-          jtr: data?.jtr,
-          detalhes: data?.detalhes,
-        }
-      }
-
-      if (!data) {
-        console.warn(
-          `[${timestamp}] [DataJud] Resposta vazia recebida do backend para o processo ${numeroProcesso}.`,
-        )
-        return {
-          ok: false,
-          numero_processo: numeroProcesso,
-          error: 'Servidor retornou uma resposta vazia para esta consulta.',
-        }
-      }
-
-      // Ao finalizar uma consulta ao DataJud com sucesso, tenta puxar publicações
+      // Ao finalizar uma consulta ao DataJud com sucesso, tenta puxar publicacoes
       // correspondentes na collection sentinela_communications de forma resiliente
       try {
         await this.puxarPublicacoesProcesso(numeroProcesso)
       } catch (pullErr) {
         console.warn(
-          `[${timestamp}] [DataJud] Aviso ao puxar publicações para ${numeroProcesso}:`,
+          `[${timestamp}] [DataJud] Aviso ao puxar publicacoes para ${numeroProcesso}:`,
           pullErr,
         )
       }
 
-      return data as DatajudConsultaResult
+      return data as unknown as DatajudConsultaResult
     } catch (err: any) {
       console.error(
-        `[${timestamp}] [DataJud] Exceção na conexão ao consultar processo ${numeroProcesso}:`,
+        `[${timestamp}] [DataJud] Excecao na conexao ao consultar processo ${numeroProcesso}:`,
         err,
       )
       return {
         ok: false,
         numero_processo: numeroProcesso,
-        error: err?.message || 'Falha de conexão com o servidor ao consultar DataJud.',
+        error: err?.message || 'Falha de conexao com o servidor ao consultar DataJud.',
       }
     }
   }
@@ -259,82 +192,10 @@ class DatajudService {
   async sincronizarLote(apenasPrazosAbertos = false): Promise<DatajudLoteResult> {
     const timestamp = new Date().toISOString()
     try {
-      const token = pb.authStore.token
-      const baseUrl = pb.baseUrl.replace(/\/$/, '')
-      const response = await fetch(`${baseUrl}/backend/v1/datajud/lote`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token || '',
-        },
-        body: JSON.stringify({ apenas_prazos_abertos: apenasPrazosAbertos }),
-      })
+      const { dataJudClient } = await import('@/services/datajud/DataJudClient')
+      const data = (await dataJudClient.postSincronizarLote(apenasPrazosAbertos)) as any
 
-      const rawText = await response.text()
-      let data: any = null
-
-      if (rawText && rawText.trim()) {
-        try {
-          data = JSON.parse(rawText)
-        } catch (jsonErr: any) {
-          console.error(
-            `[${timestamp}] [DataJud Lote] Resposta não-JSON recebida na sincronização em lote (HTTP ${response.status}):`,
-            rawText.slice(0, 300),
-          )
-          return {
-            ok: false,
-            total_processos_analisados: 0,
-            novos_movimentos_totais: 0,
-            nao_mapeados_count: 0,
-            nao_mapeados: [],
-            resultados: [],
-            error:
-              'Não foi possível concluir a sincronização em lote no momento. Resposta do servidor em formato inesperado.',
-          }
-        }
-      }
-
-      if (!response.ok) {
-        const errorMsg =
-          (data && data.error) ||
-          (response.status === 404
-            ? 'Endpoint de lote do DataJud não encontrado no servidor.'
-            : response.status === 401 || response.status === 403
-              ? 'Sessão expirada ou sem permissão para executar lote do DataJud.'
-              : `Falha na requisição em lote do DataJud (HTTP ${response.status}).`)
-
-        console.error(
-          `[${timestamp}] [DataJud Lote] Erro HTTP ${response.status} na sincronização em lote:`,
-          data || rawText,
-        )
-
-        return {
-          ok: false,
-          total_processos_analisados: 0,
-          novos_movimentos_totais: 0,
-          nao_mapeados_count: 0,
-          nao_mapeados: [],
-          resultados: [],
-          error: errorMsg,
-        }
-      }
-
-      if (!data) {
-        console.warn(
-          `[${timestamp}] [DataJud Lote] Resposta vazia recebida do backend na sincronização em lote.`,
-        )
-        return {
-          ok: false,
-          total_processos_analisados: 0,
-          novos_movimentos_totais: 0,
-          nao_mapeados_count: 0,
-          nao_mapeados: [],
-          resultados: [],
-          error: 'Servidor retornou uma resposta vazia na sincronização em lote.',
-        }
-      }
-
-      // Se o lote foi executado com sucesso, tenta puxar publicações para os processos retornados
+      // Se o lote foi executado com sucesso, tenta puxar publicacoes para os processos retornados
       if (data?.resultados && Array.isArray(data.resultados)) {
         for (const item of data.resultados) {
           if (item?.numero_processo) {
@@ -350,7 +211,7 @@ class DatajudService {
       return data as DatajudLoteResult
     } catch (err: any) {
       console.error(
-        `[${timestamp}] [DataJud Lote] Exceção na conexão durante sincronização em lote:`,
+        `[${timestamp}] [DataJud Lote] Excecao na conexao durante sincronizacao em lote:`,
         err,
       )
       return {
@@ -360,7 +221,7 @@ class DatajudService {
         nao_mapeados_count: 0,
         nao_mapeados: [],
         resultados: [],
-        error: err?.message || 'Falha de conexão na sincronização de lote do DataJud.',
+        error: err?.message || 'Falha de conexao na sincronizacao de lote do DataJud.',
       }
     }
   }
