@@ -8,6 +8,7 @@ interface Props {
   fallbackTitle?: string
   fallbackDescription?: string
   onReset?: () => void
+  resetKey?: string
 }
 
 interface State {
@@ -16,6 +17,7 @@ interface State {
   errorInfo: ErrorInfo | null
   retryCount: number
   remountKey: number
+  prevResetKey?: string
 }
 
 function isDomRemoveChildError(error: Error | null | unknown): boolean {
@@ -39,10 +41,43 @@ export class ErrorBoundary extends Component<Props, State> {
     errorInfo: null,
     retryCount: 0,
     remountKey: 0,
+    prevResetKey: this.props.resetKey,
+  }
+
+  public static getDerivedStateFromProps(props: Props, state: State): Partial<State> | null {
+    if (props.resetKey !== undefined && props.resetKey !== state.prevResetKey) {
+      return {
+        hasError: false,
+        error: null,
+        errorInfo: null,
+        retryCount: 0,
+        remountKey: state.remountKey + 1,
+        prevResetKey: props.resetKey,
+      }
+    }
+    return null
   }
 
   public static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error, errorInfo: null }
+  }
+
+  public componentDidUpdate(prevProps: Props) {
+    if (this.props.resetKey !== undefined && this.props.resetKey !== prevProps.resetKey) {
+      if (this.retryTimeoutId) {
+        clearTimeout(this.retryTimeoutId)
+      }
+      if (this.state.hasError) {
+        this.setState({
+          hasError: false,
+          error: null,
+          errorInfo: null,
+          retryCount: 0,
+          remountKey: this.state.remountKey + 1,
+          prevResetKey: this.props.resetKey,
+        })
+      }
+    }
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -96,8 +131,15 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   private handleNavigateHome = () => {
+    if (this.retryTimeoutId) {
+      clearTimeout(this.retryTimeoutId)
+    }
     this.setState({ hasError: false, error: null, errorInfo: null })
-    window.location.hash = '#/'
+    if (window.location.pathname !== '/') {
+      window.location.href = '/'
+    } else {
+      window.location.hash = '#/'
+    }
   }
 
   public render() {

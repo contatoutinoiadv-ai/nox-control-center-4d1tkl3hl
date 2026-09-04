@@ -29,8 +29,30 @@ export const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  // Rota de destino após o login (se veio redirecionado)
-  const fromLocation = (location.state as any)?.from?.pathname || '/'
+  // Rota de destino após o login (se veio redirecionado) com validação defensiva
+  const getDestinationPath = (): string => {
+    try {
+      if (
+        location.state &&
+        typeof location.state === 'object' &&
+        'from' in location.state &&
+        (location.state as any).from &&
+        typeof (location.state as any).from === 'object' &&
+        typeof (location.state as any).from.pathname === 'string'
+      ) {
+        const path = (location.state as any).from.pathname
+        // Garante que é uma rota relativa interna válida
+        if (path.startsWith('/') && !path.startsWith('//') && path !== '/login') {
+          return path
+        }
+      }
+    } catch (err) {
+      console.warn('[LoginPage] Erro ao inspecionar location.state:', err)
+    }
+    return '/'
+  }
+
+  const fromLocation = getDestinationPath()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()

@@ -30,6 +30,9 @@ export function sanitizeExternalText(rawText: string): {
   let clean = rawText
     .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '[SCRIPT REMOVIDO POR SEGURANCA]')
     .replace(/<iframe[\s\S]*?>[\s\S]*?<\/iframe>/gi, '[IFRAME REMOVIDO]')
+    .replace(/<object[\s\S]*?>[\s\S]*?<\/object>/gi, '[OBJETO REMOVIDO]')
+    .replace(/<embed[\s\S]*?>[\s\S]*?<\/embed>/gi, '[EMBED REMOVIDO]')
+    .replace(/\bon\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
 
   const markersFound: string[] = []
   let risk = 0

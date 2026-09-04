@@ -138,7 +138,13 @@ export class AuthUsersService {
   }
 
   public static isAuthenticated(): boolean {
-    return Boolean(pb.authStore.isValid && pb.authStore.token && pb.authStore.record)
+    try {
+      if (!pb || !pb.authStore) return false
+      return Boolean(pb.authStore.isValid && pb.authStore.token && pb.authStore.record)
+    } catch (err) {
+      console.warn('[authUsersService] Falha defensiva ao ler pb.authStore:', err)
+      return false
+    }
   }
 
   public static async ensureAuth(): Promise<boolean> {
@@ -162,7 +168,11 @@ export class AuthUsersService {
       const record = authData.record as any
 
       if (record && record.ativo === false) {
-        pb.authStore.clear()
+        try {
+          pb.authStore.clear()
+        } catch {
+          /* intentionally ignored */
+        }
         this.cachedMe = null
         this.notify()
         throw new Error('Conta inativa ou suspensa. Contate o administrador do escritório.')
@@ -210,11 +220,18 @@ export class AuthUsersService {
    * Encerra a sessão atual e limpa estado
    */
   public static async logout(): Promise<void> {
-    const currentActor = this.cachedMe?.user.email || pb.authStore.record?.email || 'usuario'
-    const currentId = this.cachedMe?.user.id || pb.authStore.record?.id
+    let currentActor = this.cachedMe?.user.email || 'usuario'
+    let currentId = this.cachedMe?.user.id
 
     try {
-      if (pb.authStore.isValid && pb.authStore.token) {
+      if (pb?.authStore?.record?.email) {
+        currentActor = pb.authStore.record.email
+      }
+      if (pb?.authStore?.record?.id) {
+        currentId = pb.authStore.record.id
+      }
+
+      if (pb?.authStore?.isValid && pb?.authStore?.token) {
         await pb.collection('audit_logs').create({
           action: 'LOGOUT',
           category: 'sistema',
@@ -231,7 +248,11 @@ export class AuthUsersService {
       console.warn('[authUsersService] Não foi possível salvar auditoria de logout:', logErr)
     }
 
-    pb.authStore.clear()
+    try {
+      pb?.authStore?.clear()
+    } catch (clearErr) {
+      console.warn('[authUsersService] Erro ao limpar authStore:', clearErr)
+    }
     this.cachedMe = null
     this.notify()
   }
@@ -244,14 +265,22 @@ export class AuthUsersService {
       return this.cachedMe
     }
 
-    if (!pb.authStore.isValid || !pb.authStore.token) {
+    let isValid = false
+    let token = ''
+    try {
+      isValid = Boolean(pb?.authStore?.isValid)
+      token = pb?.authStore?.token || ''
+    } catch (err) {
+      console.warn('[authUsersService] Erro ao ler estado de autenticação:', err)
+    }
+
+    if (!isValid || !token) {
       this.cachedMe = null
       this.notify()
       throw new Error('Não autenticado')
     }
 
     const baseUrl = pb.baseUrl.replace(/\/$/, '')
-    const token = pb.authStore.token
 
     try {
       const res = await fetch(`${baseUrl}/backend/v1/auth/me`, {
@@ -323,7 +352,7 @@ export class AuthUsersService {
   public static async listUsers(): Promise<NoxUser[]> {
     await this.ensureAuth()
     const baseUrl = pb.baseUrl.replace(/\/$/, '')
-    const token = pb.authStore.token
+    const token = pb?.authStore?.token || ''
 
     const res = await fetch(`${baseUrl}/backend/v1/users`, {
       method: 'GET',

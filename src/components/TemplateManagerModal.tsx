@@ -38,6 +38,7 @@ import {
 import { toast } from 'sonner'
 import { documentTemplateService, DocumentTemplateItem } from '@/services/documentTemplateService'
 import { parseDocxFile, textToFormattedHtml } from '@/lib/docxParser'
+import { sanitizeHtml } from '@/lib/sanitizeHtml'
 
 export interface TemplateManagerModalProps {
   open: boolean
@@ -500,7 +501,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                         Prévia do Conteúdo Extraído:
                       </Label>
                       <div
-                        dangerouslySetInnerHTML={{ __html: parsedHtmlPreview }}
+                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(parsedHtmlPreview) }}
                         className="max-h-48 overflow-y-auto p-3.5 bg-white text-slate-950 rounded-lg text-xs leading-relaxed font-serif"
                       />
                     </div>
@@ -571,7 +572,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
             <div className="w-full max-w-2xl bg-white text-slate-950 p-8 rounded-lg shadow-xl font-serif text-xs leading-relaxed border border-slate-300 min-h-[300px]">
               <div
                 dangerouslySetInnerHTML={{
-                  __html: previewTemplate?.corpoHtml || '<p>Sem conteúdo</p>',
+                  __html: sanitizeHtml(previewTemplate?.corpoHtml || '<p>Sem conteúdo</p>'),
                 }}
               />
             </div>

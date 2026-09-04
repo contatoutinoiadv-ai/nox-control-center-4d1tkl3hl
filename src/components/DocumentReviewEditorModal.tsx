@@ -40,6 +40,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
+import { sanitizeHtml } from '@/lib/sanitizeHtml'
 
 export interface DocumentReviewEditorModalProps {
   open: boolean
@@ -77,7 +78,7 @@ export const DocumentReviewEditorModal: React.FC<DocumentReviewEditorModalProps>
       setCurrentHtml(initialHtml || '')
       setHasChanges(false)
       if (editorRef.current) {
-        editorRef.current.innerHTML = initialHtml || ''
+        editorRef.current.innerHTML = sanitizeHtml(initialHtml)
       }
     }
   }, [open, initialHtml])
