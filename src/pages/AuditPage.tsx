@@ -1,23 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import {
-  ShieldAlert,
-  Search,
-  Filter,
-  Layers,
-  Download,
-  Calendar,
-  User,
-  Terminal,
-  CheckCircle2,
-  RefreshCw,
-  Info,
-} from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
+import { ShieldAlert, Search, Download } from 'lucide-react'
 import { dataStore } from '@/services/dataStore'
 import { AuditLogEntry } from '@/types/nox'
 import { toast } from 'sonner'
+import {
+  NoxPageHeader,
+  NoxCard,
+  NoxButton,
+  NoxStatusBadge,
+  NoxSearchInput,
+  NoxEmptyState,
+  NoxMono,
+} from '@/design-system'
 
 export const AuditPage: React.FC = () => {
   const [logs, setLogs] = useState<AuditLogEntry[]>(dataStore.getAuditLogs())
@@ -65,52 +59,39 @@ export const AuditPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-800/80">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-extrabold tracking-tight text-white flex items-center gap-2">
-              <ShieldAlert className="w-6 h-6 text-cyan-400" />
-              Trilha de Auditoria & Observabilidade
-            </h1>
-            <Badge className="bg-cyan-950 text-cyan-400 border-cyan-800 font-mono text-xs">
-              Append-Only Imutável
-            </Badge>
-          </div>
-          <p className="text-slate-400 text-xs mt-1">
-            Registro cronológico e detalhado de todas as ações de importação, triagem, alterações de
-            status e exportações.
-          </p>
-        </div>
+      {/* Header com NoxPageHeader */}
+      <NoxPageHeader
+        title="Trilha de Auditoria & Observabilidade"
+        description="Registro cronológico imutável de todas as ações de importação, triagem, alterações de status e exportações com carimbo de tempo rigoroso."
+        icon={ShieldAlert}
+        badge={
+          <NoxStatusBadge status="RESOLVIDO" customLabel="Append-Only Imutável" size="sm" showDot />
+        }
+        actions={
+          <NoxButton variant="secondary" size="sm" icon={Download} onClick={handleExportAuditLog}>
+            Exportar Trilha JSON
+          </NoxButton>
+        }
+      />
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleExportAuditLog}
-          className="h-8 text-xs bg-slate-900 border-slate-700 text-slate-200 hover:text-cyan-300 font-mono"
-        >
-          <Download className="w-3.5 h-3.5 mr-1.5" />
-          Exportar Trilha JSON
-        </Button>
-      </div>
-
-      {/* Filter Toolbar */}
-      <div className="nox-glass-card rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+      {/* Filter Toolbar com NoxCard e NoxSearchInput */}
+      <NoxCard
+        variant="surface"
+        className="p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs"
+      >
         <div className="flex items-center gap-2 flex-wrap flex-1 min-w-[280px]">
           <div className="relative flex-1 min-w-[180px] max-w-xs">
-            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
-            <Input
+            <NoxSearchInput
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Buscar em ações, autores, alvos..."
-              className="h-8 pl-8 text-xs bg-slate-900 border-slate-700 text-slate-200 placeholder:text-slate-500"
             />
           </div>
 
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="h-8 bg-slate-900 border border-slate-700 rounded-md px-2.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500"
+            className="h-9 bg-[#080e1b] border border-slate-700/80 rounded-lg px-2.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-400"
           >
             <option value="all">Todas as Categorias</option>
             <option value="importacao">Importação de CSV</option>
@@ -123,7 +104,7 @@ export const AuditPage: React.FC = () => {
           <select
             value={selectedActor}
             onChange={(e) => setSelectedActor(e.target.value)}
-            className="h-8 bg-slate-900 border border-slate-700 rounded-md px-2.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500"
+            className="h-9 bg-[#080e1b] border border-slate-700/80 rounded-lg px-2.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-400"
           >
             <option value="all">Todos os Atores</option>
             {actors.map((a) => (
@@ -136,17 +117,19 @@ export const AuditPage: React.FC = () => {
 
         <div className="flex items-center gap-2 font-mono text-[11px] text-slate-400">
           <span>Eventos Registrados:</span>
-          <span className="text-cyan-400 font-bold">{filteredLogs.length}</span>
+          <NoxMono className="text-cyan-400 font-bold">{filteredLogs.length}</NoxMono>
         </div>
-      </div>
+      </NoxCard>
 
-      {/* Logs Timeline Table */}
-      <div className="nox-glass-card rounded-2xl overflow-hidden border border-slate-800">
+      {/* Logs Timeline Table com NoxCard */}
+      <NoxCard variant="surface" className="p-0 overflow-hidden">
         <div className="divide-y divide-slate-800/80">
           {filteredLogs.length === 0 ? (
-            <div className="p-8 text-center text-slate-500 text-xs font-mono">
-              Nenhum evento registrado encontrado para os filtros atuais.
-            </div>
+            <NoxEmptyState
+              icon={ShieldAlert}
+              title="Nenhum evento registrado encontrado"
+              description="Nenhum registro de auditoria atende aos filtros de categoria, ator ou busca selecionados."
+            />
           ) : (
             filteredLogs.map((log) => (
               <div
@@ -166,10 +149,18 @@ export const AuditPage: React.FC = () => {
                               : 'bg-purple-400'
                       }`}
                     />
-                    <span className="font-mono font-bold text-white text-xs">{log.action}</span>
-                    <Badge className="text-[10px] uppercase font-mono px-1.5 py-0 bg-slate-800 text-slate-300">
-                      {log.category}
-                    </Badge>
+                    <NoxMono className="font-bold text-white text-xs">{log.action}</NoxMono>
+                    <NoxStatusBadge
+                      status={
+                        log.category === 'revisao'
+                          ? 'PENDENTE'
+                          : log.category === 'importacao'
+                            ? 'PROCESSADO'
+                            : 'RASCUNHO'
+                      }
+                      customLabel={log.category}
+                      size="sm"
+                    />
                     {log.targetId && (
                       <span className="font-mono text-cyan-300 bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-800/50 text-[10px]">
                         Alvo: {log.targetId}
@@ -195,7 +186,7 @@ export const AuditPage: React.FC = () => {
             ))
           )}
         </div>
-      </div>
+      </NoxCard>
     </div>
   )
 }

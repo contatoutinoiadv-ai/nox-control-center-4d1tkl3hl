@@ -33,6 +33,16 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import {
+  NoxPageHeader,
+  NoxStatusBadge,
+  NoxButton,
+  NoxCard,
+  NoxMetricCard,
+  NoxSearchInput,
+  NoxEmptyState,
+  NoxMono,
+} from '@/design-system'
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -663,49 +673,42 @@ export const ProducaoPage: React.FC = () => {
 
   return (
     <div className="space-y-5 animate-fade-in">
-      {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-slate-800/80">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-extrabold tracking-tight text-white flex items-center gap-2">
-              <Layers className="w-6 h-6 text-cyan-400" />
-              Controladoria de Produção Jurídica
-            </h1>
-            <Badge className="bg-purple-950/80 text-purple-300 border-purple-700 font-mono text-xs">
-              Oráculo NOX
-            </Badge>
-            <Badge className="bg-slate-900 text-cyan-300 border-cyan-800/60 font-mono text-xs flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-cyan-400" />
-              {activeItems.length} Peças Ativas
-            </Badge>
+      {/* Top Header padronizado com NoxPageHeader */}
+      <NoxPageHeader
+        title="Controladoria de Produção Jurídica"
+        description="Módulo de controladoria de produção — mapeia exatamente onde cada caso está travado no processo de virar peça protocolada e por quê. Mudanças de estágio são sempre manuais."
+        icon={Layers}
+        badge={
+          <div className="flex items-center gap-2">
+            <NoxStatusBadge status="ONLINE" customLabel="Oráculo NOX" size="sm" showDot />
+            <NoxStatusBadge
+              status="PROCESSADO"
+              customLabel={`${activeItems.length} Peças Ativas`}
+              size="sm"
+            />
           </div>
-          <p className="text-slate-400 text-xs mt-1">
-            Módulo de controladoria de produção — mapeia exatamente onde cada caso está travado no
-            processo de virar peça protocolada e por quê. Mudanças de estágio são sempre manuais.
-          </p>
-        </div>
-
-        {/* Actions & New Item */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setTemplateManagerModalOpen(true)}
-            className="h-8 border-cyan-800/80 bg-cyan-950/40 text-cyan-300 hover:bg-cyan-900/60 font-semibold text-xs gap-1.5 font-mono"
-          >
-            <BookOpen className="w-3.5 h-3.5 text-cyan-400" />
-            Biblioteca de Modelos (.docx)
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => setCreateModalOpen(true)}
-            className="h-8 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-xs shadow-lg shadow-cyan-500/20"
-          >
-            <Plus className="w-4 h-4 mr-1.5" />
-            Nova Peça em Produção
-          </Button>
-        </div>
-      </div>
+        }
+        actions={
+          <div className="flex items-center gap-2 flex-wrap">
+            <NoxButton
+              size="sm"
+              variant="secondary"
+              icon={BookOpen}
+              onClick={() => setTemplateManagerModalOpen(true)}
+            >
+              Modelos (.docx)
+            </NoxButton>
+            <NoxButton
+              size="sm"
+              variant="primary"
+              icon={Plus}
+              onClick={() => setCreateModalOpen(true)}
+            >
+              Nova Peça
+            </NoxButton>
+          </div>
+        }
+      />
 
       {/* KPI Cards / Fast Production Overview */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">

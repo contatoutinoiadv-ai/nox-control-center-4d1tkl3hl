@@ -3,6 +3,8 @@ import { Search, Bell, Radio, Database, ShieldCheck, Activity } from 'lucide-rea
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
+export type RealtimeConnectionState = 'online' | 'syncing' | 'reconnecting' | 'offline'
+
 export interface NoxTopbarProps {
   onOpenCommandPalette: () => void
   onOpenNotifications?: () => void
@@ -10,6 +12,9 @@ export interface NoxTopbarProps {
   isRealData?: boolean
   criticalAlertsCount?: number
   inReviewRecordsCount?: number
+  realtimeState?: RealtimeConnectionState
+  hasRecentUpdate?: boolean
+  onAcknowledgeUpdate?: () => void
   className?: string
 }
 
@@ -20,8 +25,34 @@ export const NoxTopbar: React.FC<NoxTopbarProps> = ({
   isRealData = false,
   criticalAlertsCount = 0,
   inReviewRecordsCount = 0,
+  realtimeState = 'online',
+  hasRecentUpdate = false,
+  onAcknowledgeUpdate,
   className,
 }) => {
+  const realtimeConfig = {
+    online: {
+      label: 'ONLINE (SSE)',
+      dotClass: 'bg-emerald-400 animate-pulse',
+      badgeClass: 'text-emerald-400 border-emerald-900/50 bg-emerald-950/30',
+    },
+    syncing: {
+      label: 'SINCRONIZANDO',
+      dotClass: 'bg-cyan-400 animate-ping',
+      badgeClass: 'text-cyan-400 border-cyan-900/50 bg-cyan-950/30',
+    },
+    reconnecting: {
+      label: 'RECONECTANDO',
+      dotClass: 'bg-amber-400 animate-pulse',
+      badgeClass: 'text-amber-400 border-amber-900/50 bg-amber-950/30',
+    },
+    offline: {
+      label: 'OFFLINE',
+      dotClass: 'bg-slate-500',
+      badgeClass: 'text-slate-400 border-slate-800 bg-slate-900/50',
+    },
+  }[realtimeState]
+
   return (
     <header
       className={cn(
@@ -64,18 +95,35 @@ export const NoxTopbar: React.FC<NoxTopbarProps> = ({
                 isRealData ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500',
               )}
             />
-            {isRealData ? 'DADOS IMPORTADOS REAIS' : 'SEM DADOS — aguardando importação'}
+            {isRealData ? 'DADOS IMPORTADOS REAIS' : 'SEM DADOS (aguardando importação)'}
           </span>
         </div>
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Status Operacional dos Serviços */}
-        <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#0b1222] border border-slate-800 text-[11px] font-mono text-slate-300">
-          <Activity className="w-3 h-3 text-cyan-400" />
-          <span>MOTOR NOX:</span>
-          <span className="text-emerald-400 font-bold">ONLINE</span>
+        {/* Indicador Realtime Conexão Real (SSE / PocketBase) */}
+        <div
+          className={cn(
+            'hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded border text-[11px] font-mono select-none',
+            realtimeConfig.badgeClass,
+          )}
+          title={`Estado de conexão em tempo real: ${realtimeConfig.label}`}
+        >
+          <span className={cn('w-1.5 h-1.5 rounded-full', realtimeConfig.dotClass)} />
+          <span className="font-semibold">{realtimeConfig.label}</span>
         </div>
+
+        {/* Notificador de Nova Atualização Realtime Recebida */}
+        {hasRecentUpdate && (
+          <button
+            onClick={onAcknowledgeUpdate}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-cyan-950/60 border border-cyan-500/50 text-[11px] font-mono text-cyan-300 animate-pulse hover:bg-cyan-900/60 transition-colors"
+            title="Nova atualização em tempo real recebida"
+          >
+            <Activity className="w-3 h-3 text-cyan-400" />
+            <span className="font-bold">NOVA ATUALIZAÇÃO</span>
+          </button>
+        )}
 
         {/* Quick Stats Badges */}
         <div className="hidden sm:flex items-center gap-2">

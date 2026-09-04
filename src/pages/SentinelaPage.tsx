@@ -62,6 +62,14 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
+import {
+  NoxPageHeader,
+  NoxStatusBadge,
+  NoxButton,
+  NoxCard,
+  NoxMetricCard,
+  NoxMono,
+} from '@/design-system'
 
 export type SentinelaSubArea =
   | 'pulso'
@@ -877,19 +885,21 @@ export const SentinelaHub: React.FC = () => {
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <Badge className="bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 text-[10px] font-mono tracking-wider uppercase px-2 py-0.5">
-                Sentinela NOX v2.0
-              </Badge>
+              <NoxStatusBadge status="ONLINE" customLabel="Sentinela NOX v2.0" size="sm" />
               {dataStore.isUsingRealImportedData() ? (
-                <Badge className="bg-emerald-950 text-emerald-300 border-emerald-700 font-mono text-xs flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  DADOS IMPORTADOS REAIS ({communications.length})
-                </Badge>
+                <NoxStatusBadge
+                  status="RESOLVIDO"
+                  customLabel={`DADOS IMPORTADOS REAIS (${communications.length})`}
+                  size="sm"
+                  showDot
+                />
               ) : (
-                <Badge className="bg-slate-900 text-slate-400 border-slate-800 font-mono text-xs">
-                  SEM DADOS — aguardando importação ({communications.length})
-                </Badge>
-              )}{' '}
+                <NoxStatusBadge
+                  status="RASCUNHO"
+                  customLabel={`SEM DADOS (${communications.length})`}
+                  size="sm"
+                />
+              )}
               <span className="text-xs text-slate-400 font-mono flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
                 Operação Inteligente & Cadeia de Custódia
@@ -900,19 +910,19 @@ export const SentinelaHub: React.FC = () => {
             </h1>
             <p className="text-xs text-slate-400 max-w-2xl">
               Captura segura do DJEN/PJe, triagem com anti-prompt injection, cálculo explicável de
-              prazos, agenda e orquestração de tarefas.
+              prazos, agenda e orquestração de tarefas com preservação de custódia.
             </p>
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
             <div className="px-3.5 py-2 rounded-xl bg-slate-950/70 border border-slate-800 text-right">
               <div className="text-[10px] font-mono text-slate-400 uppercase">Tempo Recuperado</div>
-              <div className="text-base font-black text-emerald-400 font-mono">
+              <NoxMono className="text-base font-black text-emerald-400">
                 +{recoveredTime.totalMinutesSaved} min
                 <span className="text-[10px] text-slate-400 font-normal ml-1">
                   ({recoveredTime.manualBaselineHours}h economizadas)
                 </span>
-              </div>
+              </NoxMono>
             </div>
           </div>
         </div>

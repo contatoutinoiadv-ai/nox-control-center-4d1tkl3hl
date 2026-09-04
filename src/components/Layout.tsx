@@ -25,6 +25,9 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { NOXAppShell, NoxNavItem } from '@/design-system'
 
+import { RealtimeConnectionState } from '@/design-system'
+import pb from '@/lib/pocketbase/client'
+
 export const Layout: React.FC = () => {
   const [stats, setStats] = useState<NoxSystemStats>(dataStore.getStats())
   const [statsClientsCount, setStatsClientsCount] = useState<number>(dataStore.getClients().length)
@@ -33,6 +36,10 @@ export const Layout: React.FC = () => {
     authUsersService.getCachedMe(),
   )
   const [loggingOut, setLoggingOut] = useState(false)
+  const [realtimeState, setRealtimeState] = useState<RealtimeConnectionState>(
+    navigator.onLine ? 'online' : 'offline',
+  )
+  const [hasRecentUpdate, setHasRecentUpdate] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -64,9 +71,39 @@ export const Layout: React.FC = () => {
         })
         .catch(() => {})
     }
+    // Monitoramento Real do status de conectividade do navegador e PocketBase SSE
+    const handleOnline = () => setRealtimeState('online')
+    const handleOffline = () => setRealtimeState('offline')
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+
+    // Assinatura Realtime real no PocketBase (coleção clients / audit_logs para detecção de updates)
+    let unsubPb: (() => void) | undefined
+    if (pb.authStore.isValid) {
+      pb.collection('audit_logs')
+        .subscribe('*', () => {
+          setHasRecentUpdate(true)
+        })
+        .then((fn) => {
+          unsubPb = fn
+        })
+        .catch(() => {
+          // SSE fallback gracefully mantendo estado do navegador
+        })
+    }
+
     return () => {
       unsub()
       unsubAuth()
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+      if (unsubPb) {
+        try {
+          unsubPb()
+        } catch {
+          /* intentionally ignored */
+        }
+      }
     }
   }, [])
 
@@ -200,6 +237,13 @@ export const Layout: React.FC = () => {
       badge: null,
     },
     {
+      moduleKey: 'central_nox',
+      name: 'Design System',
+      path: '/design-system',
+      icon: Sparkles,
+      badge: 'V2',
+    },
+    {
       moduleKey: 'usuarios',
       name: 'Usuários',
       path: '/usuarios',
@@ -247,6 +291,12 @@ export const Layout: React.FC = () => {
         totalMonitored={stats.totalMonitored}
         criticalAlertsCount={stats.criticalAlerts}
         inReviewRecordsCount={stats.inReviewRecords}
+        realtimeState={realtimeState}
+        hasRecentUpdate={hasRecentUpdate}
+        onAcknowledgeUpdate={() => {
+          setHasRecentUpdate(false)
+          toast.info('Dados operacionais atualizados em tempo real.')
+        }}
       >
         <Outlet />
       </NOXAppShell>

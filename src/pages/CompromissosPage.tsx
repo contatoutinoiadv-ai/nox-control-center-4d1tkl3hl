@@ -53,6 +53,16 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
+  NoxPageHeader,
+  NoxStatusBadge,
+  NoxButton,
+  NoxCard,
+  NoxMetricCard,
+  NoxSearchInput,
+  NoxEmptyState,
+  NoxMono,
+} from '@/design-system'
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -694,65 +704,46 @@ export const CompromissosPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header do Módulo Compromissos */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800/80">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-indigo-600 flex items-center justify-center text-slate-950 font-bold shadow-md shadow-cyan-500/20">
-              <CalendarCheck className="w-4 h-4 text-slate-950" />
-            </div>
-            <h1 className="text-xl font-extrabold text-slate-100 tracking-tight flex items-center gap-2">
-              Compromissos & Agenda Autônoma
-              <Badge
-                variant="outline"
-                className="text-[10px] font-mono border-cyan-500/50 text-cyan-300 bg-cyan-950/40"
-              >
-                NOVO MÓDULO
-              </Badge>
-            </h1>
+      {/* Header do Módulo Compromissos padronizado com NoxPageHeader */}
+      <NoxPageHeader
+        title="Compromissos & Agenda Autônoma"
+        description="Gestão unificada de atendimentos a clientes, audiências judiciais detectadas via DJEN, classificação de complexidade e sugestão autônoma de agendamento."
+        icon={CalendarCheck}
+        badge={
+          <NoxStatusBadge status="ONLINE" customLabel="MÓDULO SENTINELA ATIVO" size="sm" showDot />
+        }
+        actions={
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <NoxButton onClick={() => reloadData()} variant="secondary" size="sm" icon={RefreshCw}>
+              Recalcular Sugestões
+            </NoxButton>
+
+            <NoxButton
+              onClick={() => {
+                setManualType('ATENDIMENTO')
+                setManualModalOpen(true)
+              }}
+              variant="primary"
+              size="sm"
+              icon={Users}
+            >
+              Novo Atendimento
+            </NoxButton>
+
+            <NoxButton
+              onClick={() => {
+                setManualType('AUDIENCIA')
+                setManualModalOpen(true)
+              }}
+              variant="primary"
+              size="sm"
+              icon={Plus}
+            >
+              Novo Compromisso
+            </NoxButton>
           </div>
-          <p className="text-xs text-slate-400">
-            Gestão unificada de atendimentos a clientes, audiências judiciais detectadas via DJEN,
-            classificação de complexidade e sugestão autônoma de agendamento.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <Button
-            onClick={() => reloadData()}
-            variant="outline"
-            size="sm"
-            className="h-8 text-xs bg-slate-900 border-slate-800 text-slate-300 hover:text-cyan-300"
-          >
-            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-            Recalcular Sugestões
-          </Button>
-
-          <Button
-            onClick={() => {
-              setManualType('ATENDIMENTO')
-              setManualModalOpen(true)
-            }}
-            size="sm"
-            className="h-8 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-md shadow-emerald-950 flex items-center gap-1.5"
-          >
-            <Users className="w-3.5 h-3.5" />
-            Novo Atendimento
-          </Button>
-
-          <Button
-            onClick={() => {
-              setManualType('AUDIENCIA')
-              setManualModalOpen(true)
-            }}
-            size="sm"
-            className="h-8 text-xs bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold shadow-md shadow-cyan-950 flex items-center gap-1.5"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Novo Compromisso
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Cards de Métricas Operacionais & Capacidade do Titular */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5">

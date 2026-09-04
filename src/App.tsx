@@ -18,6 +18,7 @@ import AuditPage from './pages/AuditPage'
 import SettingsPage from './pages/SettingsPage'
 import SentinelaPage from './pages/SentinelaPage'
 import UsuariosPage from './pages/UsuariosPage'
+import { DesignSystemShowcasePage } from './pages/DesignSystemShowcasePage'
 import { AccessDeniedView } from './components/AccessDeniedView'
 import { authUsersService } from './services/authUsersService'
 import CentralPrazosPage from './pages/CentralPrazosPage'
@@ -307,6 +308,16 @@ const AppRoutes = () => {
                   requiredAdmin
                 >
                   <UsuariosPage />
+                </ProtectedModuleRoute>
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/design-system"
+            element={
+              <ErrorBoundary moduleName="Showcase Design System NOX V2">
+                <ProtectedModuleRoute moduleKey="central_nox" moduleName="Design System NOX V2">
+                  <DesignSystemShowcasePage />
                 </ProtectedModuleRoute>
               </ErrorBoundary>
             }

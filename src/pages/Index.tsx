@@ -10,17 +10,22 @@ import {
   Clock,
   TrendingUp,
   ChevronRight,
-  Filter,
-  Sparkles,
   Layers,
   FileSpreadsheet,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { MiniRadar } from '@/components/MiniRadar'
 import { dataStore } from '@/services/dataStore'
 import { NoxRecord, AuditLogEntry, NoxSystemStats } from '@/types/nox'
 import { useNavigate } from 'react-router-dom'
+import {
+  NoxPageHeader,
+  NoxMetricCard,
+  NoxCard,
+  NoxButton,
+  NoxStatusBadge,
+  NoxEmptyState,
+  NoxMono,
+} from '@/design-system'
 import {
   ResponsiveContainer,
   AreaChart,
@@ -83,69 +88,64 @@ export const Index: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Top Banner / Hero Greeting */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-2 border-b border-slate-800/60">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl lg:text-3xl font-extrabold tracking-tight text-white">
-              Central NOX
-            </h1>
-            <Badge className="bg-cyan-950 text-cyan-400 border-cyan-800 font-mono text-xs">
-              LIVE OPERATION
-            </Badge>
+      {/* Top Banner / Hero Greeting padronizado com NoxPageHeader */}
+      <NoxPageHeader
+        title="Central NOX"
+        description="Painel de inteligência operacional e triagem de dados ingeridos do Sentinela NOX com rigor temporal e rastreabilidade."
+        icon={Activity}
+        badge={
+          <div className="flex items-center gap-2">
+            <NoxStatusBadge status="ONLINE" customLabel="LIVE OPERATION" size="sm" />
             {dataStore.isUsingRealImportedData() ? (
-              <Badge className="bg-emerald-950 text-emerald-300 border-emerald-700 font-mono text-xs flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                DADOS IMPORTADOS REAIS ({records.length})
-              </Badge>
+              <NoxStatusBadge
+                status="RESOLVIDO"
+                customLabel={`DADOS IMPORTADOS REAIS (${records.length})`}
+                size="sm"
+                showDot
+              />
             ) : (
-              <Badge className="bg-slate-900 text-slate-400 border-slate-800 font-mono text-xs">
-                SEM DADOS — aguardando importação ({records.length})
-              </Badge>
+              <NoxStatusBadge
+                status="RASCUNHO"
+                customLabel={`SEM DADOS (${records.length})`}
+                size="sm"
+              />
             )}
           </div>
-          <p className="text-slate-400 text-sm mt-1">
-            Painel de inteligência operacional e triagem de dados ingeridos do Sentinela NOX.
-          </p>
-        </div>
+        }
+        actions={
+          <div className="flex items-center gap-2 flex-wrap">
+            <NoxButton
+              variant="primary"
+              size="sm"
+              icon={UploadCloud}
+              onClick={() => navigate('/importacoes')}
+            >
+              Importar CSV
+            </NoxButton>
+            <NoxButton
+              variant="secondary"
+              size="sm"
+              icon={CheckCircle2}
+              onClick={() => navigate('/revisao')}
+            >
+              Fila de Revisão ({stats.inReviewRecords + stats.newRecords})
+            </NoxButton>
+            <NoxButton
+              variant="ghost"
+              size="sm"
+              icon={FileSpreadsheet}
+              onClick={() => navigate('/exportacoes')}
+            >
+              Exportar
+            </NoxButton>
+          </div>
+        }
+      />
 
-        {/* Global Action Shortcuts */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <Button
-            onClick={() => navigate('/importacoes')}
-            size="sm"
-            className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold shadow-lg shadow-cyan-500/20 text-xs h-9 px-3.5"
-          >
-            <UploadCloud className="w-4 h-4 mr-1.5" />
-            Importar CSV
-          </Button>
-
-          <Button
-            onClick={() => navigate('/revisao')}
-            variant="outline"
-            size="sm"
-            className="bg-slate-900 border-slate-700 text-slate-200 hover:text-cyan-300 hover:border-cyan-500/50 text-xs h-9 px-3.5"
-          >
-            <CheckCircle2 className="w-4 h-4 mr-1.5 text-amber-400" />
-            Fila de Revisão ({stats.inReviewRecords + stats.newRecords})
-          </Button>
-
-          <Button
-            onClick={() => navigate('/exportacoes')}
-            variant="outline"
-            size="sm"
-            className="bg-slate-900 border-slate-700 text-slate-200 hover:text-cyan-300 text-xs h-9 px-3.5"
-          >
-            <FileSpreadsheet className="w-4 h-4 mr-1.5 text-slate-400" />
-            Exportar
-          </Button>
-        </div>
-      </div>
-
-      {/* Asymmetric Dominant Hero Section: Radar Spotlight + High-Impact Counters */}
+      {/* Asymmetric Dominant Hero Section: Radar Spotlight + High-Impact NoxMetricCards */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Dominant Left: Radar & Severity Breakdown */}
-        <div className="lg:col-span-7 nox-glass-card rounded-2xl p-5 relative overflow-hidden border border-cyan-500/20">
+        <NoxCard variant="glass" className="lg:col-span-7 p-5 relative overflow-hidden">
           <div className="absolute -right-16 -top-16 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
 
           <div className="flex items-center justify-between mb-4">
@@ -158,14 +158,14 @@ export const Index: React.FC = () => {
                 Distribuição angular por recência e severidade dos alertas ativos.
               </p>
             </div>
-            <Button
+            <NoxButton
               variant="ghost"
               size="sm"
+              icon={ArrowUpRight}
               onClick={() => navigate('/radar')}
-              className="text-xs text-cyan-400 hover:text-cyan-300 hover:bg-cyan-950/40 font-mono h-7 px-2"
             >
-              Expandir Radar <ArrowUpRight className="w-3.5 h-3.5 ml-1" />
-            </Button>
+              Expandir Radar
+            </NoxButton>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-around gap-4 py-2">
@@ -184,9 +184,9 @@ export const Index: React.FC = () => {
                   <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
                   <span className="text-xs text-rose-200 font-medium">Críticos</span>
                 </div>
-                <span className="text-sm font-bold font-mono text-rose-400">
+                <NoxMono className="text-sm font-bold text-rose-400">
                   {stats.criticalAlerts}
-                </span>
+                </NoxMono>
               </div>
 
               <div
@@ -197,9 +197,7 @@ export const Index: React.FC = () => {
                   <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
                   <span className="text-xs text-amber-200 font-medium">Altos</span>
                 </div>
-                <span className="text-sm font-bold font-mono text-amber-400">
-                  {stats.highAlerts}
-                </span>
+                <NoxMono className="text-sm font-bold text-amber-400">{stats.highAlerts}</NoxMono>
               </div>
 
               <div
@@ -210,9 +208,9 @@ export const Index: React.FC = () => {
                   <span className="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
                   <span className="text-xs text-yellow-200 font-medium">Médios</span>
                 </div>
-                <span className="text-sm font-bold font-mono text-yellow-400">
+                <NoxMono className="text-sm font-bold text-yellow-400">
                   {stats.mediumAlerts}
-                </span>
+                </NoxMono>
               </div>
 
               <div
@@ -223,103 +221,72 @@ export const Index: React.FC = () => {
                   <span className="w-2.5 h-2.5 rounded-full bg-cyan-500"></span>
                   <span className="text-xs text-cyan-200 font-medium">Informativos</span>
                 </div>
-                <span className="text-sm font-bold font-mono text-cyan-400">
-                  {stats.infoAlerts}
-                </span>
+                <NoxMono className="text-sm font-bold text-cyan-400">{stats.infoAlerts}</NoxMono>
               </div>
             </div>
           </div>
-        </div>
+        </NoxCard>
 
-        {/* Right 5 Cols: High-Impact Operational Stats Cards */}
+        {/* Right 5 Cols: Standardized NoxMetricCards */}
         <div className="lg:col-span-5 grid grid-cols-2 gap-3.5">
-          {/* Card 1: Total Monitored */}
-          <div
+          <NoxMetricCard
+            label="Total Monitorado"
+            value={stats.totalMonitored}
+            icon={Layers}
+            statusVariant="cyan"
+            variation={{
+              value: '+42',
+              direction: 'up',
+              text: 'lote atual',
+            }}
             onClick={() => navigate('/processos')}
-            className="cursor-pointer nox-glass-card rounded-xl p-4 hover:border-cyan-500/40 transition-all flex flex-col justify-between group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">
-                Total Monitorado
-              </span>
-              <Layers className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
-            </div>
-            <div className="mt-2">
-              <div className="text-3xl font-extrabold font-mono text-white tracking-tight">
-                {stats.totalMonitored}
-              </div>
-              <div className="text-[11px] text-emerald-400 mt-1 flex items-center gap-1 font-mono">
-                <TrendingUp className="w-3 h-3" />
-                <span>+42 no lote atual</span>
-              </div>
-            </div>
-          </div>
+          />
 
-          {/* Card 2: Quarantined / Data Quality */}
-          <div
+          <NoxMetricCard
+            label="Quarentena / Falhas"
+            value={stats.quarantinedRecords}
+            icon={AlertTriangle}
+            statusVariant="warning"
+            variation={{
+              value: 'Atenção',
+              direction: 'down',
+              text: 'validação',
+            }}
             onClick={() => navigate('/importacoes')}
-            className="cursor-pointer nox-glass-card rounded-xl p-4 hover:border-amber-500/40 transition-all flex flex-col justify-between group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">
-                Quarentena / Falhas
-              </span>
-              <AlertTriangle className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
-            </div>
-            <div className="mt-2">
-              <div className="text-3xl font-extrabold font-mono text-amber-400 tracking-tight">
-                {stats.quarantinedRecords}
-              </div>
-              <div className="text-[11px] text-amber-400/80 mt-1 font-mono">
-                Requer validação de schema
-              </div>
-            </div>
-          </div>
+          />
 
-          {/* Card 3: In Review */}
-          <div
+          <NoxMetricCard
+            label="Em Revisão Ativa"
+            value={stats.inReviewRecords}
+            icon={Clock}
+            statusVariant="default"
+            variation={{
+              value: `${stats.inReviewRecords + stats.newRecords}`,
+              direction: 'neutral',
+              text: 'fila pendente',
+            }}
             onClick={() => navigate('/revisao')}
-            className="cursor-pointer nox-glass-card rounded-xl p-4 hover:border-cyan-500/40 transition-all flex flex-col justify-between group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">
-                Em Revisão Ativa
-              </span>
-              <Clock className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
-            </div>
-            <div className="mt-2">
-              <div className="text-3xl font-extrabold font-mono text-cyan-300 tracking-tight">
-                {stats.inReviewRecords}
-              </div>
-              <div className="text-[11px] text-slate-400 mt-1 font-mono">Fila de operadores</div>
-            </div>
-          </div>
+          />
 
-          {/* Card 4: Resolved */}
-          <div
+          <NoxMetricCard
+            label="Processados / Resolvidos"
+            value={stats.resolvedRecords + records.filter((r) => r.status === 'processado').length}
+            icon={CheckCircle2}
+            statusVariant="success"
+            variation={{
+              value: '100%',
+              direction: 'up',
+              text: 'sem pendências',
+            }}
             onClick={() => navigate('/processos?status=resolvido')}
-            className="cursor-pointer nox-glass-card rounded-xl p-4 hover:border-emerald-500/40 transition-all flex flex-col justify-between group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">
-                Processados/Resolvidos
-              </span>
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
-            </div>
-            <div className="mt-2">
-              <div className="text-3xl font-extrabold font-mono text-emerald-400 tracking-tight">
-                {stats.resolvedRecords + records.filter((r) => r.status === 'processado').length}
-              </div>
-              <div className="text-[11px] text-emerald-400/80 mt-1 font-mono">Sem pendências</div>
-            </div>
-          </div>
+          />
         </div>
       </div>
 
       {/* Middle Section: Urgent Action Queue & Activity Chart */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Urgent Queue: "Exige atenção agora" (7 cols) */}
-        <div className="lg:col-span-7 nox-glass-card rounded-2xl p-5 flex flex-col justify-between">
+        <NoxCard variant="glass" className="lg:col-span-7 p-5 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-3.5">
               <div className="flex items-center gap-2">
@@ -328,24 +295,18 @@ export const Index: React.FC = () => {
                   Exige Atenção Agora
                 </h2>
               </div>
-              <Badge
-                variant="outline"
-                className="text-[10px] text-slate-400 border-slate-700 font-mono"
-              >
-                Top 5 Prioridades
-              </Badge>
+              <NoxStatusBadge status="PENDENTE" customLabel="Top 5 Prioridades" size="sm" />
             </div>
 
             <div className="space-y-2.5">
               {urgentQueue.length === 0 ? (
-                <div className="p-8 text-center bg-slate-950/50 rounded-xl border border-slate-800/80 text-slate-400 text-xs space-y-2">
-                  <p className="font-medium text-slate-300">
-                    Nenhum alerta crítico ativo no momento
-                  </p>
-                  <p className="text-[11px] text-slate-500">
-                    Importe um arquivo CSV para visualizar a fila de atenção imediata.
-                  </p>
-                </div>
+                <NoxEmptyState
+                  icon={ShieldAlert}
+                  title="Nenhum alerta crítico ativo no momento"
+                  description="Todos os registros do Sentinela NOX estão regularizados ou aguardando novo lote de ingestão."
+                  actionLabel="Importar novo lote CSV"
+                  onAction={() => navigate('/importacoes')}
+                />
               ) : (
                 urgentQueue.map((rec) => (
                   <div
@@ -355,26 +316,22 @@ export const Index: React.FC = () => {
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-xs font-bold text-cyan-300 group-hover:text-cyan-200">
+                        <NoxMono className="text-xs font-bold text-cyan-300 group-hover:text-cyan-200">
                           {rec.recordCode}
-                        </span>
-                        <span className="text-xs text-slate-400 font-mono">
-                          {rec.numeroProcesso}
-                        </span>
-                        <Badge className="text-[9px] px-1.5 py-0 h-4 bg-slate-800 text-slate-300 border-slate-700">
-                          {rec.tribunal}
-                        </Badge>
-                        <Badge
-                          className={`text-[9px] uppercase font-mono px-1.5 py-0 ${
+                        </NoxMono>
+                        <NoxMono className="text-xs text-slate-400">{rec.numeroProcesso}</NoxMono>
+                        <NoxStatusBadge status="RASCUNHO" customLabel={rec.tribunal} size="sm" />
+                        <NoxStatusBadge
+                          status={
                             rec.severity === 'critico'
-                              ? 'bg-rose-950 text-rose-400 border-rose-800'
+                              ? 'BLOQUEADO'
                               : rec.severity === 'alto'
-                                ? 'bg-amber-950 text-amber-400 border-amber-800'
-                                : 'bg-yellow-950 text-yellow-400 border-yellow-800'
-                          }`}
-                        >
-                          {rec.severity}
-                        </Badge>
+                                ? 'PENDENTE'
+                                : 'RASCUNHO'
+                          }
+                          customLabel={rec.severity}
+                          size="sm"
+                        />
                       </div>
 
                       <p className="text-xs font-medium text-slate-200 mt-1 line-clamp-1 group-hover:text-white">
@@ -397,18 +354,19 @@ export const Index: React.FC = () => {
 
           <div className="pt-3 mt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
             <span>Filtrado por criticidade operacional</span>
-            <Button
-              variant="link"
+            <NoxButton
+              variant="ghost"
+              size="sm"
               onClick={() => navigate('/revisao')}
               className="text-xs text-cyan-400 p-0 h-auto font-mono hover:text-cyan-300"
             >
               Ver fila de trabalho completa →
-            </Button>
+            </NoxButton>
           </div>
-        </div>
+        </NoxCard>
 
         {/* Operational Health / Throughput Chart (5 cols) */}
-        <div className="lg:col-span-5 nox-glass-card rounded-2xl p-5 flex flex-col justify-between">
+        <NoxCard variant="glass" className="lg:col-span-5 p-5 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -478,13 +436,13 @@ export const Index: React.FC = () => {
               <span>Alertas Disparados</span>
             </div>
           </div>
-        </div>
+        </NoxCard>
       </div>
 
       {/* Bottom Section: Tribunal Distribution + Recent Audit Activity Stream */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Tribunal Distribution */}
-        <div className="lg:col-span-5 nox-glass-card rounded-2xl p-5">
+        <NoxCard variant="glass" className="lg:col-span-5 p-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-bold text-white tracking-tight uppercase font-mono">
               Distribuição por Tribunal
@@ -510,21 +468,22 @@ export const Index: React.FC = () => {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </NoxCard>
 
         {/* Activity Feed */}
-        <div className="lg:col-span-7 nox-glass-card rounded-2xl p-5">
+        <NoxCard variant="glass" className="lg:col-span-7 p-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-bold text-white tracking-tight uppercase font-mono">
               Feed de Atividades Recentes
             </h2>
-            <Button
-              variant="link"
+            <NoxButton
+              variant="ghost"
+              size="sm"
               onClick={() => navigate('/auditoria')}
               className="text-xs text-cyan-400 p-0 h-auto font-mono hover:text-cyan-300"
             >
               Ver auditoria completa →
-            </Button>
+            </NoxButton>
           </div>
 
           <div className="space-y-2.5">
@@ -561,7 +520,7 @@ export const Index: React.FC = () => {
               </div>
             ))}
           </div>
-        </div>
+        </NoxCard>
       </div>
     </div>
   )

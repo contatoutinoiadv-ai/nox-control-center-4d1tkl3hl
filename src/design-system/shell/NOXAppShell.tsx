@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge'
 import { NavLink } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 
+import { RealtimeConnectionState } from './NoxTopbar'
+
 export interface NOXAppShellProps {
   children: React.ReactNode
   navItems: NoxNavItem[]
@@ -23,6 +25,9 @@ export interface NOXAppShellProps {
   totalMonitored?: number
   criticalAlertsCount?: number
   inReviewRecordsCount?: number
+  realtimeState?: RealtimeConnectionState
+  hasRecentUpdate?: boolean
+  onAcknowledgeUpdate?: () => void
 }
 
 export const NOXAppShell: React.FC<NOXAppShellProps> = ({
@@ -40,6 +45,9 @@ export const NOXAppShell: React.FC<NOXAppShellProps> = ({
   totalMonitored = 0,
   criticalAlertsCount = 0,
   inReviewRecordsCount = 0,
+  realtimeState = 'online',
+  hasRecentUpdate = false,
+  onAcknowledgeUpdate,
 }) => {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -156,6 +164,9 @@ export const NOXAppShell: React.FC<NOXAppShellProps> = ({
           isRealData={isRealData}
           criticalAlertsCount={criticalAlertsCount}
           inReviewRecordsCount={inReviewRecordsCount}
+          realtimeState={realtimeState}
+          hasRecentUpdate={hasRecentUpdate}
+          onAcknowledgeUpdate={onAcknowledgeUpdate}
         />
 
         {/* Scrollable Viewport Principal */}

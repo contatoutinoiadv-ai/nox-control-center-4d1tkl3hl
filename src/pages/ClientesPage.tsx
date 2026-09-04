@@ -44,6 +44,16 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { PreparacaoAudienciaControl } from '@/components/PreparacaoAudienciaControl'
 import {
+  NoxPageHeader,
+  NoxStatusBadge,
+  NoxButton,
+  NoxCard,
+  NoxMetricCard,
+  NoxSearchInput,
+  NoxEmptyState,
+  NoxMono,
+} from '@/design-system'
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -871,57 +881,55 @@ export const ClientesPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Top Banner / Chain Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-[#0a152e] via-[#09142b] to-[#0d1c3a] border border-cyan-500/20 shadow-xl shadow-cyan-950/30">
-        <div>
-          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-            <Badge className="bg-cyan-950 text-cyan-300 border-cyan-500/50 text-[10px] uppercase font-mono px-2 py-0.5 shadow-sm">
-              <Sparkles className="w-3 h-3 mr-1 text-cyan-400 inline" /> Elo Central de
-              Controladoria
-            </Badge>
-            <span className="text-slate-400 text-xs">•</span>
-            <span className="text-slate-300 text-xs font-mono">
+      {/* Top Banner padronizado com NoxPageHeader */}
+      <NoxPageHeader
+        title="Módulo Clientes & Atendimentos"
+        description="Visão unificada 360º de cada cliente da advocacia. Conexão direta com entradas do Intake, monitoramento Sentinela, prazos da controladoria e emissão de peças jurídicas."
+        icon={Users}
+        badge={
+          <div className="flex items-center gap-2">
+            <NoxStatusBadge
+              status="ONLINE"
+              customLabel="Elo Central de Controladoria"
+              size="sm"
+              showDot
+            />
+            <span className="text-slate-400 text-xs font-mono hidden md:inline">
               Intake → Clientes 360º → Processos → Prazos → Documentos
             </span>
           </div>
-          <h1 className="text-xl md:text-2xl font-black tracking-tight text-white flex items-center gap-2">
-            <Users className="w-6 h-6 text-cyan-400" />
-            Módulo Clientes & Atendimentos
-          </h1>
-          <p className="text-xs text-slate-300/90 mt-1 max-w-2xl leading-relaxed">
-            Visão unificada 360º de cada cliente da advocacia. Conexão direta com entradas do
-            Intake, monitoramento Sentinela, prazos da controladoria e emissão de peças com dados
-            preenchidos.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-          <Button
-            onClick={() => setTemplateManagerModalOpen(true)}
-            variant="outline"
-            className="border-cyan-800/80 bg-cyan-950/40 text-cyan-300 hover:bg-cyan-900/60 font-semibold text-xs h-9 px-3.5 gap-1.5 font-mono"
-          >
-            <BookOpen className="w-4 h-4 text-cyan-400" />
-            Biblioteca de Modelos (.docx)
-          </Button>
-          <Button
-            onClick={() => setNewClientModalOpen(true)}
-            className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs h-9 px-4 gap-1.5 shadow-lg shadow-cyan-500/20"
-          >
-            <UserPlus className="w-4 h-4" />+ Novo Cliente Manual
-          </Button>
-          <a
-            href="#/intake/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-cyan-300 text-xs font-mono transition-colors"
-          >
-            <Globe className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Formulário /intake</span>
-            <ArrowUpRight className="w-3.5 h-3.5 text-slate-500" />
-          </a>
-        </div>
-      </div>
+        }
+        actions={
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <NoxButton
+              variant="secondary"
+              size="sm"
+              icon={BookOpen}
+              onClick={() => setTemplateManagerModalOpen(true)}
+            >
+              Modelos (.docx)
+            </NoxButton>
+            <NoxButton
+              variant="primary"
+              size="sm"
+              icon={UserPlus}
+              onClick={() => setNewClientModalOpen(true)}
+            >
+              Novo Cliente Manual
+            </NoxButton>
+            <a
+              href="#/intake/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-cyan-300 text-xs font-mono transition-colors"
+            >
+              <Globe className="w-3.5 h-3.5 text-cyan-400" />
+              <span>/intake</span>
+              <ArrowUpRight className="w-3.5 h-3.5 text-slate-500" />
+            </a>
+          </div>
+        }
+      />
 
       {/* Origin Quick Filter Pills */}
       <div className="flex items-center justify-between gap-3 flex-wrap bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">

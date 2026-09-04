@@ -21,17 +21,19 @@ import { AgendaView } from '@/components/AgendaView'
 import { TasksView } from '@/components/TasksView'
 import { MovimentacoesDatajudView } from '@/components/MovimentacoesDatajudView'
 import { datajudService, MovimentacaoProcesso } from '@/services/datajudService'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog'
 import { toast } from 'sonner'
+import {
+  NoxPageHeader,
+  NoxMetricCard,
+  NoxCard,
+  NoxStatusBadge,
+  NoxSearchInput,
+  NoxEmptyState,
+  NoxMono,
+  NoxInput,
+} from '@/design-system'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 
 export const CentralPrazosPage: React.FC = () => {
   const navigate = useNavigate()
@@ -69,125 +71,134 @@ export const CentralPrazosPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
-        <div>
-          <div className="flex items-center gap-2">
-            <Badge className="bg-cyan-950 text-cyan-300 border border-cyan-800 text-[10px] font-mono">
-              MOTOR DE VERDADE TEMPORAL
-            </Badge>
+      {/* Page Header com NoxPageHeader */}
+      <NoxPageHeader
+        title="Central de Prazos, Agenda & Tarefas"
+        description="Painel unificado com vencimentos fatais, prazos internos de garantia, compromissos e distribuição por advogado com rigor temporal CPC/CLT."
+        icon={Clock}
+        badge={
+          <NoxStatusBadge
+            status="ONLINE"
+            customLabel="MOTOR DE VERDADE TEMPORAL"
+            size="sm"
+            showDot
+          />
+        }
+        actions={
+          <div className="flex items-center gap-1.5 bg-[#0b1222] p-1 rounded-xl border border-slate-800 text-xs">
+            <button
+              onClick={() => setActiveTab('prazos')}
+              className={`px-3 py-1.5 rounded-lg font-bold font-mono transition-all ${
+                activeTab === 'prazos'
+                  ? 'bg-cyan-500 text-slate-950 shadow-md'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Prazos Fatais
+            </button>
+            <button
+              onClick={() => setActiveTab('agenda')}
+              className={`px-3 py-1.5 rounded-lg font-bold font-mono transition-all ${
+                activeTab === 'agenda'
+                  ? 'bg-cyan-500 text-slate-950 shadow-md'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Agenda
+            </button>
+            <button
+              onClick={() => setActiveTab('tarefas')}
+              className={`px-3 py-1.5 rounded-lg font-bold font-mono transition-all ${
+                activeTab === 'tarefas'
+                  ? 'bg-cyan-500 text-slate-950 shadow-md'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Tarefas
+            </button>
+            <button
+              onClick={() => setActiveTab('movimentacoes')}
+              className={`px-3 py-1.5 rounded-lg font-bold font-mono transition-all flex items-center gap-1.5 ${
+                activeTab === 'movimentacoes'
+                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-md font-extrabold'
+                  : 'text-cyan-400 hover:text-cyan-300'
+              }`}
+            >
+              <Activity className="w-3.5 h-3.5" />
+              DataJud
+              {datajudMovs.length > 0 && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-950/80 text-cyan-300 border border-cyan-400/40">
+                  {datajudMovs.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('calculadora')}
+              className={`px-3 py-1.5 rounded-lg font-bold font-mono transition-all ${
+                activeTab === 'calculadora'
+                  ? 'bg-purple-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Calculadora
+            </button>
           </div>
-          <h1 className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight mt-1 flex items-center gap-2">
-            <Clock className="w-6 h-6 text-cyan-400" />
-            Central de Prazos, Agenda & Tarefas
-          </h1>
-          <p className="text-xs text-slate-400">
-            Painel unificado com vencimentos fatais, prazos internos de garantia, compromissos e
-            distribuição por advogado.
-          </p>
-        </div>
+        }
+      />
 
-        {/* Action Tabs */}
-        <div className="flex items-center gap-1.5 bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-xs">
-          <button
-            onClick={() => setActiveTab('prazos')}
-            className={`px-3 py-1.5 rounded-lg font-bold font-mono transition-all ${
-              activeTab === 'prazos'
-                ? 'bg-cyan-500 text-slate-950 shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Prazos Fatais
-          </button>
-          <button
-            onClick={() => setActiveTab('agenda')}
-            className={`px-3 py-1.5 rounded-lg font-bold font-mono transition-all ${
-              activeTab === 'agenda'
-                ? 'bg-cyan-500 text-slate-950 shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Agenda
-          </button>
-          <button
-            onClick={() => setActiveTab('tarefas')}
-            className={`px-3 py-1.5 rounded-lg font-bold font-mono transition-all ${
-              activeTab === 'tarefas'
-                ? 'bg-cyan-500 text-slate-950 shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Tarefas
-          </button>
-          <button
-            onClick={() => setActiveTab('movimentacoes')}
-            className={`px-3 py-1.5 rounded-lg font-bold font-mono transition-all flex items-center gap-1.5 ${
-              activeTab === 'movimentacoes'
-                ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-md font-extrabold'
-                : 'text-cyan-400 hover:text-cyan-300'
-            }`}
-          >
-            <Activity className="w-3.5 h-3.5" />
-            Movimentações DataJud
-            {datajudMovs.length > 0 && (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-950/80 text-cyan-300 border border-cyan-400/40">
-                {datajudMovs.length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('calculadora')}
-            className={`px-3 py-1.5 rounded-lg font-bold font-mono transition-all ${
-              activeTab === 'calculadora'
-                ? 'bg-purple-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Calculadora & Simulador
-          </button>
-        </div>
-      </div>
-
-      {/* KPI Stats Strip */}
+      {/* KPI Stats Strip com NoxMetricCard */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 nox-glass-card">
-          <div className="text-[10px] font-mono text-slate-400 uppercase">Vencendo Hoje</div>
-          <div className="text-xl font-black text-rose-400 font-mono mt-1">
-            {
-              deadlinesList.filter(
-                (d) => d.memorial.finalDeadlineDate === new Date().toISOString().split('T')[0],
-              ).length
-            }{' '}
-            prazos
-          </div>
-          <div className="text-[10px] text-slate-500 font-mono">Monitoramento diário</div>
-        </div>
+        <NoxMetricCard
+          label="Vencendo Hoje"
+          value={
+            deadlinesList.filter(
+              (d) => d.memorial.finalDeadlineDate === new Date().toISOString().split('T')[0],
+            ).length
+          }
+          icon={Flame}
+          statusVariant="danger"
+          variation={{
+            value: 'Hoje',
+            direction: 'down',
+            text: 'monitoramento diário',
+          }}
+        />
 
-        <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 nox-glass-card">
-          <div className="text-[10px] font-mono text-slate-400 uppercase">Próximos 7 Dias</div>
-          <div className="text-xl font-black text-amber-400 font-mono mt-1">
-            {deadlinesList.length} prazos
-          </div>
-          <div className="text-[10px] text-slate-400 font-mono">Calculados com CPC/CLT</div>
-        </div>
+        <NoxMetricCard
+          label="Próximos 7 Dias"
+          value={deadlinesList.length}
+          icon={Clock}
+          statusVariant="warning"
+          variation={{
+            value: 'CPC / CLT',
+            direction: 'neutral',
+            text: 'contagem útil',
+          }}
+        />
 
-        <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 nox-glass-card">
-          <div className="text-[10px] font-mono text-slate-400 uppercase">Tarefas Ativas</div>
-          <div className="text-xl font-black text-cyan-400 font-mono mt-1">
-            {tasks.length} ativas
-          </div>
-          <div className="text-[10px] text-slate-400 font-mono">Sincronizadas</div>
-        </div>
+        <NoxMetricCard
+          label="Tarefas Ativas"
+          value={tasks.length}
+          icon={CheckCircle2}
+          statusVariant="cyan"
+          variation={{
+            value: 'Operacional',
+            direction: 'neutral',
+            text: 'produção interna',
+          }}
+        />
 
-        <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 nox-glass-card">
-          <div className="text-[10px] font-mono text-slate-400 uppercase">
-            Audiências & Reuniões
-          </div>
-          <div className="text-xl font-black text-purple-400 font-mono mt-1">
-            {agenda.length} eventos
-          </div>
-          <div className="text-[10px] text-slate-400 font-mono">Agenda sincronizada</div>
-        </div>
+        <NoxMetricCard
+          label="Audiências & Reuniões"
+          value={agenda.length}
+          icon={Calendar}
+          statusVariant="default"
+          variation={{
+            value: 'Pauta',
+            direction: 'up',
+            text: 'agenda ativa',
+          }}
+        />
       </div>
 
       {/* TAB CONTENT */}
@@ -211,13 +222,13 @@ export const CentralPrazosPage: React.FC = () => {
 
           <div className="space-y-3">
             {deadlinesList.length === 0 ? (
-              <div className="p-10 rounded-xl bg-slate-900/40 border border-slate-800 text-center text-slate-500 text-xs space-y-2">
-                <div className="font-bold text-slate-300">Nenhum prazo judicial ativo</div>
-                <p className="text-slate-500">
-                  Importe um arquivo CSV ou homologue publicações na Triagem para calcular memoriais
-                  temporais.
-                </p>
-              </div>
+              <NoxEmptyState
+                icon={Clock}
+                title="Nenhum prazo judicial ativo"
+                description="Importe um arquivo CSV ou homologue publicações na Triagem para calcular memoriais temporais auditáveis."
+                actionLabel="Ir para Importações"
+                onAction={() => navigate('/importacoes')}
+              />
             ) : (
               deadlinesList
                 .filter(

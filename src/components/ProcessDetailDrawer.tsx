@@ -21,6 +21,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { NoxStatusBadge, NoxButton, NoxCard, NoxMono } from '@/design-system'
 import { PreparacaoAudienciaControl } from '@/components/PreparacaoAudienciaControl'
 import { dataStore } from '@/services/dataStore'
 import { toast } from 'sonner'
@@ -98,41 +99,39 @@ export const ProcessDetailDrawer: React.FC<ProcessDetailDrawerProps> = ({
 
   return (
     <div className="fixed inset-y-0 right-0 w-full md:w-[620px] lg:w-[680px] bg-slate-950/95 border-l border-slate-800 backdrop-blur-2xl z-50 flex flex-col shadow-2xl animate-in slide-in-from-right duration-300">
-      {/* Drawer Header */}
+      {/* Drawer Header padronizado com Design System */}
       <div className="p-5 border-b border-slate-800 bg-slate-900/40 flex items-center justify-between shrink-0">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge className="bg-cyan-950 text-cyan-300 border-cyan-800 font-mono text-xs">
+            <NoxMono className="font-bold text-cyan-300 text-xs">
               {currentRecord.recordCode}
-            </Badge>
-            <Badge className="bg-slate-800 text-slate-300 border-slate-700 text-xs">
-              {currentRecord.tribunal}
-            </Badge>
-            <Badge
-              className={`text-xs uppercase font-mono ${
+            </NoxMono>
+            <NoxStatusBadge status="RASCUNHO" customLabel={currentRecord.tribunal} size="sm" />
+            <NoxStatusBadge
+              status={
                 currentRecord.severity === 'critico'
-                  ? 'bg-rose-950 text-rose-400 border-rose-800'
+                  ? 'BLOQUEADO'
                   : currentRecord.severity === 'alto'
-                    ? 'bg-amber-950 text-amber-400 border-amber-800'
-                    : 'bg-cyan-950 text-cyan-400 border-cyan-800'
-              }`}
-            >
-              {currentRecord.severity}
-            </Badge>
+                    ? 'PENDENTE'
+                    : 'RASCUNHO'
+              }
+              customLabel={currentRecord.severity}
+              size="sm"
+            />
           </div>
-          <h2 className="text-sm font-mono text-slate-200 mt-2 truncate font-semibold">
+          <NoxMono className="text-sm text-slate-200 mt-2 truncate block font-bold">
             {currentRecord.numeroProcesso}
-          </h2>
+          </NoxMono>
         </div>
 
-        <Button
-          variant="ghost"
-          size="sm"
+        <button
+          type="button"
           onClick={onClose}
-          className="h-8 w-8 p-0 text-slate-400 hover:text-white"
+          className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          title="Fechar painel de detalhes"
         >
           <X className="w-5 h-5" />
-        </Button>
+        </button>
       </div>
 
       {/* Tabs Navigation */}
