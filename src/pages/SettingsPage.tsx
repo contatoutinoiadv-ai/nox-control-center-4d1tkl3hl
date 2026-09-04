@@ -27,6 +27,7 @@ import { dataStore, AppSettings } from '@/services/dataStore'
 import { legacyStorageAdapter, LegacyMigrationStatus } from '@/services/legacyStorageAdapter'
 import { Phase2TestSuite, TestSuiteSummary } from '@/services/phase2TestSuite'
 import { Phase3ServiceTestSuite, ServiceUnitTestResult } from '@/services/phase3ServiceTestSuite'
+import { Phase5AtendimentoTestSuite } from '@/services/atendimento/phase5AtendimentoTestSuite'
 import { toast } from 'sonner'
 
 export const SettingsPage: React.FC = () => {
@@ -42,6 +43,13 @@ export const SettingsPage: React.FC = () => {
     failed: number
     results: ServiceUnitTestResult[]
   } | null>(null)
+  const [phase5Summary, setPhase5Summary] = useState<{
+    total: number
+    passed: number
+    failed: number
+    results: ServiceUnitTestResult[]
+  } | null>(null)
+  const [isRunningPhase5Tests, setIsRunningPhase5Tests] = useState(false)
   const [isRunningPhase3Tests, setIsRunningPhase3Tests] = useState(false)
   const lawyerProfile = dataStore.getLawyerProfile()
 
@@ -545,6 +553,38 @@ export const SettingsPage: React.FC = () => {
               <Button
                 size="sm"
                 variant="outline"
+                disabled={isRunningPhase5Tests}
+                onClick={async () => {
+                  setIsRunningPhase5Tests(true)
+                  try {
+                    const res = await Phase5AtendimentoTestSuite.runAll()
+                    setPhase5Summary(res)
+                    if (res.failed === 0) {
+                      toast.success(
+                        `${res.passed}/${res.total} Testes da Fase 5 (Atendimento) Aprovados!`,
+                        {
+                          description:
+                            'MockAdapter, Fixtures, Seleção, Filtros, Status e Notas Internas validados.',
+                        },
+                      )
+                    } else {
+                      toast.error(`${res.failed} teste(s) falharam na suite da Fase 5.`)
+                    }
+                  } finally {
+                    setIsRunningPhase5Tests(false)
+                  }
+                }}
+                className="h-8 text-xs border-cyan-500 bg-cyan-950/60 text-cyan-300 hover:bg-cyan-900/60 font-mono"
+              >
+                <CheckCircle2
+                  className={`w-3.5 h-3.5 mr-1.5 ${isRunningPhase5Tests ? 'animate-spin' : ''}`}
+                />
+                {isRunningPhase5Tests ? 'Testando Atendimento...' : 'Bateria Fase 5 (Atendimento)'}
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline"
                 onClick={async () => {
                   await legacyStorageAdapter.runFullMigration()
                   await dataStore.reloadFromPocketBase()
@@ -618,6 +658,48 @@ export const SettingsPage: React.FC = () => {
                       <span className="text-purple-400 font-mono text-[10px] mr-1">
                         [{r.suite}]
                       </span>
+                      <span className="text-slate-300">{r.test}</span>
+                    </div>
+                    <Badge
+                      className={`text-[9px] font-mono px-1 py-0 shrink-0 ${
+                        r.status === 'PASS'
+                          ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
+                          : 'bg-rose-950 text-rose-400 border-rose-800'
+                      }`}
+                    >
+                      {r.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {phase5Summary && (
+            <div className="p-3 bg-slate-950 rounded-xl border border-cyan-800/80 text-xs space-y-2 mt-2">
+              <div className="flex items-center justify-between font-mono font-semibold">
+                <span className="text-cyan-400">
+                  Relatório da Bateria da Fase 5 — Central de Atendimento ({phase5Summary.passed}/
+                  {phase5Summary.total} Aprovados)
+                </span>
+                <Badge
+                  className={`text-[10px] font-mono ${
+                    phase5Summary.failed === 0
+                      ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
+                      : 'bg-rose-950 text-rose-300 border-rose-700'
+                  }`}
+                >
+                  {phase5Summary.failed === 0 ? '100% VERDE' : `${phase5Summary.failed} FALHAS`}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto">
+                {phase5Summary.results.map((r, idx) => (
+                  <div
+                    key={`${r.suite}_${idx}`}
+                    className="flex items-center justify-between px-2 py-1 rounded bg-slate-900 border border-slate-800/80 text-[11px]"
+                  >
+                    <div className="truncate pr-2">
+                      <span className="text-cyan-400 font-mono text-[10px] mr-1">[{r.suite}]</span>
                       <span className="text-slate-300">{r.test}</span>
                     </div>
                     <Badge

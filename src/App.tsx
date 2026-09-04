@@ -26,6 +26,7 @@ import ProcessDetailPage from './pages/ProcessDetailPage'
 import CompromissosPage from './pages/CompromissosPage'
 import ClientesPage from './pages/ClientesPage'
 import ProducaoPage from './pages/ProducaoPage'
+import CentralAtendimentoPage from './pages/CentralAtendimentoPage'
 import IntakePublicPage from './pages/IntakePublicPage'
 import PreparacaoPublicPage from './pages/PreparacaoPublicPage'
 import NotFound from './pages/NotFound'
@@ -182,6 +183,16 @@ const AppRoutes = () => {
               <ProtectedModuleRoute moduleKey="sentinela" moduleName="Sentinela NOX / DJEN">
                 <ErrorBoundary moduleName="Sentinela NOX / DJEN">
                   <SentinelaPage />
+                </ErrorBoundary>
+              </ProtectedModuleRoute>
+            }
+          />
+          <Route
+            path="/atendimento"
+            element={
+              <ProtectedModuleRoute moduleKey="atendimento" moduleName="Central de Atendimento">
+                <ErrorBoundary moduleName="Central de Atendimento">
+                  <CentralAtendimentoPage />
                 </ErrorBoundary>
               </ProtectedModuleRoute>
             }

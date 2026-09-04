@@ -306,6 +306,7 @@ export type UserRole = 'admin' | 'operador'
 
 export type SystemModuleKey =
   | 'central_nox'
+  | 'atendimento'
   | 'sentinela'
   | 'clientes'
   | 'producao'

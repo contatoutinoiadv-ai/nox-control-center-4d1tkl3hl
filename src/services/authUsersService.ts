@@ -18,6 +18,12 @@ export const SYSTEM_MODULES_LIST: Array<{
     category: 'Jurídico / Processual',
   },
   {
+    key: 'atendimento',
+    name: 'Central de Atendimento',
+    description: 'Mensageria operacional com clientes, triagem de demandas e notas internas',
+    category: 'Clientes & Contábil',
+  },
+  {
     key: 'sentinela',
     name: 'Sentinela NOX / DJEN',
     description: 'Monitoramento contínuo de diários, triagem por IA e custódia de publicações',

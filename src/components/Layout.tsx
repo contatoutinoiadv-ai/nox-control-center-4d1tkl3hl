@@ -14,6 +14,7 @@ import {
   Sparkles,
   Users,
   Layers,
+  MessageSquare,
 } from 'lucide-react'
 import { CommandPalette } from './CommandPalette'
 import { MigrationStatusBanner } from './MigrationStatusBanner'
@@ -135,6 +136,14 @@ export const Layout: React.FC = () => {
 
   const allNavLinks: NoxNavItem[] = [
     { moduleKey: 'central_nox', name: 'Central NOX', path: '/', icon: Activity, badge: null },
+    {
+      moduleKey: 'atendimento',
+      name: 'CENTRAL DE ATENDIMENTO',
+      path: '/atendimento',
+      icon: MessageSquare,
+      badge: 'NOVO',
+      badgeVariant: 'cyan',
+    },
     {
       moduleKey: 'sentinela',
       name: 'Sentinela NOX',
