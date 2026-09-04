@@ -26,8 +26,10 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { CommandPalette } from './CommandPalette'
+import { MigrationStatusBanner } from './MigrationStatusBanner'
 import { dataStore } from '@/services/dataStore'
 import { authUsersService } from '@/services/authUsersService'
+import { legacyStorageAdapter } from '@/services/legacyStorageAdapter'
 import { NoxSystemStats, AuthMeResponse } from '@/types/nox'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -56,7 +58,20 @@ export const Layout: React.FC = () => {
     if (authUsersService.isAuthenticated()) {
       authUsersService
         .fetchMe()
-        .then((me) => setUserProfile(me))
+        .then((me) => {
+          setUserProfile(me)
+          // Execução controlada da migração de dual-store idempotente no bootstrap autenticado
+          if (legacyStorageAdapter.hasPendingLegacyData()) {
+            legacyStorageAdapter
+              .runFullMigration()
+              .then(() => {
+                dataStore.reloadFromPocketBase()
+              })
+              .catch((err) => {
+                console.warn('Bootstrap legacy migration warning:', err)
+              })
+          }
+        })
         .catch(() => {})
     }
     return () => {
@@ -477,6 +492,9 @@ export const Layout: React.FC = () => {
 
       {/* Main Container */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-gradient-to-b from-[#060a14] via-[#040710] to-[#02050b]">
+        {/* Migration / Offline Status Banner (Fase 2B / 2C) */}
+        <MigrationStatusBanner />
+
         {/* Top Operational Action Bar */}
         <header className="h-14 border-b border-slate-800/80 px-4 md:px-6 flex items-center justify-between bg-slate-950/40 backdrop-blur-xl shrink-0 z-10">
           <div className="flex items-center gap-3">

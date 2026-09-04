@@ -1,5 +1,5 @@
 /**
- * CENTRAL NOX V2 — Legacy Storage Adapter (Fase 2A)
+ * CENTRAL NOX V2 — Legacy Storage Adapter (Fase 2B / 2C / 2D)
  *
  * Responsável por:
  * 1. Detectar dados legados no localStorage.
@@ -8,7 +8,9 @@
  * 4. Migrar registros órfãos garantindo integridade e rastreabilidade probatória.
  * 5. Marcar domínios como migrados para evitar loops ou reimportações redundantes.
  * 6. Auditar eventos através de `audit_logs` sem expor dados sensíveis.
- * 7. Resolver conflitos entre Local e Servidor aplicando regra explícita de Source of Truth.
+ * 7. Resolver conflitos entre Local e Servidor aplicando regra explícita de Source of Truth:
+ *    - Se conflito não resolúvel automaticamente: preservar ambos, marcar conflito e logar LEGACY_DATA_CONFLICT.
+ * 8. Expor estado reativo de migração para a UI (status, progresso, conflitos).
  */
 
 import pb from '@/lib/pocketbase/client'
@@ -25,20 +27,25 @@ export interface MigrationSummary {
   status: 'PENDENTE' | 'EM_PROGRESSO' | 'CONCLUIDO' | 'FALHA'
 }
 
+export interface LegacyConflictRecord {
+  domain: string
+  key: string
+  localValue: Record<string, unknown>
+  serverValue: Record<string, unknown>
+  reason: string
+  timestamp: string
+}
+
 export interface LegacyMigrationStatus {
   isChecking: boolean
   isMigrating: boolean
   lastRunAt: string | null
   domains: Record<string, MigrationSummary>
-  unresolvedConflicts: Array<{
-    domain: string
-    key: string
-    reason: string
-    timestamp: string
-  }>
+  unresolvedConflicts: LegacyConflictRecord[]
+  overallStatus: 'IDLE' | 'MIGRANDO' | 'SUCESSO' | 'FALHA' | 'CONFLITOS'
 }
 
-const STORAGE_KEYS = {
+export const STORAGE_KEYS = {
   CLIENTS: 'nox_control_center_clients_v1',
   RECORDS: 'nox_control_center_records_v1',
   PRODUCTION: 'nox_control_center_production_v1',
@@ -49,9 +56,110 @@ const STORAGE_KEYS = {
 }
 
 const MIGRATION_FLAG_PREFIX = 'nox_migrated_v2_'
+const CONFLICTS_STORAGE_KEY = 'nox_migration_conflicts_v2'
+
+type MigrationListener = (status: LegacyMigrationStatus) => void
 
 class LegacyStorageAdapter {
   private isRunning = false
+  private listeners: Set<MigrationListener> = new Set()
+  private state: LegacyMigrationStatus = {
+    isChecking: false,
+    isMigrating: false,
+    lastRunAt: null,
+    domains: {},
+    unresolvedConflicts: this.loadPersistedConflicts(),
+    overallStatus: 'IDLE',
+  }
+
+  constructor() {
+    this.refreshLocalDetection()
+  }
+
+  private loadPersistedConflicts(): LegacyConflictRecord[] {
+    try {
+      const raw = localStorage.getItem(CONFLICTS_STORAGE_KEY)
+      return raw ? JSON.parse(raw) : []
+    } catch {
+      return []
+    }
+  }
+
+  private persistConflicts(): void {
+    try {
+      localStorage.setItem(CONFLICTS_STORAGE_KEY, JSON.stringify(this.state.unresolvedConflicts))
+    } catch {
+      /* ignore */
+    }
+  }
+
+  public subscribe(listener: MigrationListener): () => void {
+    this.listeners.add(listener)
+    listener(this.getStatus())
+    return () => {
+      this.listeners.delete(listener)
+    }
+  }
+
+  private notify(): void {
+    const s = this.getStatus()
+    this.listeners.forEach((fn) => {
+      try {
+        fn(s)
+      } catch (e) {
+        console.error('LegacyStorageAdapter listener error:', e)
+      }
+    })
+  }
+
+  public getStatus(): LegacyMigrationStatus {
+    return {
+      ...this.state,
+      domains: { ...this.state.domains },
+      unresolvedConflicts: [...this.state.unresolvedConflicts],
+    }
+  }
+
+  /**
+   * Verifica se há dados legados pendentes de migração no localStorage
+   */
+  public hasPendingLegacyData(): boolean {
+    const domains = [
+      { key: STORAGE_KEYS.CLIENTS, name: 'clients' },
+      { key: STORAGE_KEYS.AGENDA, name: 'sentinela_agenda' },
+      { key: STORAGE_KEYS.TASKS, name: 'sentinela_tasks' },
+      { key: STORAGE_KEYS.PRODUCTION, name: 'production_items' },
+    ]
+
+    for (const d of domains) {
+      if (!this.isDomainMigrated(d.name)) {
+        try {
+          const raw = localStorage.getItem(d.key)
+          if (raw && raw !== '[]' && raw !== '{}') {
+            return true
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    return false
+  }
+
+  public refreshLocalDetection(): void {
+    const counts: Record<string, number> = {}
+    for (const [k, storageKey] of Object.entries(STORAGE_KEYS)) {
+      try {
+        const raw = localStorage.getItem(storageKey)
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          counts[k.toLowerCase()] = Array.isArray(parsed) ? parsed.length : 1
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  }
 
   /**
    * Verifica se um domínio já foi formalmente migrado para o PocketBase
@@ -86,6 +194,23 @@ class LegacyStorageAdapter {
     }
   }
 
+  public resetAllMigrations(): void {
+    const all = [
+      'clients',
+      'sentinela_agenda',
+      'sentinela_tasks',
+      'production_items',
+      'sentinela_communications',
+      'records',
+      'audit_logs',
+    ]
+    all.forEach((d) => this.resetDomainMigration(d))
+    this.state.unresolvedConflicts = []
+    this.persistConflicts()
+    this.state.overallStatus = 'IDLE'
+    this.notify()
+  }
+
   /**
    * Registra log de auditoria oficial no PocketBase
    */
@@ -113,12 +238,57 @@ class LegacyStorageAdapter {
   }
 
   /**
+   * Registra conflito sem descartar dados:
+   * - Preserva valor do servidor como autoritativo
+   * - Registra evento de auditoria LEGACY_DATA_CONFLICT
+   * - Salva o conflito no status da UI para permitir revisão do operador
+   */
+  private async recordConflict(
+    domain: string,
+    key: string,
+    reason: string,
+    localValue: Record<string, unknown>,
+    serverValue: Record<string, unknown>,
+  ): Promise<void> {
+    const conflict: LegacyConflictRecord = {
+      domain,
+      key,
+      localValue,
+      serverValue,
+      reason,
+      timestamp: new Date().toISOString(),
+    }
+
+    // Evita duplicatas do mesmo conflito na lista de conflitos não resolvidos
+    const exists = this.state.unresolvedConflicts.some((c) => c.domain === domain && c.key === key)
+    if (!exists) {
+      this.state.unresolvedConflicts.push(conflict)
+      this.persistConflicts()
+    }
+
+    await this.logAuditEvent(
+      'LEGACY_DATA_CONFLICT',
+      'migracao',
+      pb.authStore.model?.name || 'Operador NOX',
+      `${domain}:${key}`,
+      {
+        domain,
+        key,
+        reason,
+        // Sanitizar dados para não registrar conteúdo sensível nos logs
+        localSummary: { id: localValue.id, code: localValue.clientCode || localValue.client_code },
+        serverSummary: { id: serverValue.id, code: serverValue.client_code },
+      },
+    )
+  }
+
+  /**
    * Executa a migração em lote de todos os domínios pendentes
    */
   public async runFullMigration(): Promise<Record<string, MigrationSummary>> {
     if (this.isRunning) {
       console.info('LegacyStorageAdapter: migração já em execução. Aguardando término...')
-      return {}
+      return this.state.domains
     }
 
     if (!pb.authStore.isValid) {
@@ -127,6 +297,10 @@ class LegacyStorageAdapter {
     }
 
     this.isRunning = true
+    this.state.isMigrating = true
+    this.state.overallStatus = 'MIGRANDO'
+    this.notify()
+
     const summaries: Record<string, MigrationSummary> = {}
 
     try {
@@ -141,34 +315,61 @@ class LegacyStorageAdapter {
       // Ordem controlada: Baixo Risco -> Alto Risco
       // 1. Audit logs locais órfãos
       summaries.audit_logs = await this.migrateAuditLogs()
+      this.state.domains.audit_logs = summaries.audit_logs
+      this.notify()
 
       // 2. Tarefas do Sentinela
       summaries.sentinela_tasks = await this.migrateTasks()
+      this.state.domains.sentinela_tasks = summaries.sentinela_tasks
+      this.notify()
 
       // 3. Compromissos e Agenda
       summaries.sentinela_agenda = await this.migrateAgenda()
+      this.state.domains.sentinela_agenda = summaries.sentinela_agenda
+      this.notify()
 
       // 4. Clientes (entidade âncora)
       summaries.clients = await this.migrateClients()
+      this.state.domains.clients = summaries.clients
+      this.notify()
 
-      // 5. Produção Jurídica
+      // 5. Produção Jurídica (depende de clients)
       summaries.production_items = await this.migrateProductionItems()
+      this.state.domains.production_items = summaries.production_items
+      this.notify()
 
       // 6. Comunicações Sentinela / DJEN
       summaries.sentinela_communications = await this.migrateCommunications()
+      this.state.domains.sentinela_communications = summaries.sentinela_communications
+      this.notify()
 
       // 7. Registros de Processos / Imports
       summaries.records = await this.migrateRecords()
+      this.state.domains.records = summaries.records
+      this.notify()
+
+      const hasErrors = Object.values(summaries).some(
+        (s) => s.errorsCount > 0 || s.status === 'FALHA',
+      )
+      const hasConflicts = this.state.unresolvedConflicts.length > 0
+
+      this.state.overallStatus = hasErrors ? 'FALHA' : hasConflicts ? 'CONFLITOS' : 'SUCESSO'
+      this.state.lastRunAt = new Date().toISOString()
 
       await this.logAuditEvent(
         'SOURCE_OF_TRUTH_CHANGED',
         'migracao',
         pb.authStore.model?.name || 'Operador NOX',
         'CONCLUSAO_MIGRACAO_FASE_2',
-        { summaries },
+        {
+          summaries,
+          conflictsCount: this.state.unresolvedConflicts.length,
+          overallStatus: this.state.overallStatus,
+        },
       )
     } catch (error) {
       console.error('LegacyStorageAdapter: erro crítico durante migração:', error)
+      this.state.overallStatus = 'FALHA'
       await this.logAuditEvent(
         'MIGRATION_FAILED',
         'migracao',
@@ -178,6 +379,8 @@ class LegacyStorageAdapter {
       )
     } finally {
       this.isRunning = false
+      this.state.isMigrating = false
+      this.notify()
     }
 
     return summaries
@@ -212,26 +415,57 @@ class LegacyStorageAdapter {
         return summary
       }
 
-      // Buscar clientes existentes no PocketBase
-      const existing = await pb
-        .collection('clients')
-        .getFullList({ fields: 'id,client_code,cpf,nome' })
-      const existingCodes = new Set(existing.map((c) => c.client_code?.toLowerCase()))
-      const existingCpfs = new Set(existing.map((c) => c.cpf?.replace(/\D/g, '')).filter(Boolean))
+      // Buscar todos os clientes existentes no PocketBase
+      const existing = await pb.collection('clients').getFullList({
+        sort: '-created',
+      })
+
+      const mapByCode = new Map<string, any>()
+      const mapByCpf = new Map<string, any>()
+      const mapByLegacyId = new Map<string, any>()
+
+      existing.forEach((c) => {
+        if (c.client_code) mapByCode.set(c.client_code.toLowerCase(), c)
+        if (c.cpf) {
+          const clean = c.cpf.replace(/\D/g, '')
+          if (clean) mapByCpf.set(clean, c)
+        }
+        if (c.legacy_id) mapByLegacyId.set(c.legacy_id, c)
+      })
 
       for (const client of localClients) {
         try {
-          const cleanCpf = client.cpf?.replace(/\D/g, '')
-          const codeMatch = client.clientCode && existingCodes.has(client.clientCode.toLowerCase())
-          const cpfMatch = cleanCpf && existingCpfs.has(cleanCpf)
+          const cleanCpf = client.cpf ? client.cpf.replace(/\D/g, '') : ''
+          const codeKey = client.clientCode ? client.clientCode.toLowerCase() : ''
 
-          if (codeMatch || cpfMatch) {
-            summary.duplicatesSkipped++
+          const serverMatch =
+            (codeKey && mapByCode.get(codeKey)) ||
+            (cleanCpf && mapByCpf.get(cleanCpf)) ||
+            (client.id && mapByLegacyId.get(client.id))
+
+          if (serverMatch) {
+            // Checar se há conflito de conteúdo significativo
+            const serverName = (serverMatch.nome || '').trim().toLowerCase()
+            const localName = (client.nome || '').trim().toLowerCase()
+
+            if (serverName && localName && serverName !== localName) {
+              // Conflito detectado: preserva servidor, registra conflito, não descarta silenciosamente
+              summary.conflictsDetected++
+              await this.recordConflict(
+                'clients',
+                client.clientCode || client.id,
+                `Divergência de nome: Servidor="${serverMatch.nome}" vs Local="${client.nome}"`,
+                client as unknown as Record<string, unknown>,
+                serverMatch,
+              )
+            } else {
+              summary.duplicatesSkipped++
+            }
             continue
           }
 
-          // Criar cliente no PocketBase preservando rastreabilidade
-          await pb.collection('clients').create({
+          // Inserir no PocketBase preservando rastreabilidade
+          const created = await pb.collection('clients').create({
             client_code: client.clientCode || `CLI-${Date.now().toString().slice(-6)}`,
             protocolo: client.protocolo || '',
             nome: client.nome,
@@ -255,8 +489,9 @@ class LegacyStorageAdapter {
           })
 
           summary.importedCount++
-          if (client.clientCode) existingCodes.add(client.clientCode.toLowerCase())
-          if (cleanCpf) existingCpfs.add(cleanCpf)
+          if (created.client_code) mapByCode.set(created.client_code.toLowerCase(), created)
+          if (cleanCpf) mapByCpf.set(cleanCpf, created)
+          if (client.id) mapByLegacyId.set(client.id, created)
         } catch (itemErr) {
           console.warn('Erro ao migrar cliente:', client.nome, itemErr)
           summary.errorsCount++
@@ -264,7 +499,7 @@ class LegacyStorageAdapter {
       }
 
       this.markDomainMigrated('clients')
-      summary.status = 'CONCLUIDO'
+      summary.status = summary.errorsCount > 0 ? 'FALHA' : 'CONCLUIDO'
 
       await this.logAuditEvent(
         'LEGACY_DATA_IMPORTED',
@@ -275,6 +510,7 @@ class LegacyStorageAdapter {
           total: summary.totalLocalDetected,
           imported: summary.importedCount,
           skipped: summary.duplicatesSkipped,
+          conflicts: summary.conflictsDetected,
           errors: summary.errorsCount,
         },
       )
@@ -315,21 +551,62 @@ class LegacyStorageAdapter {
         return summary
       }
 
-      const existing = await pb.collection('sentinela_agenda').getFullList({
-        fields: 'id,title,start_date,process_number',
+      // Buscar clientes do PB para remapear client_id se necessário
+      const clientsPb = await pb
+        .collection('clients')
+        .getFullList({ fields: 'id,client_code,legacy_id,nome,cpf' })
+      const clientMap = new Map<string, string>()
+      clientsPb.forEach((c) => {
+        clientMap.set(c.id, c.id)
+        if (c.legacy_id) clientMap.set(c.legacy_id, c.id)
+        if (c.client_code) clientMap.set(c.client_code, c.id)
+        if (c.cpf) clientMap.set(c.cpf.replace(/\D/g, ''), c.id)
+        if (c.nome) clientMap.set(c.nome.toLowerCase(), c.id)
       })
 
-      const existingSignatures = new Set(
-        existing.map((e) => `${e.title}_${e.start_date}_${e.process_number || ''}`.toLowerCase()),
-      )
+      const existing = await pb.collection('sentinela_agenda').getFullList({
+        sort: '-start_date',
+      })
+
+      const existingSignatures = new Map<string, any>()
+      existing.forEach((e) => {
+        const sig = `${e.title}_${e.start_date}_${e.process_number || ''}`.toLowerCase()
+        existingSignatures.set(sig, e)
+        if (e.legacy_id) existingSignatures.set(e.legacy_id, e)
+      })
 
       for (const ev of localAgenda) {
         try {
           const sig = `${ev.title}_${ev.startDate}_${ev.processNumber || ''}`.toLowerCase()
-          if (existingSignatures.has(sig)) {
-            summary.duplicatesSkipped++
+          const serverMatch =
+            existingSignatures.get(sig) || (ev.id && existingSignatures.get(ev.id))
+
+          if (serverMatch) {
+            // Verificar se houve alteração de horário ou status divergente
+            const serverDate = serverMatch.start_date
+            const localDate = ev.startDate
+            if (serverDate && localDate && serverDate !== localDate) {
+              summary.conflictsDetected++
+              await this.recordConflict(
+                'sentinela_agenda',
+                ev.id || sig,
+                `Divergência de horário: Servidor="${serverDate}" vs Local="${localDate}"`,
+                ev as unknown as Record<string, unknown>,
+                serverMatch,
+              )
+            } else {
+              summary.duplicatesSkipped++
+            }
             continue
           }
+
+          // Remapear client_id antes de gravar relação
+          const resolvedClientId = ev.clientId
+            ? clientMap.get(ev.clientId) ||
+              (ev.clientCpf ? clientMap.get(ev.clientCpf.replace(/\D/g, '')) : '') ||
+              (ev.clientName ? clientMap.get(ev.clientName.toLowerCase()) : '') ||
+              ev.clientId
+            : ''
 
           await pb.collection('sentinela_agenda').create({
             title: ev.title,
@@ -347,15 +624,16 @@ class LegacyStorageAdapter {
             communication_id: ev.communicationId || '',
             status: ev.status || 'CONFIRMADO',
             preparacao_habilitada: !!ev.preparacaoHabilitada,
-            client_id: ev.clientId || '',
+            client_id: resolvedClientId,
             client_cpf: ev.clientCpf || '',
             client_name: ev.clientName || '',
             alegacoes_processo: ev.alegacoesProcesso || [],
             aprovado_para_cliente: !!ev.aprovadoParaCliente,
             tipo_audiencia: ev.tipoAudiencia || '',
+            legacy_id: ev.id,
           })
 
-          existingSignatures.add(sig)
+          existingSignatures.set(sig, ev)
           summary.importedCount++
         } catch (itemErr) {
           console.warn('Erro ao migrar evento de agenda:', ev.title, itemErr)
@@ -364,7 +642,7 @@ class LegacyStorageAdapter {
       }
 
       this.markDomainMigrated('sentinela_agenda')
-      summary.status = 'CONCLUIDO'
+      summary.status = summary.errorsCount > 0 ? 'FALHA' : 'CONCLUIDO'
 
       await this.logAuditEvent(
         'LEGACY_DATA_IMPORTED',
@@ -375,6 +653,7 @@ class LegacyStorageAdapter {
           total: summary.totalLocalDetected,
           imported: summary.importedCount,
           skipped: summary.duplicatesSkipped,
+          conflicts: summary.conflictsDetected,
           errors: summary.errorsCount,
         },
       )
@@ -416,20 +695,36 @@ class LegacyStorageAdapter {
       }
 
       const existing = await pb.collection('sentinela_tasks').getFullList({
-        fields: 'id,title,process_number,internal_due_date',
+        fields: 'id,title,process_number,internal_due_date,legacy_id,status',
       })
 
-      const existingSigs = new Set(
-        existing.map((t) =>
-          `${t.title}_${t.process_number || ''}_${t.internal_due_date || ''}`.toLowerCase(),
-        ),
-      )
+      const existingSigs = new Map<string, any>()
+      existing.forEach((t) => {
+        const sig =
+          `${t.title}_${t.process_number || ''}_${t.internal_due_date || ''}`.toLowerCase()
+        existingSigs.set(sig, t)
+        if (t.legacy_id) existingSigs.set(t.legacy_id, t)
+      })
 
       for (const t of localTasks) {
         try {
           const sig = `${t.title}_${t.processNumber || ''}_${t.internalDueDate || ''}`.toLowerCase()
-          if (existingSigs.has(sig)) {
-            summary.duplicatesSkipped++
+          const serverMatch = existingSigs.get(sig) || (t.id && existingSigs.get(t.id))
+
+          if (serverMatch) {
+            // Checar se status de conclusão divergiu
+            if (serverMatch.status !== t.status) {
+              summary.conflictsDetected++
+              await this.recordConflict(
+                'sentinela_tasks',
+                t.id || sig,
+                `Divergência de status: Servidor="${serverMatch.status}" vs Local="${t.status}"`,
+                t as unknown as Record<string, unknown>,
+                serverMatch,
+              )
+            } else {
+              summary.duplicatesSkipped++
+            }
             continue
           }
 
@@ -451,9 +746,10 @@ class LegacyStorageAdapter {
             block_reason: t.blockReason || '',
             tags: t.tags || [],
             comments: t.comments || [],
+            legacy_id: t.id,
           })
 
-          existingSigs.add(sig)
+          existingSigs.set(sig, t)
           summary.importedCount++
         } catch (itemErr) {
           console.warn('Erro ao migrar tarefa:', t.title, itemErr)
@@ -462,7 +758,7 @@ class LegacyStorageAdapter {
       }
 
       this.markDomainMigrated('sentinela_tasks')
-      summary.status = 'CONCLUIDO'
+      summary.status = summary.errorsCount > 0 ? 'FALHA' : 'CONCLUIDO'
 
       await this.logAuditEvent(
         'LEGACY_DATA_IMPORTED',
@@ -473,6 +769,7 @@ class LegacyStorageAdapter {
           total: summary.totalLocalDetected,
           imported: summary.importedCount,
           skipped: summary.duplicatesSkipped,
+          conflicts: summary.conflictsDetected,
           errors: summary.errorsCount,
         },
       )
@@ -513,11 +810,11 @@ class LegacyStorageAdapter {
         return summary
       }
 
-      // Buscar clientes no PB para remapear client_id se o cliente for legado
+      // Buscar clientes no PB para remapear client_id canônico de 15 caracteres
       const clientsPb = await pb
         .collection('clients')
         .getFullList({ fields: 'id,client_code,legacy_id,nome' })
-      const clientMap = new Map<string, string>() // local/legacy id ou code -> pb id
+      const clientMap = new Map<string, string>()
       clientsPb.forEach((c) => {
         clientMap.set(c.id, c.id)
         if (c.legacy_id) clientMap.set(c.legacy_id, c.id)
@@ -528,21 +825,39 @@ class LegacyStorageAdapter {
       const fallbackClientId = clientsPb[0]?.id || 'u9wcaim6yazrj7k'
 
       const existingProd = await pb.collection('production_items').getFullList({
-        fields: 'id,titulo_peca,numero_processo,client_id',
+        fields: 'id,titulo_peca,numero_processo,client_id,legacy_id,estagio',
       })
-      const existingSignatures = new Set(
-        existingProd.map((p) => `${p.titulo_peca}_${p.numero_processo || ''}`.toLowerCase()),
-      )
+      const existingSignatures = new Map<string, any>()
+      existingProd.forEach((p) => {
+        const sig = `${p.titulo_peca}_${p.numero_processo || ''}`.toLowerCase()
+        existingSignatures.set(sig, p)
+        if (p.legacy_id) existingSignatures.set(p.legacy_id, p)
+      })
 
       for (const item of localItems) {
         try {
           const sig = `${item.tituloPeca}_${item.numeroProcesso || ''}`.toLowerCase()
-          if (existingSignatures.has(sig)) {
-            summary.duplicatesSkipped++
+          const serverMatch =
+            existingSignatures.get(sig) || (item.id && existingSignatures.get(item.id))
+
+          if (serverMatch) {
+            // Checar se estágio diverge
+            if (serverMatch.estagio !== item.estagio) {
+              summary.conflictsDetected++
+              await this.recordConflict(
+                'production_items',
+                item.id || sig,
+                `Divergência de estágio de produção: Servidor="${serverMatch.estagio}" vs Local="${item.estagio}"`,
+                item as unknown as Record<string, unknown>,
+                serverMatch,
+              )
+            } else {
+              summary.duplicatesSkipped++
+            }
             continue
           }
 
-          // Resolver client_id canônico de 15 caracteres
+          // Resolver client_id canônico do PB antes de gravar relação
           const resolvedClientId =
             clientMap.get(item.clientId) ||
             clientMap.get(item.clientName?.toLowerCase() || '') ||
@@ -563,9 +878,10 @@ class LegacyStorageAdapter {
             stress_test_aprovado: !!item.stressTestAprovado,
             stress_test_detalhes: item.stressTestDetalhes || {},
             historico_estagios: item.historicoEstagios || [],
+            legacy_id: item.id,
           })
 
-          existingSignatures.add(sig)
+          existingSignatures.set(sig, item)
           summary.importedCount++
         } catch (itemErr) {
           console.warn('Erro ao migrar item de produção:', item.tituloPeca, itemErr)
@@ -574,7 +890,7 @@ class LegacyStorageAdapter {
       }
 
       this.markDomainMigrated('production_items')
-      summary.status = 'CONCLUIDO'
+      summary.status = summary.errorsCount > 0 ? 'FALHA' : 'CONCLUIDO'
 
       await this.logAuditEvent(
         'LEGACY_DATA_IMPORTED',
@@ -585,6 +901,7 @@ class LegacyStorageAdapter {
           total: summary.totalLocalDetected,
           imported: summary.importedCount,
           skipped: summary.duplicatesSkipped,
+          conflicts: summary.conflictsDetected,
           errors: summary.errorsCount,
         },
       )
@@ -626,15 +943,30 @@ class LegacyStorageAdapter {
       }
 
       const existingComms = await pb.collection('sentinela_communications').getFullList({
-        fields: 'id,external_id,numero_processo',
+        fields: 'id,external_id,numero_processo,status',
       })
-      const existingExternalIds = new Set(existingComms.map((c) => c.external_id).filter(Boolean))
+      const existingExternalIds = new Map<string, any>()
+      existingComms.forEach((c) => {
+        if (c.external_id) existingExternalIds.set(c.external_id, c)
+      })
 
       for (const comm of localComms) {
         try {
           const extId = comm.externalId || comm.id
           if (extId && existingExternalIds.has(extId)) {
-            summary.duplicatesSkipped++
+            const serverMatch = existingExternalIds.get(extId)
+            if (serverMatch && serverMatch.status !== comm.status) {
+              summary.conflictsDetected++
+              await this.recordConflict(
+                'sentinela_communications',
+                extId,
+                `Divergência de status da comunicação: Servidor="${serverMatch.status}" vs Local="${comm.status}"`,
+                comm as unknown as Record<string, unknown>,
+                serverMatch,
+              )
+            } else {
+              summary.duplicatesSkipped++
+            }
             continue
           }
 
@@ -660,7 +992,7 @@ class LegacyStorageAdapter {
             deadline_calculated: comm.deadlineCalculated || {},
           })
 
-          if (extId) existingExternalIds.add(extId)
+          if (extId) existingExternalIds.set(extId, comm)
           summary.importedCount++
         } catch (itemErr) {
           console.warn('Erro ao migrar comunicacao sentinela:', comm.numeroProcesso, itemErr)
@@ -669,7 +1001,7 @@ class LegacyStorageAdapter {
       }
 
       this.markDomainMigrated('sentinela_communications')
-      summary.status = 'CONCLUIDO'
+      summary.status = summary.errorsCount > 0 ? 'FALHA' : 'CONCLUIDO'
 
       await this.logAuditEvent(
         'LEGACY_DATA_IMPORTED',
@@ -680,6 +1012,7 @@ class LegacyStorageAdapter {
           total: summary.totalLocalDetected,
           imported: summary.importedCount,
           skipped: summary.duplicatesSkipped,
+          conflicts: summary.conflictsDetected,
           errors: summary.errorsCount,
         },
       )
@@ -763,7 +1096,7 @@ class LegacyStorageAdapter {
       }
 
       this.markDomainMigrated('records')
-      summary.status = 'CONCLUIDO'
+      summary.status = summary.errorsCount > 0 ? 'FALHA' : 'CONCLUIDO'
 
       await this.logAuditEvent(
         'LEGACY_DATA_IMPORTED',
@@ -774,6 +1107,7 @@ class LegacyStorageAdapter {
           total: summary.totalLocalDetected,
           imported: summary.importedCount,
           skipped: summary.duplicatesSkipped,
+          conflicts: summary.conflictsDetected,
           errors: summary.errorsCount,
         },
       )
@@ -822,7 +1156,7 @@ class LegacyStorageAdapter {
         existingLogs.items.map((l) => `${l.action}_${l.target_id || ''}`.toLowerCase()),
       )
 
-      // Migrar apenas os últimos 50 eventos mais relevantes para não sobrecarregar
+      // Migrar apenas os últimos 50 eventos mais relevantes
       const sliceLogs = localLogs.slice(0, 50)
 
       for (const log of sliceLogs) {
@@ -833,7 +1167,6 @@ class LegacyStorageAdapter {
             continue
           }
 
-          // Normalizar categoria para os valores aceitos pelo PB
           const validCategory = [
             'importacao',
             'revisao',

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-04T22:00:25.892Z",
+  "generatedAt": "2026-09-04T22:08:19.774Z",
   "collections": [
     {
       "name": "users",
@@ -357,7 +357,9 @@
             "exportacao",
             "sistema",
             "configuracao",
-            "lex_tempus"
+            "lex_tempus",
+            "migracao",
+            "seguranca"
           ]
         },
         {
@@ -687,6 +689,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "legacy_id",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -841,6 +849,12 @@
         },
         {
           "name": "tipo_audiencia",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "legacy_id",
           "type": "text",
           "required": false,
           "system": false
@@ -1299,6 +1313,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "legacy_id",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [

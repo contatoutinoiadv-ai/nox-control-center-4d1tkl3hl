@@ -201,11 +201,17 @@ export class NoxDataStore {
     this.initPocketBaseSync()
   }
 
+  public async reloadFromPocketBase(): Promise<void> {
+    return this.initPocketBaseSync()
+  }
+
   public async initPocketBaseSync(): Promise<void> {
+    this.setSyncStatus({ isSyncing: true, syncError: null })
     try {
       const pb = (await import('@/lib/pocketbase/client')).default
+      let hadNetworkError = false
 
-      // 1. Carregar clientes do PocketBase
+      // 1. POCKETBASE AS SOURCE OF TRUTH: CLIENTES
       try {
         const pbClients = await pb.collection('clients').getFullList({
           sort: '-created',
@@ -236,20 +242,16 @@ export class NoxDataStore {
             updatedAt: rec.updated,
           }))
 
-          // Merge com locais, dando prioridade para registros do banco
-          const existingIds = new Set(mapped.map((c) => c.id))
-          const existingCodes = new Set(mapped.map((c) => c.clientCode))
-          const localOnly = this.clients.filter(
-            (c) => !existingIds.has(c.id) && !existingCodes.has(c.clientCode),
-          )
-          this.clients = [...mapped, ...localOnly]
+          // PocketBase é a Fonte Única de Verdade absoluta
+          this.clients = mapped
           this.saveClients()
         }
-      } catch (err) {
-        console.warn('PocketBase initial load clients failed (using local):', err)
+      } catch (err: any) {
+        console.warn('PocketBase load clients failed (fallback visual local mantido):', err)
+        hadNetworkError = true
       }
 
-      // 1.1 Carregar sentinela_agenda do PocketBase
+      // 2. POCKETBASE AS SOURCE OF TRUTH: AGENDA / COMPROMISSOS
       try {
         const pbAgendas = await pb.collection('sentinela_agenda').getFullList({
           sort: '-start_date',
@@ -283,75 +285,389 @@ export class NoxDataStore {
             updatedAt: rec.updated,
           }))
 
-          const existingAgendaIds = new Set(mappedAgenda.map((a) => a.id))
-          const localOnly = this.agendaEvents.filter((a) => !existingAgendaIds.has(a.id))
-          this.agendaEvents = [...mappedAgenda, ...localOnly]
+          this.agendaEvents = mappedAgenda
           this.saveAgenda()
         }
-      } catch (err) {
-        console.warn('PocketBase initial load sentinela_agenda failed (using local):', err)
+      } catch (err: any) {
+        console.warn('PocketBase load sentinela_agenda failed:', err)
+        hadNetworkError = true
       }
 
-      // 2. Realtime listener para novas inserções (ex: Intake pelo endpoint público)
+      // 3. POCKETBASE AS SOURCE OF TRUTH: TAREFAS (SENTINELA_TASKS)
       try {
-        pb.collection('clients').subscribe('*', (e: any) => {
-          if (e.action === 'create') {
-            const rec = e.record
-            const exists = this.clients.some(
-              (c) => c.id === rec.id || (rec.protocolo && c.protocolo === rec.protocolo),
-            )
-            if (!exists) {
-              const newC: NoxClient = {
-                id: rec.id,
-                clientCode: rec.client_code || `CLI-${rec.id.slice(0, 4)}`,
-                protocolo: rec.protocolo || `INT-${rec.id.slice(0, 4)}`,
-                nome: rec.nome,
-                cpf: rec.cpf,
-                rg: rec.rg,
-                telefone: rec.telefone,
-                email: rec.email,
-                endereco: rec.endereco,
-                profissao: rec.profissao,
-                nacionalidade: rec.nacionalidade || 'brasileiro(a)',
-                estadoCivil: rec.estado_civil || 'solteiro(a)',
-                demanda: rec.demanda || 'outro',
-                descricaoCaso: rec.descricao_caso || '',
-                origem: rec.origem || 'intake_site',
-                estagio: rec.estagio || 'novo',
-                docsGerados: rec.docs_gerados || [],
-                processosVinculados: rec.processos_vinculados || [],
-                obs: rec.obs,
-                responsavel: rec.responsavel || 'Higor Utinoi de Oliveira',
-                createdAt: rec.created,
-                updatedAt: rec.updated,
-              }
-              this.clients.unshift(newC)
-              this.saveClients()
+        const pbTasks = await pb.collection('sentinela_tasks').getFullList({
+          sort: '-created',
+        })
+        if (pbTasks && pbTasks.length > 0) {
+          const mappedTasks: SentinelaTask[] = pbTasks.map((rec: any) => ({
+            id: rec.id,
+            title: rec.title,
+            description: rec.description || '',
+            status: rec.status || 'PENDENTE',
+            priority: rec.priority || 'media',
+            responsible: rec.responsible || 'Higor Utinoi de Oliveira',
+            collaborators: Array.isArray(rec.collaborators) ? rec.collaborators : [],
+            dependenciesTaskIds: Array.isArray(rec.dependencies_task_ids)
+              ? rec.dependencies_task_ids
+              : [],
+            estimatedHours: rec.estimated_hours || 1,
+            internalDueDate: rec.internal_due_date || '',
+            legalDeadlineDate: rec.legal_deadline_date || '',
+            processNumber: rec.process_number || '',
+            clientName: rec.client_name || '',
+            communicationId: rec.communication_id || '',
+            deadlineId: rec.deadline_id || '',
+            subtasks: Array.isArray(rec.subtasks) ? rec.subtasks : [],
+            isBlocked: !!rec.is_blocked,
+            blockReason: rec.block_reason || '',
+            tags: Array.isArray(rec.tags) ? rec.tags : [],
+            comments: Array.isArray(rec.comments) ? rec.comments : [],
+            createdAt: rec.created,
+            updatedAt: rec.updated,
+          }))
+
+          this.tasks = mappedTasks
+          this.saveTasks()
+        }
+      } catch (err: any) {
+        console.warn('PocketBase load sentinela_tasks failed:', err)
+        hadNetworkError = true
+      }
+
+      // 4. POCKETBASE AS SOURCE OF TRUTH: PRODUÇÃO JURÍDICA (PRODUCTION_ITEMS)
+      try {
+        const pbProd = await pb.collection('production_items').getFullList({
+          sort: '-created',
+        })
+        if (pbProd && pbProd.length > 0) {
+          const mappedProd: ProductionItem[] = pbProd.map((rec: any) => ({
+            id: rec.id,
+            clientId: rec.client_id,
+            clientName: rec.client_name || '',
+            clientCode: rec.client_code || '',
+            numeroProcesso: rec.numero_processo || undefined,
+            tituloPeca: rec.titulo_peca,
+            nivel: (rec.nivel || 1) as ProductionNivel,
+            estagio: (rec.estagio || 'triagem_evidencias') as ProductionStage,
+            responsavel: rec.responsavel || 'Higor Utinoi de Oliveira',
+            triagemEvidencias: rec.triagem_evidencias || {
+              essencial: 0,
+              util: 0,
+              neutro: 0,
+              perigoso: 0,
+              dispensavel: 0,
+              completa: false,
+              itensDetalhados: [],
+            },
+            teseDominante: rec.tese_dominante || '',
+            motivoTravamento: rec.motivo_travamento || '',
+            dataEntradaEstagioAtual: rec.data_entrada_estagio_atual || rec.created,
+            stressTestAprovado: !!rec.stress_test_aprovado,
+            stressTestDetalhes: rec.stress_test_detalhes || {
+              tecnicaJuridica: false,
+              coerenciaNarrativa: false,
+              humanizacao: false,
+            },
+            historicoEstagios: Array.isArray(rec.historico_estagios) ? rec.historico_estagios : [],
+            createdAt: rec.created,
+            updatedAt: rec.updated,
+          }))
+
+          this.productionItems = mappedProd
+          this.saveProductionItems()
+        }
+      } catch (err: any) {
+        console.warn('PocketBase load production_items failed:', err)
+        hadNetworkError = true
+      }
+
+      // 5. Configurar SSE em tempo real nativo (Fase 2C)
+      this.initRealtimeSubscriptions(pb)
+
+      this.setSyncStatus({
+        isSyncing: false,
+        isOffline: hadNetworkError,
+        syncError: hadNetworkError
+          ? 'Falha ao conectar com o PocketBase. Verifique sua rede.'
+          : null,
+        lastSyncTime: new Date().toISOString(),
+      })
+    } catch (e: any) {
+      this.setSyncStatus({
+        isSyncing: false,
+        isOffline: true,
+        syncError: e?.message || 'Erro inesperado na sincronização.',
+      })
+    }
+  }
+
+  // Subscrições Realtime nativas PocketBase com deduplicação e cleanup
+  private realtimeActive = false
+
+  public initRealtimeSubscriptions(pbInstance: any): void {
+    if (this.realtimeActive) return
+    this.realtimeActive = true
+
+    // Realtime CLIENTS
+    try {
+      pbInstance.collection('clients').subscribe('*', (e: any) => {
+        if (e.action === 'create') {
+          const rec = e.record
+          const exists = this.clients.some((c) => c.id === rec.id)
+          if (!exists) {
+            const newC: NoxClient = {
+              id: rec.id,
+              clientCode: rec.client_code || `CLI-${rec.id.slice(0, 4)}`,
+              protocolo: rec.protocolo || `INT-${rec.id.slice(0, 4)}`,
+              nome: rec.nome,
+              cpf: rec.cpf,
+              rg: rec.rg,
+              telefone: rec.telefone,
+              email: rec.email,
+              endereco: rec.endereco,
+              profissao: rec.profissao,
+              nacionalidade: rec.nacionalidade || 'brasileiro(a)',
+              estadoCivil: rec.estado_civil || 'solteiro(a)',
+              demanda: rec.demanda || 'outro',
+              descricaoCaso: rec.descricao_caso || '',
+              origem: rec.origem || 'intake_site',
+              estagio: rec.estagio || 'novo',
+              docsGerados: rec.docs_gerados || [],
+              processosVinculados: rec.processos_vinculados || [],
+              obs: rec.obs,
+              responsavel: rec.responsavel || 'Higor Utinoi de Oliveira',
+              createdAt: rec.created,
+              updatedAt: rec.updated,
             }
-          } else if (e.action === 'update') {
-            const rec = e.record
-            const idx = this.clients.findIndex((c) => c.id === rec.id)
-            if (idx !== -1) {
-              this.clients[idx] = {
-                ...this.clients[idx],
-                nome: rec.nome || this.clients[idx].nome,
-                estagio: rec.estagio || this.clients[idx].estagio,
-                demanda: rec.demanda || this.clients[idx].demanda,
-                descricaoCaso: rec.descricao_caso || this.clients[idx].descricaoCaso,
-                updatedAt: rec.updated || new Date().toISOString(),
-              }
-              this.saveClients()
-            }
-          } else if (e.action === 'delete') {
-            this.clients = this.clients.filter((c) => c.id !== e.record.id)
+            this.clients.unshift(newC)
             this.saveClients()
           }
-        })
-      } catch (subErr) {
-        console.warn('Realtime subscribe to clients not available:', subErr)
-      }
-    } catch (_) {
-      /* non blocking */
+        } else if (e.action === 'update') {
+          const rec = e.record
+          const idx = this.clients.findIndex((c) => c.id === rec.id)
+          if (idx !== -1) {
+            this.clients[idx] = {
+              ...this.clients[idx],
+              nome: rec.nome || this.clients[idx].nome,
+              cpf: rec.cpf !== undefined ? rec.cpf : this.clients[idx].cpf,
+              telefone: rec.telefone !== undefined ? rec.telefone : this.clients[idx].telefone,
+              email: rec.email !== undefined ? rec.email : this.clients[idx].email,
+              estagio: rec.estagio || this.clients[idx].estagio,
+              demanda: rec.demanda || this.clients[idx].demanda,
+              descricaoCaso: rec.descricao_caso || this.clients[idx].descricaoCaso,
+              processosVinculados:
+                rec.processos_vinculados || this.clients[idx].processosVinculados,
+              updatedAt: rec.updated || new Date().toISOString(),
+            }
+            this.saveClients()
+          }
+        } else if (e.action === 'delete') {
+          this.clients = this.clients.filter((c) => c.id !== e.record.id)
+          this.saveClients()
+        }
+      })
+    } catch (err) {
+      console.warn('Realtime subscribe clients warning:', err)
+    }
+
+    // Realtime SENTINELA_AGENDA
+    try {
+      pbInstance.collection('sentinela_agenda').subscribe('*', (e: any) => {
+        if (e.action === 'create') {
+          const rec = e.record
+          const exists = this.agendaEvents.some((a) => a.id === rec.id)
+          if (!exists) {
+            this.agendaEvents.unshift({
+              id: rec.id,
+              title: rec.title,
+              description: rec.description || '',
+              eventType: (rec.event_type as AgendaEventType) || 'AUDIENCIA',
+              startDate: rec.start_date,
+              endDate: rec.end_date,
+              isAllDay: !!rec.is_all_day,
+              locationOrLink: rec.location_or_link || '',
+              isVirtual: !!rec.is_virtual,
+              processNumber: rec.process_number || '',
+              responsible: rec.responsible || 'Higor Utinoi de Oliveira',
+              participants: Array.isArray(rec.participants) ? rec.participants : [],
+              tribunal: rec.tribunal || '',
+              communicationId: rec.communication_id || '',
+              status: rec.status || 'CONFIRMADO',
+              preparacaoHabilitada: !!rec.preparacao_habilitada,
+              clientId: rec.client_id || '',
+              clientCpf: rec.client_cpf || '',
+              clientName: rec.client_name || '',
+              alegacoesProcesso: rec.alegacoes_processo || undefined,
+              aprovadoParaCliente: !!rec.aprovado_para_cliente,
+              tipoAudiencia: rec.tipo_audiencia || undefined,
+              remindersMinutesBefore: [1440, 60],
+              createdAt: rec.created,
+              updatedAt: rec.updated,
+            })
+            this.saveAgenda()
+          }
+        } else if (e.action === 'update') {
+          const rec = e.record
+          const idx = this.agendaEvents.findIndex((a) => a.id === rec.id)
+          if (idx !== -1) {
+            this.agendaEvents[idx] = {
+              ...this.agendaEvents[idx],
+              title: rec.title || this.agendaEvents[idx].title,
+              startDate: rec.start_date || this.agendaEvents[idx].startDate,
+              endDate: rec.end_date || this.agendaEvents[idx].endDate,
+              status: rec.status || this.agendaEvents[idx].status,
+              preparacaoHabilitada:
+                rec.preparacao_habilitada !== undefined
+                  ? !!rec.preparacao_habilitada
+                  : this.agendaEvents[idx].preparacaoHabilitada,
+              alegacoesProcesso: rec.alegacoes_processo || this.agendaEvents[idx].alegacoesProcesso,
+              updatedAt: rec.updated || new Date().toISOString(),
+            }
+            this.saveAgenda()
+          }
+        } else if (e.action === 'delete') {
+          this.agendaEvents = this.agendaEvents.filter((a) => a.id !== e.record.id)
+          this.saveAgenda()
+        }
+      })
+    } catch (err) {
+      console.warn('Realtime subscribe sentinela_agenda warning:', err)
+    }
+
+    // Realtime SENTINELA_TASKS
+    try {
+      pbInstance.collection('sentinela_tasks').subscribe('*', (e: any) => {
+        if (e.action === 'create') {
+          const rec = e.record
+          const exists = this.tasks.some((t) => t.id === rec.id)
+          if (!exists) {
+            this.tasks.unshift({
+              id: rec.id,
+              title: rec.title,
+              description: rec.description || '',
+              status: rec.status || 'PENDENTE',
+              priority: rec.priority || 'media',
+              responsible: rec.responsible || 'Higor Utinoi de Oliveira',
+              collaborators: Array.isArray(rec.collaborators) ? rec.collaborators : [],
+              dependenciesTaskIds: Array.isArray(rec.dependencies_task_ids)
+                ? rec.dependencies_task_ids
+                : [],
+              estimatedHours: rec.estimated_hours || 1,
+              internalDueDate: rec.internal_due_date || '',
+              legalDeadlineDate: rec.legal_deadline_date || '',
+              processNumber: rec.process_number || '',
+              clientName: rec.client_name || '',
+              communicationId: rec.communication_id || '',
+              deadlineId: rec.deadline_id || '',
+              subtasks: Array.isArray(rec.subtasks) ? rec.subtasks : [],
+              isBlocked: !!rec.is_blocked,
+              blockReason: rec.block_reason || '',
+              tags: Array.isArray(rec.tags) ? rec.tags : [],
+              comments: Array.isArray(rec.comments) ? rec.comments : [],
+              createdAt: rec.created,
+              updatedAt: rec.updated,
+            })
+            this.saveTasks()
+          }
+        } else if (e.action === 'update') {
+          const rec = e.record
+          const idx = this.tasks.findIndex((t) => t.id === rec.id)
+          if (idx !== -1) {
+            this.tasks[idx] = {
+              ...this.tasks[idx],
+              title: rec.title || this.tasks[idx].title,
+              status: rec.status || this.tasks[idx].status,
+              priority: rec.priority || this.tasks[idx].priority,
+              subtasks: Array.isArray(rec.subtasks) ? rec.subtasks : this.tasks[idx].subtasks,
+              isBlocked:
+                rec.is_blocked !== undefined ? !!rec.is_blocked : this.tasks[idx].isBlocked,
+              updatedAt: rec.updated || new Date().toISOString(),
+            }
+            this.saveTasks()
+          }
+        } else if (e.action === 'delete') {
+          this.tasks = this.tasks.filter((t) => t.id !== e.record.id)
+          this.saveTasks()
+        }
+      })
+    } catch (err) {
+      console.warn('Realtime subscribe sentinela_tasks warning:', err)
+    }
+
+    // Realtime PRODUCTION_ITEMS
+    try {
+      pbInstance.collection('production_items').subscribe('*', (e: any) => {
+        if (e.action === 'create') {
+          const rec = e.record
+          const exists = this.productionItems.some((p) => p.id === rec.id)
+          if (!exists) {
+            this.productionItems.unshift({
+              id: rec.id,
+              clientId: rec.client_id,
+              clientName: rec.client_name || '',
+              clientCode: rec.client_code || '',
+              numeroProcesso: rec.numero_processo || undefined,
+              tituloPeca: rec.titulo_peca,
+              nivel: (rec.nivel || 1) as ProductionNivel,
+              estagio: (rec.estagio || 'triagem_evidencias') as ProductionStage,
+              responsavel: rec.responsavel || 'Higor Utinoi de Oliveira',
+              triagemEvidencias: rec.triagem_evidencias || {
+                essencial: 0,
+                util: 0,
+                neutro: 0,
+                perigoso: 0,
+                dispensavel: 0,
+                completa: false,
+                itensDetalhados: [],
+              },
+              teseDominante: rec.tese_dominante || '',
+              motivoTravamento: rec.motivo_travamento || '',
+              dataEntradaEstagioAtual: rec.data_entrada_estagio_atual || rec.created,
+              stressTestAprovado: !!rec.stress_test_aprovado,
+              stressTestDetalhes: rec.stress_test_detalhes || {
+                tecnicaJuridica: false,
+                coerenciaNarrativa: false,
+                humanizacao: false,
+              },
+              historicoEstagios: Array.isArray(rec.historico_estagios)
+                ? rec.historico_estagios
+                : [],
+              createdAt: rec.created,
+              updatedAt: rec.updated,
+            })
+            this.saveProductionItems()
+          }
+        } else if (e.action === 'update') {
+          const rec = e.record
+          const idx = this.productionItems.findIndex((p) => p.id === rec.id)
+          if (idx !== -1) {
+            this.productionItems[idx] = {
+              ...this.productionItems[idx],
+              tituloPeca: rec.titulo_peca || this.productionItems[idx].tituloPeca,
+              estagio: (rec.estagio || this.productionItems[idx].estagio) as ProductionStage,
+              nivel: (rec.nivel || this.productionItems[idx].nivel) as ProductionNivel,
+              triagemEvidencias:
+                rec.triagem_evidencias || this.productionItems[idx].triagemEvidencias,
+              stressTestAprovado:
+                rec.stress_test_aprovado !== undefined
+                  ? !!rec.stress_test_aprovado
+                  : this.productionItems[idx].stressTestAprovado,
+              stressTestDetalhes:
+                rec.stress_test_detalhes || this.productionItems[idx].stressTestDetalhes,
+              historicoEstagios: Array.isArray(rec.historico_estagios)
+                ? rec.historico_estagios
+                : this.productionItems[idx].historicoEstagios,
+              updatedAt: rec.updated || new Date().toISOString(),
+            }
+            this.saveProductionItems()
+          }
+        } else if (e.action === 'delete') {
+          this.productionItems = this.productionItems.filter((p) => p.id !== e.record.id)
+          this.saveProductionItems()
+        }
+      })
+    } catch (err) {
+      console.warn('Realtime subscribe production_items warning:', err)
     }
   }
 
@@ -867,7 +1183,25 @@ export class NoxDataStore {
     this.notify()
   }
 
+  // Estado de Sincronização do PocketBase Source of Truth
+  private syncStatus = {
+    isSyncing: false,
+    isOffline: false,
+    syncError: null as string | null,
+    lastSyncTime: null as string | null,
+  }
+
+  public getSyncStatus() {
+    return { ...this.syncStatus }
+  }
+
+  private setSyncStatus(partial: Partial<typeof this.syncStatus>) {
+    this.syncStatus = { ...this.syncStatus, ...partial }
+    this.notify()
+  }
+
   private saveClients() {
+    // LocalStorage como cache e resiliência visual; PocketBase é Source of Truth
     try {
       localStorage.setItem(STORAGE_KEYS.CLIENTS, JSON.stringify(this.clients))
     } catch {
@@ -1298,6 +1632,15 @@ export class NoxDataStore {
       cliente: item.clientName,
     })
 
+    // Propagar delete para PocketBase Source of Truth
+    import('@/lib/pocketbase/client').then(({ default: pb }) => {
+      pb.collection('production_items')
+        .delete(id)
+        .catch((err) => {
+          console.warn('PocketBase delete production_items error:', err)
+        })
+    })
+
     return true
   }
 
@@ -1601,6 +1944,15 @@ export class NoxDataStore {
     this.logAction('CLIENTE_EXCLUIDO', 'sistema', actor, id, {
       cliente: cli.nome,
       client_code: cli.clientCode,
+    })
+
+    // Propagar delete para PocketBase Source of Truth
+    import('@/lib/pocketbase/client').then(({ default: pb }) => {
+      pb.collection('clients')
+        .delete(cli.id)
+        .catch((err) => {
+          console.warn('PocketBase delete clients error:', err)
+        })
     })
 
     return true
@@ -2487,6 +2839,9 @@ export class NoxDataStore {
     this.tasks.unshift(task)
     this.saveTasks()
     this.logAction('TAREFA_CRIADA', 'sistema', task.responsible, task.id, { title: task.title })
+    this.syncTaskToPocketBase(task).catch((err) =>
+      console.warn('Sync addTask to PocketBase failed:', err),
+    )
   }
 
   public updateTask(id: string, updates: Partial<SentinelaTask>) {
@@ -2494,7 +2849,68 @@ export class NoxDataStore {
     if (!t) return false
     Object.assign(t, updates, { updatedAt: new Date().toISOString() })
     this.saveTasks()
+    this.syncTaskToPocketBase(t).catch((err) =>
+      console.warn('Sync updateTask to PocketBase failed:', err),
+    )
     return true
+  }
+
+  public async deleteTask(id: string, actor = 'Operador NOX'): Promise<boolean> {
+    const idx = this.tasks.findIndex((t) => t.id === id)
+    if (idx === -1) return false
+    const task = this.tasks[idx]
+    this.tasks.splice(idx, 1)
+    this.saveTasks()
+    this.logAction('TAREFA_EXCLUIDA', 'sistema', actor, id, { title: task.title })
+    try {
+      const pb = (await import('@/lib/pocketbase/client')).default
+      await pb.collection('sentinela_tasks').delete(id)
+    } catch (_) {
+      /* soft fallback */
+    }
+    return true
+  }
+
+  public async syncTaskToPocketBase(task: SentinelaTask): Promise<void> {
+    try {
+      const pb = (await import('@/lib/pocketbase/client')).default
+      const payload: Record<string, any> = {
+        title: task.title,
+        description: task.description || '',
+        status: task.status || 'PENDENTE',
+        priority: task.priority || 'media',
+        responsible: task.responsible || 'Higor Utinoi de Oliveira',
+        estimated_hours: task.estimatedHours || 1,
+        internal_due_date: task.internalDueDate || '',
+        legal_deadline_date: task.legalDeadlineDate || '',
+        process_number: task.processNumber || '',
+        client_name: task.clientName || '',
+        communication_id: task.communicationId || '',
+        deadline_id: task.deadlineId || '',
+        subtasks: task.subtasks || [],
+        is_blocked: !!task.isBlocked,
+        block_reason: task.blockReason || '',
+        tags: task.tags || [],
+        comments: task.comments || [],
+      }
+
+      try {
+        const existing = await pb.collection('sentinela_tasks').getOne(task.id)
+        if (existing) {
+          await pb.collection('sentinela_tasks').update(task.id, payload)
+          return
+        }
+      } catch {
+        /* intentionally ignored */
+      }
+
+      await pb.collection('sentinela_tasks').create({
+        id: task.id.replace(/[^a-z0-9_]/gi, '').slice(0, 15),
+        ...payload,
+      })
+    } catch (err) {
+      console.warn('PocketBase syncTask warning:', err)
+    }
   }
 
   public toggleSubtask(taskId: string, subtaskId: string, actor = 'Operador NOX') {
@@ -2532,6 +2948,9 @@ export class NoxDataStore {
       title: event.title,
       date: event.startDate,
     })
+    this.syncAgendaEventToPocketBase(event).catch((err) =>
+      console.warn('Sync addAgendaEvent to PocketBase failed:', err),
+    )
   }
 
   public updateAgendaEvent(id: string, updates: Partial<AgendaEvent>) {
@@ -2539,6 +2958,25 @@ export class NoxDataStore {
     if (!e) return false
     Object.assign(e, updates, { updatedAt: new Date().toISOString() })
     this.saveAgenda()
+    this.syncAgendaEventToPocketBase(e).catch((err) =>
+      console.warn('Sync updateAgendaEvent to PocketBase failed:', err),
+    )
+    return true
+  }
+
+  public async deleteAgendaEvent(id: string, actor = 'Operador NOX'): Promise<boolean> {
+    const idx = this.agendaEvents.findIndex((e) => e.id === id)
+    if (idx === -1) return false
+    const ev = this.agendaEvents[idx]
+    this.agendaEvents.splice(idx, 1)
+    this.saveAgenda()
+    this.logAction('EVENTO_AGENDA_EXCLUIDO', 'sistema', actor, id, { title: ev.title })
+    try {
+      const pb = (await import('@/lib/pocketbase/client')).default
+      await pb.collection('sentinela_agenda').delete(id)
+    } catch (_) {
+      /* soft fallback */
+    }
     return true
   }
 

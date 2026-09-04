@@ -18,15 +18,23 @@ import {
   FileBadge,
   MapPin,
   Save,
+  RefreshCw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { dataStore, AppSettings } from '@/services/dataStore'
+import { legacyStorageAdapter, LegacyMigrationStatus } from '@/services/legacyStorageAdapter'
+import { Phase2TestSuite, TestSuiteSummary } from '@/services/phase2TestSuite'
 import { toast } from 'sonner'
 
 export const SettingsPage: React.FC = () => {
   const [settings, setSettings] = useState<AppSettings>(dataStore.getSettings())
+  const [migrationStatus, setMigrationStatus] = useState<LegacyMigrationStatus>(
+    legacyStorageAdapter.getStatus(),
+  )
+  const [testSummary, setTestSummary] = useState<TestSuiteSummary | null>(null)
+  const [isRunningTests, setIsRunningTests] = useState(false)
   const lawyerProfile = dataStore.getLawyerProfile()
 
   const [formData, setFormData] = useState({
@@ -50,7 +58,11 @@ export const SettingsPage: React.FC = () => {
         email: prof.email || 'contato@utinoiadvocacia.com.br',
       })
     })
-    return unsub
+    const unsubAdapter = legacyStorageAdapter.subscribe((s) => setMigrationStatus(s))
+    return () => {
+      unsub()
+      unsubAdapter()
+    }
   }, [])
 
   const handleToggle = (key: keyof AppSettings) => {
@@ -399,6 +411,143 @@ export const SettingsPage: React.FC = () => {
               </Button>
             </div>
           </div>
+        </div>
+
+        {/* Card: Dual-Store & PocketBase Source of Truth (Fase 2) */}
+        <div className="nox-glass-card rounded-2xl p-5 space-y-4 border border-cyan-800/60 lg:col-span-2 bg-gradient-to-br from-slate-950 via-cyan-950/20 to-slate-950">
+          <div className="flex items-center justify-between pb-2 border-b border-cyan-800/40">
+            <h2 className="text-sm font-bold text-white font-mono uppercase flex items-center gap-2">
+              <Database className="w-4 h-4 text-cyan-400" />
+              Arquitetura Dual-Store & PocketBase Source of Truth
+            </h2>
+            <Badge className="text-[10px] font-mono bg-cyan-950 text-cyan-300 border-cyan-700">
+              FASE 2 CONCLUÍDA
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <div className="p-3 rounded-lg bg-slate-900/90 border border-slate-800">
+              <div className="text-slate-400 font-mono text-[11px]">Fonte Oficial</div>
+              <div className="text-sm font-bold text-cyan-400 font-mono mt-0.5">
+                PocketBase (Server)
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Clientes, Agenda/Compromissos, Tarefas e Produção Jurídica persistem exclusivamente
+                no servidor.
+              </p>
+            </div>
+
+            <div className="p-3 rounded-lg bg-slate-900/90 border border-slate-800">
+              <div className="text-slate-400 font-mono text-[11px]">Papel do LocalStorage</div>
+              <div className="text-sm font-bold text-slate-200 font-mono mt-0.5">
+                Cache & Visual State
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Filtros visuais, ordenação de colunas, rascunhos de formulário e contingência em
+                modo offline.
+              </p>
+            </div>
+
+            <div className="p-3 rounded-lg bg-slate-900/90 border border-slate-800">
+              <div className="text-slate-400 font-mono text-[11px]">Realtime & Concorrência</div>
+              <div className="text-sm font-bold text-emerald-400 font-mono mt-0.5">
+                SSE Nativo Ativo
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Subscrições ativas por coleção, propagação instantânea entre navegadores sem
+                duplicatas.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
+            <div className="text-xs text-slate-400">
+              <span>Status Operacional: </span>
+              <strong className="text-cyan-300 font-mono">{migrationStatus.overallStatus}</strong>
+              {migrationStatus.unresolvedConflicts.length > 0 && (
+                <span className="text-rose-400 ml-2">
+                  ({migrationStatus.unresolvedConflicts.length} conflito(s) sob revisão)
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isRunningTests}
+                onClick={async () => {
+                  setIsRunningTests(true)
+                  try {
+                    const res = await Phase2TestSuite.runAllTests()
+                    setTestSummary(res)
+                    if (res.failed === 0) {
+                      toast.success(`13/13 Testes da Fase 2 Verificados com Sucesso!`, {
+                        description: `PocketBase Source of Truth validado ponta a ponta.`,
+                      })
+                    } else {
+                      toast.error(`${res.failed} teste(s) falharam na bateria de validação.`)
+                    }
+                  } finally {
+                    setIsRunningTests(false)
+                  }
+                }}
+                className="h-8 text-xs border-cyan-700 bg-cyan-950/40 text-cyan-200 hover:bg-cyan-900/60 font-mono"
+              >
+                <CheckCircle2
+                  className={`w-3.5 h-3.5 mr-1.5 ${isRunningTests ? 'animate-spin' : ''}`}
+                />
+                {isRunningTests ? 'Executando Testes...' : 'Executar Bateria de Testes Fase 2'}
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  await legacyStorageAdapter.runFullMigration()
+                  await dataStore.reloadFromPocketBase()
+                  toast.success('Varredura e migração de registros concluída.')
+                }}
+                className="h-8 text-xs border-slate-700 text-slate-300 hover:text-white font-mono"
+              >
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                Forçar Sincronização
+              </Button>
+            </div>
+          </div>
+
+          {testSummary && (
+            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-2 mt-2">
+              <div className="flex items-center justify-between font-mono font-semibold">
+                <span className="text-cyan-400">
+                  Relatório da Bateria de Validação da Fase 2D ({testSummary.passed}/
+                  {testSummary.total} Aprovados)
+                </span>
+                <span className="text-slate-400 text-[11px]">
+                  {new Date(testSummary.timestamp).toLocaleTimeString('pt-BR')}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto">
+                {testSummary.results.map((r) => (
+                  <div
+                    key={r.id}
+                    className="flex items-center justify-between px-2 py-1 rounded bg-slate-900 border border-slate-800/80 text-[11px]"
+                  >
+                    <span className="truncate pr-2 text-slate-300">{r.name}</span>
+                    <Badge
+                      className={`text-[9px] font-mono px-1 py-0 ${
+                        r.status === 'PASS'
+                          ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
+                          : 'bg-rose-950 text-rose-400 border-rose-800'
+                      }`}
+                    >
+                      {r.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Card 3: Backend & Isolation Details */}

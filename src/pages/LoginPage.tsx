@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { authUsersService } from '@/services/authUsersService'
+import { dataStore } from '@/services/dataStore'
 import { toast } from 'sonner'
 
 export const LoginPage: React.FC = () => {
@@ -69,6 +70,20 @@ export const LoginPage: React.FC = () => {
       toast.success(`Bem-vindo, ${userProfile.user.name || userProfile.user.email}!`, {
         description: `Sessão autenticada com sucesso no perfil ${userProfile.role === 'admin' ? 'Administrador' : 'Operador'}.`,
       })
+
+      // Orquestrar migração legada no primeiro bootstrap após o login
+      const { legacyStorageAdapter } = await import('@/services/legacyStorageAdapter')
+      if (legacyStorageAdapter.hasPendingLegacyData()) {
+        legacyStorageAdapter
+          .runFullMigration()
+          .then(() => {
+            dataStore.reloadFromPocketBase()
+          })
+          .catch((err) => {
+            console.warn('Login bootstrap legacy migration warning:', err)
+          })
+      }
+
       navigate(fromLocation, { replace: true })
     } catch (err: any) {
       console.error('Falha no login:', err)
