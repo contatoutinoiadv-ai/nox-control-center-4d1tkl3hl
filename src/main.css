@@ -55,11 +55,57 @@
     --chart-3: 0 84% 60%; /* Coral */
     --chart-4: 217 91% 60%; /* Blue */
     --chart-5: 142 71% 45%; /* Green */
+
+    /* DESIGN TOKENS NOX V2 - PREFIXO CANÔNICO --nox- */
+    --nox-bg-root: #030712;
+    --nox-bg-surface: #070c18;
+    --nox-bg-surface-elevated: #0d1527;
+    --nox-bg-surface-highlight: #121c33;
+    --nox-bg-glass: rgba(13, 21, 39, 0.72);
+
+    --nox-border-subtle: rgba(148, 163, 184, 0.08);
+    --nox-border-default: rgba(148, 163, 184, 0.16);
+    --nox-border-strong: rgba(148, 163, 184, 0.28);
+    --nox-border-accent: rgba(6, 182, 212, 0.4);
+
+    --nox-text-primary: #f8fafc;
+    --nox-text-secondary: #cbd5e1;
+    --nox-text-muted: #94a3b8;
+    --nox-text-disabled: #64748b;
+
+    --nox-accent: #06b6d4;
+    --nox-accent-glow: rgba(6, 182, 212, 0.25);
+    --nox-accent-aurora: #8b5cf6;
+
+    --nox-success: #10b981;
+    --nox-success-bg: rgba(16, 185, 129, 0.12);
+    --nox-success-border: rgba(16, 185, 129, 0.3);
+
+    --nox-warning: #f59e0b;
+    --nox-warning-bg: rgba(245, 158, 11, 0.12);
+    --nox-warning-border: rgba(245, 158, 11, 0.3);
+
+    --nox-danger: #f43f5e;
+    --nox-danger-bg: rgba(244, 63, 94, 0.12);
+    --nox-danger-border: rgba(244, 63, 94, 0.35);
+
+    --nox-info: #38bdf8;
+    --nox-info-bg: rgba(56, 189, 248, 0.12);
+    --nox-info-border: rgba(56, 189, 248, 0.3);
+
+    --nox-ai-accent: #a855f7;
+    --nox-ai-bg: rgba(168, 85, 247, 0.12);
+    --nox-ai-border: rgba(168, 85, 247, 0.35);
+
+    --nox-radius-sm: 4px;
+    --nox-radius-md: 6px;
+    --nox-radius-lg: 8px;
+    --nox-radius-xl: 12px;
   }
 
   body {
-    background-color: #030712;
-    color: #f8fafc;
+    background-color: var(--nox-bg-root);
+    color: var(--nox-text-primary);
     font-family: var(--font-sans);
     letter-spacing: -0.01em;
     overflow-x: hidden;
