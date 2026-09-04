@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-04T21:51:32.910Z",
+  "generatedAt": "2026-09-04T22:00:25.892Z",
   "collections": [
     {
       "name": "users",
@@ -565,11 +565,11 @@
       "name": "sentinela_tasks",
       "type": "base",
       "apiRules": {
-        "list": "",
-        "view": "",
-        "create": "",
-        "update": "",
-        "delete": ""
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\"",
+        "update": "@request.auth.id != \"\"",
+        "delete": "@request.auth.id != \"\""
       },
       "fields": [
         {
@@ -855,11 +855,11 @@
       "name": "sentinela_automations",
       "type": "base",
       "apiRules": {
-        "list": "",
-        "view": "",
-        "create": "",
-        "update": "",
-        "delete": ""
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\"",
+        "update": "@request.auth.id != \"\"",
+        "delete": "@request.auth.id != \"\""
       },
       "fields": [
         {
@@ -931,11 +931,11 @@
       "name": "sentinela_incidents",
       "type": "base",
       "apiRules": {
-        "list": "",
-        "view": "",
-        "create": "",
-        "update": "",
-        "delete": ""
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\"",
+        "update": "@request.auth.id != \"\"",
+        "delete": "@request.auth.id != \"\""
       },
       "fields": [
         {
@@ -1166,6 +1166,12 @@
         {
           "name": "aprovado_para_cliente",
           "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "legacy_id",
+          "type": "text",
           "required": false,
           "system": false
         }
