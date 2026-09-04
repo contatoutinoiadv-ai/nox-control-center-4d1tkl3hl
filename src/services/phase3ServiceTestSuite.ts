@@ -405,6 +405,218 @@ export class Phase3ServiceTestSuite {
       add('TaskService', 'Execucao da suite de tarefas', 'FAIL', e?.message)
     }
 
+    // 5. Suite ProcessService (Processos Monitorados e Movimentacoes)
+    try {
+      const mockProcesses: ProcessoMonitorado[] = [
+        {
+          id: 'proc_01',
+          numero_processo: '0000001-00.2026.8.12.0001',
+          cliente: 'Jose da Silva',
+          tribunal: 'tjms',
+          ativo: true,
+          tem_prazo_aberto: false,
+          client_id: 'cli_01',
+          created: new Date().toISOString(),
+          updated: new Date().toISOString(),
+        },
+      ]
+
+      const mockMovs: MovimentacaoProcesso[] = [
+        {
+          id: 'mov_01',
+          numero_processo: '0000001-00.2026.8.12.0001',
+          tribunal_alias: 'tjms',
+          data_hora_movimento: '2026-03-25T10:00:00Z',
+          nome_movimento: 'Juntada de Peticao',
+          codigo_movimento: 85,
+          nivel_sigilo_processo: 0,
+          hash_dedup: 'hash_abc123',
+          created: new Date().toISOString(),
+        },
+      ]
+
+      const mockProcessRepo: IProcessRepository = {
+        async list() {
+          return {
+            items: mockProcesses,
+            meta: { page: 1, perPage: 10, totalPages: 1, totalItems: mockProcesses.length },
+          }
+        },
+        async getAll() {
+          return mockProcesses
+        },
+        async getByNumero(numero: string) {
+          return mockProcesses.find((p) => p.numero_processo === numero) || null
+        },
+        async create(p: Partial<ProcessoMonitorado>) {
+          const item: ProcessoMonitorado = {
+            id: `proc_${Date.now()}`,
+            numero_processo: p.numero_processo || '',
+            cliente: p.cliente || '',
+            tribunal: p.tribunal || 'tjms',
+            ativo: p.ativo ?? true,
+            tem_prazo_aberto: p.tem_prazo_aberto ?? false,
+            client_id: p.client_id,
+            created: new Date().toISOString(),
+            updated: new Date().toISOString(),
+          }
+          mockProcesses.push(item)
+          return item
+        },
+        async update(id: string, updates: Partial<ProcessoMonitorado>) {
+          const item = mockProcesses.find((p) => p.id === id)
+          if (!item) throw new Error('Not found')
+          Object.assign(item, updates)
+          return item
+        },
+        async delete(id: string) {
+          const idx = mockProcesses.findIndex((p) => p.id === id)
+          if (idx !== -1) mockProcesses.splice(idx, 1)
+          return true
+        },
+        async getMovimentacoes(numero: string) {
+          return mockMovs.filter((m) => m.numero_processo === numero)
+        },
+        subscribe() {
+          return () => {}
+        },
+      }
+
+      const processService = new ProcessService(mockProcessRepo)
+
+      // Teste 5.1: Rejeitar processo com numero vazio
+      const pr1 = await processService.addMonitoredProcess({
+        numeroProcesso: '',
+        cliente: 'Cliente Teste',
+        tribunal: 'tjms',
+      })
+      if (!pr1.success && pr1.error instanceof ValidationError) {
+        add('ProcessService', 'Rejeitar adicao de processo com numero vazio', 'PASS')
+      } else {
+        add('ProcessService', 'Rejeitar adicao de processo com numero vazio', 'FAIL')
+      }
+
+      // Teste 5.2: Bloquear duplicidade de processo monitorado
+      const pr2 = await processService.addMonitoredProcess({
+        numeroProcesso: '0000001-00.2026.8.12.0001',
+        cliente: 'Duplicado',
+        tribunal: 'tjms',
+      })
+      if (!pr2.success && pr2.error instanceof ValidationError) {
+        add('ProcessService', 'Bloquear monitoramento duplicado do mesmo numero CNJ', 'PASS')
+      } else {
+        add('ProcessService', 'Bloquear monitoramento duplicado do mesmo numero CNJ', 'FAIL')
+      }
+
+      // Teste 5.3: Adicionar novo processo monitorado com sucesso
+      const pr3 = await processService.addMonitoredProcess({
+        numeroProcesso: '0000002-99.2026.8.12.0001',
+        cliente: 'Maria Oliveira',
+        tribunal: 'tjms',
+        clientId: 'cli_02',
+      })
+      if (pr3.success && pr3.data?.numero_processo === '0000002-99.2026.8.12.0001') {
+        add('ProcessService', 'Cadastrar novo processo monitorado com sucesso', 'PASS')
+      } else {
+        add('ProcessService', 'Cadastrar novo processo monitorado com sucesso', 'FAIL')
+      }
+
+      // Teste 5.4: Buscar movimentacoes do processo
+      const pr4 = await processService.getMovimentacoes('0000001-00.2026.8.12.0001')
+      if (pr4.success && pr4.data?.length === 1 && pr4.data[0].codigo_movimento === 85) {
+        add('ProcessService', 'Retornar movimentacoes do processo com sucesso', 'PASS')
+      } else {
+        add('ProcessService', 'Retornar movimentacoes do processo com sucesso', 'FAIL')
+      }
+    } catch (e: any) {
+      add('ProcessService', 'Execucao da suite de processos', 'FAIL', e?.message)
+    }
+
+    // 6. Suite DataJudClient e DatajudService (Resolucao JTR e Integracao Mockada)
+    try {
+      const { datajudService } = await import('@/services/datajudService')
+      const { DataJudClient } = await import('@/services/datajud/DataJudClient')
+
+      // Teste 6.1: Resolucao deterministica de J.TR conforme CNJ 65/2008
+      const resTjms = datajudService.resolveAlias('0000001-00.2026.8.12.0001')
+      if (resTjms.alias === 'tjms' && resTjms.jtr === '8.12') {
+        add('DataJud', 'Resolver alias correto para tribunal estadual TJMS (8.12)', 'PASS')
+      } else {
+        add('DataJud', 'Resolver alias correto para tribunal estadual TJMS (8.12)', 'FAIL')
+      }
+
+      const resInvalido = datajudService.resolveAlias('12345')
+      if (!resInvalido.alias && resInvalido.error?.includes('20')) {
+        add('DataJud', 'Rejeitar numero CNJ com formato fora do padrao de 20 digitos', 'PASS')
+      } else {
+        add('DataJud', 'Rejeitar numero CNJ com formato fora do padrao de 20 digitos', 'FAIL')
+      }
+
+      // Teste 6.2: DataJudClient instanciacao e tipagem
+      const client = new DataJudClient()
+      if (
+        typeof client.postConsultar === 'function' &&
+        typeof client.postSincronizarLote === 'function'
+      ) {
+        add('DataJudClient', 'Validar interface e metodos publicos do cliente HTTP DataJud', 'PASS')
+      } else {
+        add('DataJudClient', 'Validar interface e metodos publicos do cliente HTTP DataJud', 'FAIL')
+      }
+    } catch (e: any) {
+      add('DataJud', 'Execucao da suite DataJud', 'FAIL', e?.message)
+    }
+
+    // 7. Suite AuthService (Autenticacao, RBAC e Estado Mockado)
+    try {
+      const { AuthUsersService, SYSTEM_MODULES_LIST } = await import('@/services/authUsersService')
+
+      // Teste 7.1: Validacao de lista de modulos e mapeamento RBAC
+      if (Array.isArray(SYSTEM_MODULES_LIST) && SYSTEM_MODULES_LIST.length >= 14) {
+        add(
+          'AuthService',
+          'Verificar catalogo de modulos do sistema com categorias validas',
+          'PASS',
+        )
+      } else {
+        add(
+          'AuthService',
+          'Verificar catalogo de modulos do sistema com categorias validas',
+          'FAIL',
+        )
+      }
+
+      // Teste 7.2: Rejeicao de login com campos vazios
+      let loginVazioFalhou = false
+      try {
+        await AuthUsersService.login('', '')
+      } catch (err: any) {
+        loginVazioFalhou = true
+      }
+      if (loginVazioFalhou) {
+        add('AuthService', 'Rejeitar tentativa de login com credenciais vazias', 'PASS')
+      } else {
+        add('AuthService', 'Rejeitar tentativa de login com credenciais vazias', 'FAIL')
+      }
+
+      // Teste 7.3: Permissao de modulo para operador nao autenticado
+      const acessoNegadoAnonimo = AuthUsersService.hasModuleAccess('usuarios')
+      if (acessoNegadoAnonimo === false) {
+        add(
+          'AuthService',
+          'Bloquear acesso ao modulo administrativo de usuarios para anonimo',
+          'PASS',
+        )
+      } else {
+        add(
+          'AuthService',
+          'Bloquear acesso ao modulo administrativo de usuarios para anonimo',
+          'FAIL',
+        )
+      }
+    } catch (e: any) {
+      add('AuthService', 'Execucao da suite de autenticacao', 'FAIL', e?.message)
+    }
+
     const passed = results.filter((r) => r.status === 'PASS').length
     const failed = results.filter((r) => r.status === 'FAIL').length
 

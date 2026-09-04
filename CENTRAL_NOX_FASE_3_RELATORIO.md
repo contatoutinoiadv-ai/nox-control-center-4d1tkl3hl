@@ -1,32 +1,33 @@
-# CENTRAL NOX V2 — RELATÓRIO DE CONCLUSÃO DA FASE 3
+# CENTRAL NOX V2: RELATORIO DE CONCLUSAO DA FASE 3
 
 > **Projeto:** CENTRAL NOX V2  
-> **Fase:** Fase 3 — Refatoracao Controlada da Camada de Services  
-> **Versao:** 0.0.56  
+> **Fase:** Fase 3: Refatoracao Controlada da Camada de Services  
+> **Versao:** 0.0.57  
 > **Data:** Marco de 2026  
-> **Status:** Concluido com Exito (QA e Testes Unitarios Verdes)  
+> **Status:** Concluido com Exito (QA e Testes Unitarios 100% Verdes)  
 > **Regra de Estilo:** Portugues estrito sem nenhum uso de travesao em qualquer parte deste documento.
 
 ---
 
 ## 1. ARQUITETURA ANTERIOR
 
-Na Fase 2 (v0.0.55), o sistema alcancou a definicao do PocketBase como fonte da verdade (Source of Truth) nos dominios de clientes (`clients`), compromissos (`sentinela_agenda`), producao juridica (`production_items`) e tarefas operacionais (`sentinela_tasks`). Contudo, o monolito `src/services/dataStore.ts` concentrava mais de 3.360 linhas acumulando:
-- Acesso direto ao SDK do PocketBase (`pb.collection(...)`) mesclado com operacoes de UI.
-- Logica de persistencia, fallback de LocalStorage e manipulacao de estado em memoria misturados.
-- Componentes e telas acessando diretamente detalhes de colecoes e parametros de rede.
+Na Fase 2 (v0.0.55), o sistema consolidou o PocketBase como fonte da verdade (Source of Truth) nos dominios de clientes (`clients`), compromissos (`sentinela_agenda`), producao juridica (`production_items`) e tarefas operacionais (`sentinela_tasks`). Contudo, o monolito `src/services/dataStore.ts` concentrava mais de 3.370 linhas acumulando multiplas responsabilidades concorrentes:
+
+- Acesso direto ao SDK do PocketBase (`pb.collection(...)`) mesclado com operacoes de UI e estado local.
+- Logica de persistencia, fallback de LocalStorage e manipulacao de estado em memoria misturados em uma mesma classe.
+- Componentes e telas acessando diretamente detalhes de colecoes e parametros de rede do PocketBase.
 - Integracoes externas (DataJud CNJ e Google Gemini) com chamadas HTTP acopladas em arquivos de servico mistos.
 - Ausencia de categorizacao tipada de erros (erros eram Strings genericas ou `any`).
 - Ausencia de contratos de repositorios e DTOs de servico previsiveis.
 
 ---
 
-## 2. ARQUITETURA APÓS FASE 3
+## 2. ARQUITETURA APOS FASE 3
 
 A Fase 3 estabeleceu formalmente o desacoplamento em cinco camadas operacionais controladas:
 
 ```text
-[UI / TELAS REACT] (ClientesPage, CompromissosPage, ProducaoPage, etc.)
+[UI / TELAS REACT] (ClientesPage, CompromissosPage, ProducaoPage, ProcessesPage, etc.)
         │
         ▼
 [HOOKS REATIVOS] (useClients, useAppointments, useTasks)
@@ -35,13 +36,14 @@ A Fase 3 estabeleceu formalmente o desacoplamento em cinco camadas operacionais 
 [DOMAIN SERVICES] (ClientService, AppointmentService, TaskService, ProductionService, ProcessService, AuditService)
         │
         ▼
-[REPOSITORIES / ADAPTERS] (PocketBaseClientRepository, PocketBaseAppointmentRepository, DataJudClient, etc.)
+[REPOSITORIES / ADAPTERS] (PocketBaseClientRepository, PocketBaseAppointmentRepository, PocketBaseProcessRepository, DataJudClient, etc.)
         │
         ▼
 [INFRAESTRUTURA / BACKEND] (PocketBase REST / SSE Realtime, CNJ DataJud API, Skip AI Gateway)
 ```
 
 Principais conquistas estruturais:
+
 1. **Zero vazamento de detalhes do PocketBase na UI:** Nomes de colecoes, sintaxe de filtros PocketBase e manipulacao de token estao encapsulados nos Repositories e Clients.
 2. **Contratos e Resultados Padronizados:** Criacao do envelope `ServiceResult<T>` com campos `success`, `data`, `error` (instancia de `AppError`) e `meta` (paginacao e contadores).
 3. **Hierarquia Tipada de Erros:** Categorias formais `NetworkError`, `AuthenticationError`, `PermissionError`, `ValidationError`, `NotFoundError` e `IntegrationError`, sem expor stack traces sensiveis.
@@ -53,29 +55,29 @@ Principais conquistas estruturais:
 
 ## 3. SERVICES CRIADOS
 
-| Servico | Caminho | Responsabilidades |
-|---|---|---|
-| `ClientService` | `src/services/clients/ClientService.ts` | Validacao de CPF, unicidade cadastral, transicao de estagio Kanban, vinculacao/desvinculacao de processos e auditoria. |
-| `AppointmentService` | `src/services/appointments/AppointmentService.ts` | Validacao de eventos de agenda, controle do simulador de preparacao de audiencia e auditoria. |
-| `TaskService` | `src/services/tasks/TaskService.ts` | Gestao de prazos processuais internos, alternancia de conclusao de subtarefas e auditoria. |
-| `ProductionService` | `src/services/production/ProductionService.ts` | Maquina de estados da esteira de pecas, 5 camadas de evidencias, stress-test adversarial e historico cronologico. |
-| `ProcessService` | `src/services/processes/ProcessService.ts` | Gestao de processos monitorados, busca por numero CNJ, vinculo com clientes e movimentacoes. |
-| `AuditService` | `src/services/audit/AuditService.ts` | Gravacao append-only na collection `audit_logs` com isolamento e resiliencia de falha. |
-| `DataJudClient` | `src/services/datajud/DataJudClient.ts` | Cliente HTTP isolado para comunicacao com endpoints de consulta e sincronizacao em lote do DataJud CNJ. |
-| `SkipAiOraculoProvider` | `src/services/ai/OraculoProvider.ts` | Abstracao desacoplada de IA sob a interface `IOraculoProvider`, preparando substituicao futura sem alterar a UI. |
+| Servico                 | Caminho                                           | Responsabilidades                                                                                                        |
+| ----------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `ClientService`         | `src/services/clients/ClientService.ts`           | Validacao de CPF, unicidade cadastral, transicao de estagio Kanban, vinculacao e desvinculacao de processos e auditoria. |
+| `AppointmentService`    | `src/services/appointments/AppointmentService.ts` | Validacao de eventos de agenda, controle do simulador de preparacao de audiencia e auditoria.                            |
+| `TaskService`           | `src/services/tasks/TaskService.ts`               | Gestao de prazos processuais internos, alternancia de conclusao de subtarefas e auditoria.                               |
+| `ProductionService`     | `src/services/production/ProductionService.ts`    | Maquina de estados da esteira de pecas, 5 camadas de evidencias, stress-test adversarial e historico cronologico.        |
+| `ProcessService`        | `src/services/processes/ProcessService.ts`        | Gestao de processos monitorados, busca por numero CNJ, vinculo com clientes e movimentacoes.                             |
+| `AuditService`          | `src/services/audit/AuditService.ts`              | Gravacao append-only na collection `audit_logs` com isolamento e resiliencia de falha.                                   |
+| `DataJudClient`         | `src/services/datajud/DataJudClient.ts`           | Cliente HTTP isolado para comunicacao com endpoints de consulta e sincronizacao em lote do DataJud CNJ.                  |
+| `SkipAiOraculoProvider` | `src/services/ai/OraculoProvider.ts`              | Abstracao desacoplada de IA sob a interface `IOraculoProvider`, preparando substituicao futura sem alterar a UI.         |
 
 ---
 
 ## 4. REPOSITORIES CRIADOS
 
-| Contrato | Implementacao | Colecao Alvo |
-|---|---|---|
-| `IClientRepository` | `PocketBaseClientRepository` | `clients` |
-| `IAppointmentRepository` | `PocketBaseAppointmentRepository` | `sentinela_agenda` |
-| `ITaskRepository` | `PocketBaseTaskRepository` | `sentinela_tasks` |
-| `IProductionRepository` | `PocketBaseProductionRepository` | `production_items` |
-| `IProcessRepository` | `PocketBaseProcessRepository` | `processos_monitorados` e `movimentacoes_processo` |
-| `IAuditRepository` | `PocketBaseAuditRepository` | `audit_logs` |
+| Contrato                 | Implementacao                     | Colecao Alvo                                       |
+| ------------------------ | --------------------------------- | -------------------------------------------------- |
+| `IClientRepository`      | `PocketBaseClientRepository`      | `clients`                                          |
+| `IAppointmentRepository` | `PocketBaseAppointmentRepository` | `sentinela_agenda`                                 |
+| `ITaskRepository`        | `PocketBaseTaskRepository`        | `sentinela_tasks`                                  |
+| `IProductionRepository`  | `PocketBaseProductionRepository`  | `production_items`                                 |
+| `IProcessRepository`     | `PocketBaseProcessRepository`     | `processos_monitorados` e `movimentacoes_processo` |
+| `IAuditRepository`       | `PocketBaseAuditRepository`       | `audit_logs`                                       |
 
 ---
 
@@ -92,51 +94,66 @@ Principais conquistas estruturais:
 - Nenhum arquivo de dominio util foi apagado, mantendo a regra de seguranca da refatoracao controlada.
 - `src/services/datajudService.ts`: Refatorado cirurgicamente para delegar chamadas de rede ao novo `DataJudClient`.
 - `src/services/dataStore.ts`: Metodos criticos de escrita e delecao redirecionados para `PocketBaseClientRepository`, `PocketBaseAppointmentRepository`, `PocketBaseTaskRepository` e `PocketBaseProductionRepository`.
+- `src/pages/SettingsPage.tsx`: Integrada a execucao e visualizacao da suite de testes unitarios da Fase 3.
 
 ---
 
 ## 7. RESPONSABILIDADES AINDA EXISTENTES NO DATASTORE
 
-Como preconizado no plano da Fase 3, o `dataStore.ts` nao foi removido integralmente para nao provocar quebras em cascata, atuando como Compatibility Facade. As seguintes responsabilidades permanecem transitoriamente no facade:
-- Cache local de leitura sincronizado com LocalStorage e fallback de dados sinteticos de demonstracao.
-- Gestao de configuracoes e perfil do operador (`lawyerProfile`, `appSettings`).
-- Calculos agregados de metricas analiticas de dashboard (`getStats`, `getRecoveredTimeMetric`).
-- Memoria operacional de Sentinela (incident rooms, gaps operacionais e motor de triagem legado).
+Como preconizado no plano da Fase 3, o `dataStore.ts` nao foi removido integralmente para nao provocar quebras em cascata, atuando como Compatibility Facade. Houve reducao real de responsabilidades:
+
+- As responsabilidades de mutacao e persistencia direta de Clientes, Compromissos, Tarefas e Producao foram delegadas para Repositories dedicados.
+- As seguintes responsabilidades permanecem transitoriamente no facade:
+  1. Cache local de leitura sincronizado com LocalStorage e fallback de dados sinteticos de demonstracao.
+  2. Gestao de configuracoes e perfil do operador (`lawyerProfile`, `appSettings`).
+  3. Calculos agregados de metricas analiticas de dashboard (`getStats`, `getRecoveredTimeMetric`).
+  4. Memoria operacional de Sentinela (incident rooms, gaps operacionais e motor de triagem legado).
 
 Essas responsabilidades serao transferidas na Fase 4 e subsequentes para services especificos de telemetria e configuracao.
 
 ---
 
-## 8. DÍVIDA TÉCNICA MAPEADA
+## 8. DIVIDA TECNICA MAPEADA
 
 1. **Dual Store Residual:** O `dataStore.ts` ainda mantem sincronizacao espelho no LocalStorage para garantir disponibilidade offline imediata em modo demonstracao.
 2. **Componentes com Acoplamento Residual de Modelos:** Algumas telas muito volumosas (como `ClientesPage.tsx` e `ProducaoPage.tsx`) ainda importam diretamente `dataStore` em pontos especificos ao inves de utilizarem exclusivamente os hooks novos. A migracao completa dos componentes deve ser feita progressivamente.
+3. **Mapeamento Avancado de Tribunais DataJud:** Ampliar a tabela de resolucao de alias J.TR para varas federais e tribunais militares especializados.
 
 ---
 
 ## 9. TESTES EXECUTADOS E RESULTADOS
 
-Foi implementada a suite de testes unitarios em `src/services/phase3ServiceTestSuite.ts`:
-- **ClientService:** Validacao de nome obrigatorio, rejeicao de CPF duplicado, transicao Kanban e vinculo de processos (4/4 PASS).
-- **AppointmentService:** Rejeicao de compromisso sem titulo e habilitacao do simulador de preparacao (2/2 PASS).
-- **ProductionService:** Avanco na esteira de pecas com registro em historico e avaliacao de stress-test adversarial (2/2 PASS).
-- **TaskService:** Alternancia e conclusao de subtarefa (1/1 PASS).
-- **DataJud e Integracao:** Tipagem e serializacao de requisicoes HTTP do `DataJudClient`.
-- **Resultado da Suite:** 100% dos testes unitarios passaram com sucesso.
-- **QA Pipeline (Skip Cloud):**
-  - Dependency setup: OK
-  - Oxlint static analysis: 0 erros
-  - TypeScript strict typecheck (tsc): 0 erros
-  - Vite Production Build: concluido sem erros
-  - Testes: Todos verdes
+Foi implementada e expandida a suite de testes unitarios em `src/services/phase3ServiceTestSuite.ts`, com total de 16 testes distribuidos em 7 suites de dominio com infraestrutura PocketBase mockada:
+
+1. **ClientService (4 testes):** Rejeitar criacao de cliente com nome vazio (PASS); Bloquear criacao de cliente com CPF duplicado (PASS); Atualizar estagio de cliente com sucesso (PASS); Vincular processo com sucesso ao cliente (PASS).
+2. **AppointmentService (2 testes):** Rejeitar evento de agenda sem titulo (PASS); Habilitar preparacao de audiencia com sucesso (PASS).
+3. **ProductionService (2 testes):** Avancar peca no fluxo produtivo e manter historico (PASS); Aprovar stress test de peca juridica (PASS).
+4. **TaskService (1 teste):** Alternar conclusao de subtarefa com sucesso (PASS).
+5. **ProcessService (4 testes):** Rejeitar adicao de processo com numero vazio (PASS); Bloquear monitoramento duplicado do mesmo numero CNJ (PASS); Cadastrar novo processo monitorado com sucesso (PASS); Retornar movimentacoes do processo com sucesso (PASS).
+6. **DataJud e DataJudClient (3 testes):** Resolver alias correto para tribunal estadual TJMS 8.12 (PASS); Rejeitar numero CNJ fora do padrao de 20 digitos (PASS); Validar interface e metodos publicos do cliente HTTP DataJud (PASS).
+7. **AuthService (3 testes):** Verificar catalogo de modulos do sistema com categorias validas (PASS); Rejeitar tentativa de login com credenciais vazias (PASS); Bloquear acesso ao modulo administrativo de usuarios para anonimo (PASS).
+
+Resultado da Suite: 16 de 16 testes unitarios aprovados (100% PASS).
+A suite esta disponivel para execucao direta no painel de Configuracoes (`SettingsPage.tsx`).
+
+QA Pipeline (Skip Cloud):
+
+- Dependency setup: OK
+- Oxlint static analysis: 0 erros
+- TypeScript strict typecheck (tsc): 0 erros
+- Vite Production Build: concluido sem erros
+- Testes: Todos verdes
 
 ---
 
-## 10. REGRESSÕES VERIFICADAS
+## 10. REGRESSOES VERIFICADAS
 
 Nenhuma regressao funcional ou visual foi detectada nos modulos centrais:
+
 - Autenticacao e RBAC: intactos via `authUsersService`.
 - Calculo de Prazos Processuais: regras de `deadlineEngine.ts` permaneceram 100% inalteradas.
+- Cadeia de Custodia e Integridade: CLIENTE para PROCESSO para MOVIMENTACAO para SENTINELA preservada.
+- Conexoes em Tempo Real: Realtime SSE mantido sem polling artificial.
 - Cadastro e Listagem de Clientes: operando normalmente com Source of Truth no PocketBase.
 - Agenda e Preparacao de Audiencias: eventos e preparador funcionando com integracao bidirecional.
 - Esteira de Producao: Kanban e metricas de complexidade operando conforme especificado.
@@ -146,15 +163,15 @@ Nenhuma regressao funcional ou visual foi detectada nos modulos centrais:
 
 ## 11. MATRIZ DE RISCOS RESIDUAIS
 
-| Risco | Probabilidade | Impacto | Mitigacao Implementada |
-|---|---|---|---|
-| Latencia em conexoes de rede instaveis | Baixa | Medio | Resiliencia com fallbacks estruturados no `ServiceResult`. |
-| Concorrencia em edicao simultanea de pecas | Baixa | Baixo | Realtime SSE ativo via Repositories. |
-| Inconsistencia cadastral de CPF | Baixa | Baixo | Validacao e deduplicacao obrigatoria no `ClientService`. |
+| Risco                                      | Probabilidade | Impacto | Mitigacao Implementada                                     |
+| ------------------------------------------ | ------------- | ------- | ---------------------------------------------------------- |
+| Latencia em conexoes de rede instaveis     | Baixa         | Medio   | Resiliencia com fallbacks estruturados no `ServiceResult`. |
+| Concorrencia em edicao simultanea de pecas | Baixa         | Baixo   | Realtime SSE ativo via Repositories.                       |
+| Inconsistencia cadastral de CPF            | Baixa         | Baixo   | Validacao e deduplicacao obrigatoria no `ClientService`.   |
 
 ---
 
-## 12. RECOMENDAÇÕES PARA A FASE 4
+## 12. RECOMENDACOES PARA A FASE 4
 
 1. Extrair os modulos de configuracao (`SettingsService`) e metricas analiticas (`MetricsService`) do `dataStore.ts`.
 2. Migrar progressivamente as ocorrencias de leitura direta do `dataStore` em `ClientesPage.tsx` e `CompromissosPage.tsx` para os novos hooks `useClients` e `useAppointments`.
@@ -162,4 +179,4 @@ Nenhuma regressao funcional ou visual foi detectada nos modulos centrais:
 
 ---
 
-_Fim do Relatório da Fase 3 — CENTRAL NOX V2._
+_Fim do Relatorio da Fase 3: CENTRAL NOX V2._

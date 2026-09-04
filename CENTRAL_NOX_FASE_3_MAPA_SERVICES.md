@@ -1,7 +1,7 @@
-# CENTRAL NOX V2 — MAPA COMPLETO DA CAMADA DE SERVICES (FASE 3)
+# CENTRAL NOX V2: MAPA COMPLETO DA CAMADA DE SERVICES (FASE 3)
 
 > **Documento:** Inventario Arquitetural e Plano de Refatoracao da Camada de Services  
-> **Versao:** 0.0.55  
+> **Versao:** 0.0.57  
 > **Data:** Marco de 2026  
 > **Ambiente:** Skip Cloud (PocketBase) + React TypeScript SPA  
 > **Regra de Estilo:** Portugues sem nenhum uso de travesao em qualquer parte deste documento.
@@ -170,4 +170,4 @@ A extracao e implementada dominio por dominio, do menor risco ao maior risco:
 
 ---
 
-_Fim do Documento — CENTRAL NOX FASE 3 MAPA DE SERVICES._
+_Fim do Documento: CENTRAL NOX FASE 3 MAPA DE SERVICES._

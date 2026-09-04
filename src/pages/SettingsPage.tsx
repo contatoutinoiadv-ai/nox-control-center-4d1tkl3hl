@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input'
 import { dataStore, AppSettings } from '@/services/dataStore'
 import { legacyStorageAdapter, LegacyMigrationStatus } from '@/services/legacyStorageAdapter'
 import { Phase2TestSuite, TestSuiteSummary } from '@/services/phase2TestSuite'
+import { Phase3ServiceTestSuite, ServiceUnitTestResult } from '@/services/phase3ServiceTestSuite'
 import { toast } from 'sonner'
 
 export const SettingsPage: React.FC = () => {
@@ -35,6 +36,13 @@ export const SettingsPage: React.FC = () => {
   )
   const [testSummary, setTestSummary] = useState<TestSuiteSummary | null>(null)
   const [isRunningTests, setIsRunningTests] = useState(false)
+  const [phase3Summary, setPhase3Summary] = useState<{
+    total: number
+    passed: number
+    failed: number
+    results: ServiceUnitTestResult[]
+  } | null>(null)
+  const [isRunningPhase3Tests, setIsRunningPhase3Tests] = useState(false)
   const lawyerProfile = dataStore.getLawyerProfile()
 
   const [formData, setFormData] = useState({
@@ -497,7 +505,41 @@ export const SettingsPage: React.FC = () => {
                 <CheckCircle2
                   className={`w-3.5 h-3.5 mr-1.5 ${isRunningTests ? 'animate-spin' : ''}`}
                 />
-                {isRunningTests ? 'Executando Testes...' : 'Executar Bateria de Testes Fase 2'}
+                {isRunningTests ? 'Executando Testes...' : 'Executar Bateria Fase 2'}
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isRunningPhase3Tests}
+                onClick={async () => {
+                  setIsRunningPhase3Tests(true)
+                  try {
+                    const res = await Phase3ServiceTestSuite.runAll()
+                    setPhase3Summary(res)
+                    if (res.failed === 0) {
+                      toast.success(
+                        `${res.passed}/${res.total} Testes da Fase 3 Verificados com Sucesso!`,
+                        {
+                          description:
+                            'ClientService, ProcessService, DataJudClient e AuthService validados.',
+                        },
+                      )
+                    } else {
+                      toast.error(`${res.failed} teste(s) falharam na suite da Fase 3.`)
+                    }
+                  } finally {
+                    setIsRunningPhase3Tests(false)
+                  }
+                }}
+                className="h-8 text-xs border-purple-700 bg-purple-950/40 text-purple-200 hover:bg-purple-900/60 font-mono"
+              >
+                <CheckCircle2
+                  className={`w-3.5 h-3.5 mr-1.5 ${isRunningPhase3Tests ? 'animate-spin' : ''}`}
+                />
+                {isRunningPhase3Tests
+                  ? 'Testando Services...'
+                  : 'Executar Bateria Fase 3 (Services)'}
               </Button>
 
               <Button
@@ -520,8 +562,8 @@ export const SettingsPage: React.FC = () => {
             <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-2 mt-2">
               <div className="flex items-center justify-between font-mono font-semibold">
                 <span className="text-cyan-400">
-                  Relatório da Bateria de Validação da Fase 2D ({testSummary.passed}/
-                  {testSummary.total} Aprovados)
+                  Relatório da Bateria da Fase 2 ({testSummary.passed}/{testSummary.total}{' '}
+                  Aprovados)
                 </span>
                 <span className="text-slate-400 text-[11px]">
                   {new Date(testSummary.timestamp).toLocaleTimeString('pt-BR')}
@@ -536,6 +578,50 @@ export const SettingsPage: React.FC = () => {
                     <span className="truncate pr-2 text-slate-300">{r.name}</span>
                     <Badge
                       className={`text-[9px] font-mono px-1 py-0 ${
+                        r.status === 'PASS'
+                          ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
+                          : 'bg-rose-950 text-rose-400 border-rose-800'
+                      }`}
+                    >
+                      {r.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {phase3Summary && (
+            <div className="p-3 bg-slate-950 rounded-xl border border-purple-800/60 text-xs space-y-2 mt-2">
+              <div className="flex items-center justify-between font-mono font-semibold">
+                <span className="text-purple-400">
+                  Relatório da Bateria da Fase 3 — Camada de Services ({phase3Summary.passed}/
+                  {phase3Summary.total} Aprovados)
+                </span>
+                <Badge
+                  className={`text-[10px] font-mono ${
+                    phase3Summary.failed === 0
+                      ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
+                      : 'bg-rose-950 text-rose-300 border-rose-700'
+                  }`}
+                >
+                  {phase3Summary.failed === 0 ? '100% VERDE' : `${phase3Summary.failed} FALHAS`}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto">
+                {phase3Summary.results.map((r, idx) => (
+                  <div
+                    key={`${r.suite}_${idx}`}
+                    className="flex items-center justify-between px-2 py-1 rounded bg-slate-900 border border-slate-800/80 text-[11px]"
+                  >
+                    <div className="truncate pr-2">
+                      <span className="text-purple-400 font-mono text-[10px] mr-1">
+                        [{r.suite}]
+                      </span>
+                      <span className="text-slate-300">{r.test}</span>
+                    </div>
+                    <Badge
+                      className={`text-[9px] font-mono px-1 py-0 shrink-0 ${
                         r.status === 'PASS'
                           ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
                           : 'bg-rose-950 text-rose-400 border-rose-800'
