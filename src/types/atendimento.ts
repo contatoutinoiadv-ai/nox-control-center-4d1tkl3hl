@@ -143,3 +143,152 @@ export interface SendMessagePayload {
   attachment?: MessageMediaAttachment
   mentions?: string[]
 }
+
+/**
+ * Entidades persistidas no PocketBase (Fase 6 Lote 1 & 2)
+ */
+export type NoxConversationChannel = 'WHATSAPP' | 'INTERNAL' | 'PORTAL' | 'SISTEMA'
+
+export type NoxDbStatus =
+  | 'NEW'
+  | 'TRIAGE'
+  | 'IN_PROGRESS'
+  | 'WAITING_CLIENT'
+  | 'WAITING_OFFICE'
+  | 'WAITING_DOCUMENT'
+  | 'COMPLETED'
+  | 'ARCHIVED'
+
+export type NoxDbPriority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
+
+export type NoxMessageDirection = 'INBOUND' | 'OUTBOUND' | 'INTERNAL_SYSTEM'
+export type NoxMessageType = 'TEXT' | 'IMAGE' | 'AUDIO' | 'VIDEO' | 'DOCUMENT' | 'SYSTEM'
+export type NoxMessageStatus = 'PENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED'
+
+export type NoxAiAnalysisType =
+  | 'TRIAGE'
+  | 'SUMMARY'
+  | 'INTENT'
+  | 'URGENCY'
+  | 'CLASSIFICATION'
+  | 'RESPONSE_SUGGESTION'
+  | 'DOCUMENT_ANALYSIS'
+
+export type NoxAiReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'EDITED' | 'NOT_REQUIRED'
+
+export interface NoxConversationRecord {
+  id: string
+  channel: NoxConversationChannel
+  external_conversation_id?: string
+  phone_normalized?: string
+  contact_name?: string
+  client_id?: string
+  process_id?: string
+  assigned_user_id?: string
+  status: NoxDbStatus
+  priority: NoxDbPriority
+  last_message_at?: string
+  last_message_preview?: string
+  unread_count?: number
+  is_archived?: boolean
+  instance_id?: string
+  external_chat_id?: string
+  created?: string
+  updated?: string
+  // Expands
+  expand?: {
+    client_id?: { id: string; nome: string; client_code?: string; cpf?: string; telefone?: string }
+    process_id?: { id: string; numero_processo: string; tribunal?: string; cliente?: string }
+    assigned_user_id?: { id: string; name: string; email?: string }
+  }
+}
+
+export interface NoxMessageRecord {
+  id: string
+  conversation_id: string
+  external_message_id?: string
+  direction: NoxMessageDirection
+  type: NoxMessageType
+  sender_type?: string
+  sender_user_id?: string
+  sender_external_id?: string
+  content_text?: string
+  status: NoxMessageStatus
+  reply_to_message_id?: string
+  sent_at?: string
+  delivered_at?: string
+  read_at?: string
+  failed_at?: string
+  failure_reason?: string
+  metadata_json?: any
+  created?: string
+  updated?: string
+  expand?: {
+    sender_user_id?: { id: string; name: string }
+  }
+}
+
+export interface NoxInternalNoteRecord {
+  id: string
+  conversation_id: string
+  author_user_id: string
+  content: string
+  mentions?: string[]
+  is_archived?: boolean
+  deleted_at?: string
+  created?: string
+  updated?: string
+  expand?: {
+    author_user_id?: { id: string; name: string; email?: string }
+  }
+}
+
+export interface NoxAssignmentRecord {
+  id: string
+  conversation_id: string
+  assigned_to_user_id: string
+  assigned_by_user_id?: string
+  reason?: string
+  assigned_at?: string
+  ended_at?: string
+  created?: string
+  updated?: string
+  expand?: {
+    assigned_to_user_id?: { id: string; name: string }
+    assigned_by_user_id?: { id: string; name: string }
+  }
+}
+
+export interface NoxAiAnalysisRecord {
+  id: string
+  conversation_id: string
+  message_id?: string
+  analysis_type: NoxAiAnalysisType
+  provider?: string
+  model?: string
+  result_json: any
+  confidence?: number
+  review_status: NoxAiReviewStatus
+  reviewed_by?: string
+  created?: string
+  updated?: string
+  expand?: {
+    reviewed_by?: { id: string; name: string }
+  }
+}
+
+export interface NoxWebhookEventRecord {
+  id: string
+  provider: string
+  event_type: string
+  external_event_id?: string
+  payload_hash: string
+  status: 'RECEIVED' | 'PROCESSING' | 'PROCESSED' | 'FAILED' | 'IGNORED'
+  received_at?: string
+  processed_at?: string
+  attempts?: number
+  error_summary?: string
+  metadata_json?: any
+  created?: string
+  updated?: string
+}

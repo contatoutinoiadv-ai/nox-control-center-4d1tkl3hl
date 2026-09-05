@@ -657,7 +657,7 @@ export const CentralAtendimentoPage: React.FC = () => {
           icon={MessageSquare}
           badge={
             <span className="text-[10px] font-mono font-bold tracking-wider uppercase px-2 py-0.5 rounded bg-gradient-to-r from-purple-950 to-cyan-950 text-cyan-300 border border-cyan-500/50">
-              FASE 5: LOTE 2 (FINAL)
+              FASE 6: LOTE 2 (FINAL)
             </span>
           }
           actions={
@@ -672,8 +672,8 @@ export const CentralAtendimentoPage: React.FC = () => {
                   <span>Painel Inteligência</span>
                 </button>
               )}
-              <span className="text-[10px] font-mono text-cyan-400 bg-cyan-950/60 border border-cyan-800/60 px-2 py-0.5 rounded">
-                MOCK ADAPTER NOX
+              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded">
+                BACKEND REAL (POCKETBASE)
               </span>
             </div>
           }

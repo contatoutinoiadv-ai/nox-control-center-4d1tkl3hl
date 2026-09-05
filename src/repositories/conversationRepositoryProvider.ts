@@ -1,14 +1,16 @@
 import { IConversationRepository } from '@/repositories/contracts/IConversationRepository'
 import { mockConversationRepository } from '@/repositories/mock/MockConversationRepository'
+import { pocketBaseConversationRepository } from '@/repositories/pocketbase/PocketBaseConversationRepository'
 
 /**
- * Adapter provider para a Central de Atendimento.
- * Hoje retorna MockConversationRepository.
- * No futuro (Fase 5/6), quando o PocketBase for integrado para mensageria,
- * bastará injetar `pocketBaseConversationRepository` aqui sem que nenhuma
- * tela ou componente precise ser modificado.
+ * Adapter provider para a Central de Atendimento NOX V2.
+ *
+ * Fase 6 Lote 2:
+ * Por padrão, opera com o PocketBaseConversationRepository real (backend Skip Cloud).
+ * Em caso de ambiente de testes isolados ou quando explicitamente solicitado,
+ * permite chaveamento via `setConversationRepository`.
  */
-let currentRepository: IConversationRepository = mockConversationRepository
+let currentRepository: IConversationRepository = pocketBaseConversationRepository
 
 export const getConversationRepository = (): IConversationRepository => {
   return currentRepository
@@ -16,4 +18,12 @@ export const getConversationRepository = (): IConversationRepository => {
 
 export const setConversationRepository = (repo: IConversationRepository) => {
   currentRepository = repo
+}
+
+export const useMockConversationRepository = () => {
+  currentRepository = mockConversationRepository
+}
+
+export const usePocketBaseConversationRepository = () => {
+  currentRepository = pocketBaseConversationRepository
 }
