@@ -26,15 +26,12 @@ export function useTasks() {
   }, [])
 
   useEffect(() => {
+    // Fonte única de reatividade do estado canônico de tarefas operacionais (dataStore facade)
     const unsubStore = dataStore.subscribe(() => {
-      setTasks(dataStore.getTasks())
-    })
-    const unsubRepo = taskService.subscribe(() => {
       setTasks(dataStore.getTasks())
     })
     return () => {
       unsubStore()
-      unsubRepo()
     }
   }, [])
 

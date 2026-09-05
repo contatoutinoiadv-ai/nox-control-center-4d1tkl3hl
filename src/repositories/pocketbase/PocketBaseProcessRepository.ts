@@ -3,6 +3,7 @@
  */
 
 import pb from '@/lib/pocketbase/client'
+import { realtimeService } from '@/services/realtime/RealtimeService'
 import {
   IProcessRepository,
   ProcessFilterOptions,
@@ -140,20 +141,21 @@ export class PocketBaseProcessRepository implements IProcessRepository {
 
   public subscribe(callback: (action: string, record: ProcessoMonitorado) => void): () => void {
     let active = true
-    pb.collection(this.colProcessos)
-      .subscribe('*', (e: any) => {
-        if (!active) return
-        if (e?.record) {
-          callback(e.action, e.record as ProcessoMonitorado)
-        }
-      })
-      .catch((err) => console.warn('Falha ao assinar realtime de processos_monitorados:', err))
+    const listener = (event: any) => {
+      if (!active) return
+      if (event?.payload) {
+        callback(event.action, event.payload as ProcessoMonitorado)
+      }
+    }
+    const unsub = realtimeService.subscribe<any>(
+      this.colProcessos,
+      listener,
+      'processos_monitorados',
+    )
 
     return () => {
       active = false
-      pb.collection(this.colProcessos)
-        .unsubscribe('*')
-        .catch(() => {})
+      unsub()
     }
   }
 }

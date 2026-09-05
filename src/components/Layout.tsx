@@ -21,6 +21,7 @@ import { MigrationStatusBanner } from './MigrationStatusBanner'
 import { dataStore } from '@/services/dataStore'
 import { authUsersService } from '@/services/authUsersService'
 import { legacyStorageAdapter } from '@/services/legacyStorageAdapter'
+import { realtimeService } from '@/services/realtime/RealtimeService'
 import { NoxSystemStats, AuthMeResponse } from '@/types/nox'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -72,45 +73,34 @@ export const Layout: React.FC = () => {
         })
         .catch(() => {})
     }
-    // Monitoramento Real do status de conectividade do navegador e PocketBase SSE
-    const handleOnline = () => setRealtimeState('online')
-    const handleOffline = () => setRealtimeState('offline')
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
+    // Monitoramento Real do status de conectividade via RealtimeService central
+    const unsubConn = realtimeService.onConnectionChange((status) => {
+      if (status === 'ONLINE') setRealtimeState('online')
+      else if (status === 'RECONNECTING') setRealtimeState('reconnecting')
+      else setRealtimeState('offline')
+    })
 
-    // Assinatura Realtime real no PocketBase (coleção clients / audit_logs para detecção de updates)
-    let unsubPb: (() => void) | undefined
-    if (pb.authStore.isValid) {
-      pb.collection('audit_logs')
-        .subscribe('*', () => {
-          setHasRecentUpdate(true)
-        })
-        .then((fn) => {
-          unsubPb = fn
-        })
-        .catch(() => {
-          // SSE fallback gracefully mantendo estado do navegador
-        })
-    }
+    // Assinatura de audit_logs sem race condition via RealtimeService central
+    const unsubAudit = realtimeService.subscribe(
+      'audit_logs',
+      () => {
+        setHasRecentUpdate(true)
+      },
+      'audit_logs',
+    )
 
     return () => {
       unsub()
       unsubAuth()
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-      if (unsubPb) {
-        try {
-          unsubPb()
-        } catch {
-          /* intentionally ignored */
-        }
-      }
+      unsubConn()
+      unsubAudit()
     }
   }, [])
 
   const handleLogout = async () => {
     setLoggingOut(true)
     try {
+      await realtimeService.handleLogout()
       await authUsersService.logout()
       toast.info('Sessão encerrada com sucesso.')
       navigate('/login', { replace: true })

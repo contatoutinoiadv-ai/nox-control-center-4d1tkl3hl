@@ -26,19 +26,13 @@ export function useClients() {
   }, [])
 
   useEffect(() => {
-    // Sincroniza com mudancas reativas do dataStore facade
+    // Fonte única de reatividade do estado canônico de clientes (dataStore facade)
     const unsubStore = dataStore.subscribe(() => {
-      setClients(dataStore.getClients())
-    })
-
-    // Sincroniza com realtime nativo do PocketBaseClientRepository
-    const unsubRepo = clientService.subscribe(() => {
       setClients(dataStore.getClients())
     })
 
     return () => {
       unsubStore()
-      unsubRepo()
     }
   }, [])
 

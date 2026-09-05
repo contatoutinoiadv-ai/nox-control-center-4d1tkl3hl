@@ -40,11 +40,21 @@ export const CentralPrazosPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
     'prazos' | 'agenda' | 'tarefas' | 'calculadora' | 'movimentacoes'
   >('prazos')
-  const [tasks] = useState(dataStore.getTasks())
-  const [agenda] = useState(dataStore.getAgendaEvents())
-  const [communications] = useState(dataStore.getCommunications())
+  const [tasks, setTasks] = useState(() => dataStore.getTasks())
+  const [agenda, setAgenda] = useState(() => dataStore.getAgendaEvents())
+  const [communications, setCommunications] = useState(() => dataStore.getCommunications())
   const [searchQuery, setSearchQuery] = useState('')
   const [datajudMovs, setDatajudMovs] = useState<MovimentacaoProcesso[]>([])
+
+  // Sincronização reativa com o dataStore em tempo real
+  React.useEffect(() => {
+    const unsub = dataStore.subscribe(() => {
+      setTasks(dataStore.getTasks())
+      setAgenda(dataStore.getAgendaEvents())
+      setCommunications(dataStore.getCommunications())
+    })
+    return () => unsub()
+  }, [])
 
   React.useEffect(() => {
     datajudService.getMovimentacoes().then((movs) => {

@@ -37,9 +37,108 @@ import {
   mapRecordToConversationMessage,
   mapInternalNoteToConversationMessage,
 } from '@/repositories/mappersAtendimento'
+import { realtimeService, RealtimeEvent } from '@/services/realtime/RealtimeService'
 
 export class PocketBaseConversationRepository implements IConversationRepository {
   private listeners: Array<(event: { type: string; payload: unknown }) => void> = []
+  private sseUnsubscribers: Array<() => void> = []
+  private isSseInitialized = false
+
+  constructor() {
+    this.initSseSubscriptions()
+  }
+
+  /**
+   * Conecta o repositório de atendimento ao RealtimeService central.
+   * Assina as 4 coleções reais: nox_conversations, nox_messages, nox_internal_notes e nox_assignments.
+   */
+  private initSseSubscriptions() {
+    if (this.isSseInitialized) return
+    this.isSseInitialized = true
+
+    // 1. nox_conversations: nova conversa criada ou atualizada por outro operador
+    const unsubConv = realtimeService.subscribe<any>(
+      'nox_conversations',
+      async (evt: RealtimeEvent<any>) => {
+        if (evt.action === 'create' || evt.action === 'update') {
+          // Busca conversa atualizada com expand para garantir integridade
+          const convId = evt.recordId
+          const res = await this.getConversationById(convId)
+          if (res.success && res.data) {
+            this.notify('conversation:updated', res.data)
+          } else if (evt.payload && evt.payload.id) {
+            const summary = mapRecordToConversationSummary(evt.payload)
+            this.notify('conversation:updated', summary)
+          }
+        } else if (evt.action === 'delete') {
+          this.notify('conversation:deleted', { id: evt.recordId })
+        }
+      },
+      'nox_conversations',
+    )
+    this.sseUnsubscribers.push(unsubConv)
+
+    // 2. nox_messages: nova mensagem inbound ou outbound recebida em qualquer sessão
+    const unsubMsg = realtimeService.subscribe<any>(
+      'nox_messages',
+      (evt: RealtimeEvent<any>) => {
+        if (evt.action === 'create' || evt.action === 'update') {
+          if (evt.payload && evt.payload.id) {
+            const mapped = mapRecordToConversationMessage(evt.payload, 'Operador NOX')
+            this.notify('message:created', mapped)
+            // Atualiza preview da conversa
+            if (evt.payload.conversation_id) {
+              this.getConversationById(evt.payload.conversation_id)
+                .then((r) => {
+                  if (r.success && r.data) {
+                    this.notify('conversation:updated', r.data)
+                  }
+                })
+                .catch(() => {})
+            }
+          }
+        }
+      },
+      'nox_messages',
+    )
+    this.sseUnsubscribers.push(unsubMsg)
+
+    // 3. nox_internal_notes: nota interna criada por colega autorizada em tempo real
+    const unsubNote = realtimeService.subscribe<any>(
+      'nox_internal_notes',
+      (evt: RealtimeEvent<any>) => {
+        if (evt.action === 'create' || evt.action === 'update') {
+          if (evt.payload && evt.payload.id) {
+            const mapped = mapInternalNoteToConversationMessage(evt.payload)
+            this.notify('message:created', mapped)
+          }
+        }
+      },
+      'nox_internal_notes',
+    )
+    this.sseUnsubscribers.push(unsubNote)
+
+    // 4. nox_assignments: transferência de custódia executada por outro operador
+    const unsubAssign = realtimeService.subscribe<any>(
+      'nox_assignments',
+      (evt: RealtimeEvent<any>) => {
+        if (evt.action === 'create') {
+          const convId = evt.payload?.conversation_id
+          if (convId) {
+            this.getConversationById(convId)
+              .then((r) => {
+                if (r.success && r.data) {
+                  this.notify('conversation:updated', r.data)
+                }
+              })
+              .catch(() => {})
+          }
+        }
+      },
+      'nox_assignments',
+    )
+    this.sseUnsubscribers.push(unsubAssign)
+  }
 
   public subscribe(callback: (event: { type: string; payload: unknown }) => void): () => void {
     this.listeners.push(callback)
@@ -48,7 +147,7 @@ export class PocketBaseConversationRepository implements IConversationRepository
     }
   }
 
-  private notify(type: string, payload: unknown) {
+  public notify(type: string, payload: unknown) {
     this.listeners.forEach((cb) => {
       try {
         cb({ type, payload })

@@ -26,15 +26,12 @@ export function useAppointments() {
   }, [])
 
   useEffect(() => {
+    // Fonte única de reatividade do estado canônico da agenda (dataStore facade)
     const unsubStore = dataStore.subscribe(() => {
-      setEvents(dataStore.getAgendaEvents())
-    })
-    const unsubRepo = appointmentService.subscribe(() => {
       setEvents(dataStore.getAgendaEvents())
     })
     return () => {
       unsubStore()
-      unsubRepo()
     }
   }, [])
 

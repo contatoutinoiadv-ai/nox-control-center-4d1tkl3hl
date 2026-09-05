@@ -3,6 +3,7 @@
  */
 
 import pb from '@/lib/pocketbase/client'
+import { realtimeService } from '@/services/realtime/RealtimeService'
 import {
   IProductionRepository,
   ProductionFilterOptions,
@@ -119,20 +120,17 @@ export class PocketBaseProductionRepository implements IProductionRepository {
 
   public subscribe(callback: (action: string, record: ProductionItem) => void): () => void {
     let active = true
-    pb.collection(this.collectionName)
-      .subscribe('*', (e: any) => {
-        if (!active) return
-        if (e?.record) {
-          callback(e.action, mapRecordToProductionItem(e.record))
-        }
-      })
-      .catch((err) => console.warn('Falha ao assinar realtime de production_items:', err))
+    const listener = (event: any) => {
+      if (!active) return
+      if (event?.payload) {
+        callback(event.action, mapRecordToProductionItem(event.payload))
+      }
+    }
+    const unsub = realtimeService.subscribe<any>(this.collectionName, listener, 'production_items')
 
     return () => {
       active = false
-      pb.collection(this.collectionName)
-        .unsubscribe('*')
-        .catch(() => {})
+      unsub()
     }
   }
 }

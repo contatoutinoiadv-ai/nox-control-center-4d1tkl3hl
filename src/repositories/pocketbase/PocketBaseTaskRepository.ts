@@ -3,6 +3,7 @@
  */
 
 import pb from '@/lib/pocketbase/client'
+import { realtimeService } from '@/services/realtime/RealtimeService'
 import { ITaskRepository, TaskFilterOptions, TaskListResult } from '../contracts/ITaskRepository'
 import { SentinelaTask } from '@/types/sentinela'
 import { mapRecordToTask, mapTaskToRecordPayload } from '../mappers'
@@ -104,20 +105,17 @@ export class PocketBaseTaskRepository implements ITaskRepository {
 
   public subscribe(callback: (action: string, record: SentinelaTask) => void): () => void {
     let active = true
-    pb.collection(this.collectionName)
-      .subscribe('*', (e: any) => {
-        if (!active) return
-        if (e?.record) {
-          callback(e.action, mapRecordToTask(e.record))
-        }
-      })
-      .catch((err) => console.warn('Falha ao assinar realtime de sentinela_tasks:', err))
+    const listener = (event: any) => {
+      if (!active) return
+      if (event?.payload) {
+        callback(event.action, mapRecordToTask(event.payload))
+      }
+    }
+    const unsub = realtimeService.subscribe<any>(this.collectionName, listener, 'sentinela_tasks')
 
     return () => {
       active = false
-      pb.collection(this.collectionName)
-        .unsubscribe('*')
-        .catch(() => {})
+      unsub()
     }
   }
 }

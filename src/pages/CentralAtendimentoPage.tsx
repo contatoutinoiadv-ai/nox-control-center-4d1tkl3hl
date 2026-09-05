@@ -8,6 +8,7 @@ import {
   ConversationPriority,
 } from '@/types/atendimento'
 import { getConversationRepository } from '@/repositories/conversationRepositoryProvider'
+import { realtimeService, RealtimeService } from '@/services/realtime/RealtimeService'
 import {
   ConversationList,
   ConversationHeader,
@@ -90,35 +91,6 @@ export const CentralAtendimentoPage: React.FC = () => {
   // Texto para inserir no composer ao aprovar sugestão de IA
   const [composerPresetText, setComposerPresetText] = useState<string | null>(null)
 
-  // Monitoramento de conexão online/offline
-  useEffect(() => {
-    const handleOnline = () => setIsOffline(false)
-    const handleOffline = () => setIsOffline(true)
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-    return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-    }
-  }, [])
-
-  // Carrega clientes reais e processos reais da base NOX
-  useEffect(() => {
-    const loadRealData = async () => {
-      try {
-        const clientRes = await clientService.listClients()
-        if (clientRes.success && clientRes.data) {
-          setAllClients(clientRes.data)
-        }
-        const procs = await datajudService.getProcessosMonitorados()
-        setAllMonitoredProcesses(procs)
-      } catch (err) {
-        console.warn('Erro ao carregar dados integrados:', err)
-      }
-    }
-    loadRealData()
-  }, [])
-
   // Carrega lista de conversas
   const loadConversations = useCallback(async () => {
     setIsLoadingList(true)
@@ -147,6 +119,43 @@ export const CentralAtendimentoPage: React.FC = () => {
       setIsLoadingList(false)
     }
   }, [currentFilter, searchQuery, repository, selectedConversation])
+
+  // Monitoramento de conexão online/offline e resync pós-reconexão
+  useEffect(() => {
+    const unsubConn = realtimeService.onConnectionChange((status) => {
+      setIsOffline(status === 'OFFLINE')
+    })
+    const unsubResync = realtimeService.onResync(async () => {
+      await loadConversations()
+      if (selectedConversation) {
+        const res = await repository.getMessages(selectedConversation.id)
+        if (res.success && res.data) {
+          setMessages(res.data)
+        }
+      }
+    })
+    return () => {
+      unsubConn()
+      unsubResync()
+    }
+  }, [loadConversations, repository, selectedConversation])
+
+  // Carrega clientes reais e processos reais da base NOX
+  useEffect(() => {
+    const loadRealData = async () => {
+      try {
+        const clientRes = await clientService.listClients()
+        if (clientRes.success && clientRes.data) {
+          setAllClients(clientRes.data)
+        }
+        const procs = await datajudService.getProcessosMonitorados()
+        setAllMonitoredProcesses(procs)
+      } catch (err) {
+        console.warn('Erro ao carregar dados integrados:', err)
+      }
+    }
+    loadRealData()
+  }, [])
 
   // Efeito para carregar ao alterar filtros ou busca
   useEffect(() => {
@@ -213,19 +222,43 @@ export const CentralAtendimentoPage: React.FC = () => {
     }
   }, [selectedConversation, allClients, allMonitoredProcesses])
 
-  // Assinatura em tempo real de eventos do repository
+  // Assinatura em tempo real de eventos do repository com deduplicação canônica
   useEffect(() => {
     const unsubscribe = repository.subscribe((event) => {
       if (event.type === 'message:created') {
         const newMsg = event.payload as ConversationMessage
         if (selectedConversation && newMsg.conversationId === selectedConversation.id) {
-          setMessages((prev) => [...prev, newMsg])
+          setMessages((prev) => {
+            // Deduplicação canônica de mensagens por ID
+            const exists = prev.some((m) => m.id === newMsg.id)
+            if (exists) {
+              return prev.map((m) => (m.id === newMsg.id ? newMsg : m))
+            }
+            const updatedList = [...prev, newMsg]
+            return RealtimeService.sortTimelineMessages(updatedList)
+          })
         }
       } else if (event.type === 'conversation:updated') {
         const updatedConv = event.payload as ConversationSummary
-        setConversations((prev) => prev.map((c) => (c.id === updatedConv.id ? updatedConv : c)))
+        setConversations((prev) => {
+          // Deduplicação e inserção inteligente na fila
+          const exists = prev.some((c) => c.id === updatedConv.id)
+          if (!exists) {
+            // Nova conversa criada
+            return [updatedConv, ...prev]
+          }
+          // Se for arquivada ou soft-deleted, atualiza visual
+          return prev.map((c) => (c.id === updatedConv.id ? updatedConv : c))
+        })
         if (selectedConversation && selectedConversation.id === updatedConv.id) {
           setSelectedConversation(updatedConv)
+        }
+      } else if (event.type === 'conversation:deleted') {
+        const delPayload = event.payload as { id: string }
+        setConversations((prev) => prev.filter((c) => c.id !== delPayload.id))
+        if (selectedConversation && selectedConversation.id === delPayload.id) {
+          setSelectedConversation(null)
+          setMessages([])
         }
       }
     })

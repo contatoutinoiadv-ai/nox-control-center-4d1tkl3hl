@@ -3,6 +3,7 @@
  */
 
 import pb from '@/lib/pocketbase/client'
+import { realtimeService } from '@/services/realtime/RealtimeService'
 import {
   IClientRepository,
   ClientFilterOptions,
@@ -142,20 +143,17 @@ export class PocketBaseClientRepository implements IClientRepository {
 
   public subscribe(callback: (action: string, record: NoxClient) => void): () => void {
     let active = true
-    pb.collection(this.collectionName)
-      .subscribe('*', (e: any) => {
-        if (!active) return
-        if (e?.record) {
-          callback(e.action, mapRecordToClient(e.record))
-        }
-      })
-      .catch((err) => console.warn('Falha ao assinar realtime de clients:', err))
+    const listener = (event: any) => {
+      if (!active) return
+      if (event?.payload) {
+        callback(event.action, mapRecordToClient(event.payload))
+      }
+    }
+    const unsub = realtimeService.subscribe<any>(this.collectionName, listener, 'clients')
 
     return () => {
       active = false
-      pb.collection(this.collectionName)
-        .unsubscribe('*')
-        .catch(() => {})
+      unsub()
     }
   }
 }

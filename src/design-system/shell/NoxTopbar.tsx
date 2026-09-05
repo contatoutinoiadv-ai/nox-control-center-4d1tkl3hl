@@ -32,7 +32,7 @@ export const NoxTopbar: React.FC<NoxTopbarProps> = ({
 }) => {
   const realtimeConfig = {
     online: {
-      label: 'ONLINE (SSE)',
+      label: 'ATENDIMENTO ONLINE',
       dotClass: 'bg-emerald-400 animate-pulse',
       badgeClass: 'text-emerald-400 border-emerald-900/50 bg-emerald-950/30',
     },

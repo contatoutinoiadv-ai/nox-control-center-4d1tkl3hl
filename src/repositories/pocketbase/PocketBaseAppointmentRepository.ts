@@ -3,6 +3,7 @@
  */
 
 import pb from '@/lib/pocketbase/client'
+import { realtimeService } from '@/services/realtime/RealtimeService'
 import {
   IAppointmentRepository,
   AppointmentFilterOptions,
@@ -125,20 +126,17 @@ export class PocketBaseAppointmentRepository implements IAppointmentRepository {
 
   public subscribe(callback: (action: string, record: AgendaEvent) => void): () => void {
     let active = true
-    pb.collection(this.collectionName)
-      .subscribe('*', (e: any) => {
-        if (!active) return
-        if (e?.record) {
-          callback(e.action, mapRecordToAppointment(e.record))
-        }
-      })
-      .catch((err) => console.warn('Falha ao assinar realtime de sentinela_agenda:', err))
+    const listener = (event: any) => {
+      if (!active) return
+      if (event?.payload) {
+        callback(event.action, mapRecordToAppointment(event.payload))
+      }
+    }
+    const unsub = realtimeService.subscribe<any>(this.collectionName, listener, 'sentinela_agenda')
 
     return () => {
       active = false
-      pb.collection(this.collectionName)
-        .unsubscribe('*')
-        .catch(() => {})
+      unsub()
     }
   }
 }

@@ -29,6 +29,7 @@ import { Phase2TestSuite, TestSuiteSummary } from '@/services/phase2TestSuite'
 import { Phase3ServiceTestSuite, ServiceUnitTestResult } from '@/services/phase3ServiceTestSuite'
 import { Phase5AtendimentoTestSuite } from '@/services/atendimento/phase5AtendimentoTestSuite'
 import { Phase6AtendimentoTestSuite } from '@/services/atendimento/phase6AtendimentoTestSuite'
+import { Phase7RealtimeTestSuite } from '@/services/atendimento/phase7RealtimeTestSuite'
 import { toast } from 'sonner'
 
 export const SettingsPage: React.FC = () => {
@@ -57,8 +58,17 @@ export const SettingsPage: React.FC = () => {
     total: number
     passed: number
     failed: number
-    results: ServiceUnitTestResult[]
+    results: any[]
   } | null>(null)
+
+  const [isRunningPhase7Tests, setIsRunningPhase7Tests] = useState(false)
+  const [phase7Summary, setPhase7Summary] = useState<{
+    total: number
+    passed: number
+    failed: number
+    results: any[]
+  } | null>(null)
+
   const lawyerProfile = dataStore.getLawyerProfile()
 
   const [formData, setFormData] = useState({
@@ -619,7 +629,39 @@ export const SettingsPage: React.FC = () => {
                 <CheckCircle2
                   className={`w-3.5 h-3.5 mr-1.5 ${isRunningPhase6Tests ? 'animate-spin' : ''}`}
                 />
-                {isRunningPhase6Tests ? 'Testando Fase 6...' : 'Bateria Fase 6 (Lote 2 Final)'}
+                {isRunningPhase6Tests ? 'Testando Fase 6...' : 'Bateria Fase 6 (Services)'}
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isRunningPhase7Tests}
+                onClick={async () => {
+                  setIsRunningPhase7Tests(true)
+                  try {
+                    const res = await Phase7RealtimeTestSuite.runAll()
+                    setPhase7Summary(res)
+                    if (res.failed === 0) {
+                      toast.success(
+                        `${res.passed}/${res.total} Testes da Fase 7 (Realtime & Multiusuário) Aprovados!`,
+                        {
+                          description:
+                            'SSE centralizado, deduplicação canônica, reconnect, resync e multiusuário validados.',
+                        },
+                      )
+                    } else {
+                      toast.error(`${res.failed} teste(s) falharam na suite da Fase 7.`)
+                    }
+                  } finally {
+                    setIsRunningPhase7Tests(false)
+                  }
+                }}
+                className="h-8 text-xs border-blue-500 bg-blue-950/60 text-blue-300 hover:bg-blue-900/60 font-mono font-bold"
+              >
+                <CheckCircle2
+                  className={`w-3.5 h-3.5 mr-1.5 ${isRunningPhase7Tests ? 'animate-spin' : ''}`}
+                />
+                {isRunningPhase7Tests ? 'Testando Realtime...' : 'Bateria Fase 7 (Realtime)'}
               </Button>
 
               <Button
@@ -784,6 +826,48 @@ export const SettingsPage: React.FC = () => {
                       <span className="text-emerald-400 font-mono text-[10px] mr-1">
                         [{r.suite}]
                       </span>
+                      <span className="text-slate-300">{r.test}</span>
+                    </div>
+                    <Badge
+                      className={`text-[9px] font-mono px-1 py-0 shrink-0 ${
+                        r.status === 'PASS'
+                          ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
+                          : 'bg-rose-950 text-rose-400 border-rose-800'
+                      }`}
+                    >
+                      {r.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {phase7Summary && (
+            <div className="p-3 bg-slate-950 rounded-xl border border-blue-800/80 text-xs space-y-2 mt-2">
+              <div className="flex items-center justify-between font-mono font-semibold">
+                <span className="text-blue-400">
+                  Relatório da Bateria da Fase 7 — Realtime Centralizado, SSE & Multiusuário (
+                  {phase7Summary.passed}/{phase7Summary.total} Aprovados)
+                </span>
+                <Badge
+                  className={`text-[10px] font-mono ${
+                    phase7Summary.failed === 0
+                      ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
+                      : 'bg-rose-950 text-rose-300 border-rose-700'
+                  }`}
+                >
+                  {phase7Summary.failed === 0 ? '100% VERDE' : `${phase7Summary.failed} FALHAS`}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto">
+                {phase7Summary.results.map((r, idx) => (
+                  <div
+                    key={`${r.suite}_${idx}`}
+                    className="flex items-center justify-between px-2 py-1 rounded bg-slate-900 border border-slate-800/80 text-[11px]"
+                  >
+                    <div className="truncate pr-2">
+                      <span className="text-blue-400 font-mono text-[10px] mr-1">[{r.suite}]</span>
                       <span className="text-slate-300">{r.test}</span>
                     </div>
                     <Badge
