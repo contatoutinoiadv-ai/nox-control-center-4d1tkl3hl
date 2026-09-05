@@ -167,6 +167,9 @@ export interface AuditLogEntry {
     | 'configuracao'
     | 'lex_tempus'
     | 'producao'
+    | 'migracao'
+    | 'seguranca'
+    | 'atendimento'
   actor: string
   targetId?: string
   details: Record<string, unknown>

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-05T00:05:08.205Z",
+  "generatedAt": "2026-09-05T00:17:23.549Z",
   "collections": [
     {
       "name": "users",
@@ -359,7 +359,8 @@
             "configuracao",
             "lex_tempus",
             "migracao",
-            "seguranca"
+            "seguranca",
+            "atendimento"
           ]
         },
         {
@@ -1832,6 +1833,694 @@
       "indexes": [
         "CREATE INDEX idx_doc_tpl_user ON document_templates (user_id)",
         "CREATE INDEX idx_doc_tpl_created ON document_templates (created DESC)"
+      ]
+    },
+    {
+      "name": "nox_conversations",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\"",
+        "update": "@request.auth.id != \"\"",
+        "delete": "@request.auth.id != \"\" && @request.auth.role = \"admin\""
+      },
+      "fields": [
+        {
+          "name": "channel",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["WHATSAPP", "INTERNAL", "PORTAL", "SISTEMA"]
+        },
+        {
+          "name": "external_conversation_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "phone_normalized",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "contact_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "client_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "clients"
+        },
+        {
+          "name": "process_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "processos_monitorados"
+        },
+        {
+          "name": "assigned_user_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": [
+            "NEW",
+            "TRIAGE",
+            "IN_PROGRESS",
+            "WAITING_CLIENT",
+            "WAITING_OFFICE",
+            "WAITING_DOCUMENT",
+            "COMPLETED",
+            "ARCHIVED"
+          ]
+        },
+        {
+          "name": "priority",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+        },
+        {
+          "name": "last_message_at",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "last_message_preview",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "unread_count",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_archived",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "instance_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "external_chat_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_nox_conv_status ON nox_conversations (status)",
+        "CREATE INDEX idx_nox_conv_priority ON nox_conversations (priority)",
+        "CREATE INDEX idx_nox_conv_assigned ON nox_conversations (assigned_user_id)",
+        "CREATE INDEX idx_nox_conv_client ON nox_conversations (client_id)",
+        "CREATE INDEX idx_nox_conv_process ON nox_conversations (process_id)",
+        "CREATE INDEX idx_nox_conv_last_msg ON nox_conversations (last_message_at DESC)",
+        "CREATE INDEX idx_nox_conv_phone ON nox_conversations (phone_normalized)",
+        "CREATE INDEX idx_nox_conv_ext_id ON nox_conversations (external_conversation_id)"
+      ]
+    },
+    {
+      "name": "nox_messages",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\"",
+        "update": "@request.auth.id != \"\"",
+        "delete": "@request.auth.id != \"\" && @request.auth.role = \"admin\""
+      },
+      "fields": [
+        {
+          "name": "conversation_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "nox_conversations"
+        },
+        {
+          "name": "external_message_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "direction",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["INBOUND", "OUTBOUND", "INTERNAL_SYSTEM"]
+        },
+        {
+          "name": "type",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["TEXT", "IMAGE", "AUDIO", "VIDEO", "DOCUMENT", "SYSTEM"]
+        },
+        {
+          "name": "sender_type",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sender_user_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "sender_external_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "content_text",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["PENDING", "SENT", "DELIVERED", "READ", "FAILED"]
+        },
+        {
+          "name": "reply_to_message_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sent_at",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "delivered_at",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "read_at",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "failed_at",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "failure_reason",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "metadata_json",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_nox_msg_conv_created ON nox_messages (conversation_id, created ASC)",
+        "CREATE INDEX idx_nox_msg_ext_id ON nox_messages (external_message_id)",
+        "CREATE INDEX idx_nox_msg_status ON nox_messages (status)",
+        "CREATE INDEX idx_nox_msg_direction ON nox_messages (direction)"
+      ]
+    },
+    {
+      "name": "nox_message_attachments",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\"",
+        "update": "@request.auth.id != \"\"",
+        "delete": "@request.auth.id != \"\" && @request.auth.role = \"admin\""
+      },
+      "fields": [
+        {
+          "name": "message_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "nox_messages"
+        },
+        {
+          "name": "file",
+          "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "mime_type",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "original_name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "size",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sha256",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "storage_provider",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "metadata_json",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_nox_attach_msg ON nox_message_attachments (message_id)",
+        "CREATE INDEX idx_nox_attach_sha256 ON nox_message_attachments (sha256)"
+      ]
+    },
+    {
+      "name": "nox_assignments",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\"",
+        "update": "@request.auth.id != \"\"",
+        "delete": "@request.auth.id != \"\" && @request.auth.role = \"admin\""
+      },
+      "fields": [
+        {
+          "name": "conversation_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "nox_conversations"
+        },
+        {
+          "name": "assigned_to_user_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "assigned_by_user_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "assigned_at",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "ended_at",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_nox_assign_conv ON nox_assignments (conversation_id, created DESC)",
+        "CREATE INDEX idx_nox_assign_user ON nox_assignments (assigned_to_user_id)"
+      ]
+    },
+    {
+      "name": "nox_internal_notes",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\"",
+        "update": "@request.auth.id != \"\" && author_user_id = @request.auth.id",
+        "delete": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || author_user_id = @request.auth.id)"
+      },
+      "fields": [
+        {
+          "name": "conversation_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "nox_conversations"
+        },
+        {
+          "name": "author_user_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "content",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "mentions",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_archived",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "deleted_at",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_nox_notes_conv ON nox_internal_notes (conversation_id, created ASC)",
+        "CREATE INDEX idx_nox_notes_author ON nox_internal_notes (author_user_id)"
+      ]
+    },
+    {
+      "name": "nox_ai_analysis",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\"",
+        "update": "@request.auth.id != \"\"",
+        "delete": "@request.auth.id != \"\" && @request.auth.role = \"admin\""
+      },
+      "fields": [
+        {
+          "name": "conversation_id",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "nox_conversations"
+        },
+        {
+          "name": "message_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "nox_messages"
+        },
+        {
+          "name": "analysis_type",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": [
+            "TRIAGE",
+            "SUMMARY",
+            "INTENT",
+            "URGENCY",
+            "CLASSIFICATION",
+            "RESPONSE_SUGGESTION",
+            "DOCUMENT_ANALYSIS"
+          ]
+        },
+        {
+          "name": "provider",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "model",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "result_json",
+          "type": "json",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "confidence",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "review_status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["PENDING", "APPROVED", "REJECTED", "EDITED", "NOT_REQUIRED"]
+        },
+        {
+          "name": "reviewed_by",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_nox_ai_conv ON nox_ai_analysis (conversation_id, created DESC)",
+        "CREATE INDEX idx_nox_ai_type ON nox_ai_analysis (analysis_type)",
+        "CREATE INDEX idx_nox_ai_review ON nox_ai_analysis (review_status)"
+      ]
+    },
+    {
+      "name": "nox_webhook_events",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\"",
+        "update": "@request.auth.id != \"\"",
+        "delete": "@request.auth.id != \"\" && @request.auth.role = \"admin\""
+      },
+      "fields": [
+        {
+          "name": "provider",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "event_type",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "external_event_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "payload_hash",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["RECEIVED", "PROCESSING", "PROCESSED", "FAILED", "IGNORED"]
+        },
+        {
+          "name": "received_at",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "processed_at",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "attempts",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "error_summary",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "metadata_json",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_nox_wh_dedup ON nox_webhook_events (provider, external_event_id) WHERE external_event_id != \"\"",
+        "CREATE INDEX idx_nox_wh_hash ON nox_webhook_events (payload_hash)",
+        "CREATE INDEX idx_nox_wh_status ON nox_webhook_events (status)",
+        "CREATE INDEX idx_nox_wh_created ON nox_webhook_events (created DESC)"
       ]
     }
   ]

@@ -112,7 +112,7 @@ export interface ConversationSummary {
   linkedProcessId?: string
   tags?: string[]
   isClientLead: 'CLIENTE' | 'LEAD'
-  channel: 'WHATSAPP' | 'PORTAL' | 'SISTEMA'
+  channel: 'WHATSAPP' | 'INTERNAL' | 'PORTAL' | 'SISTEMA'
   createdAt: string
   updatedAt: string
   isMockDemo?: boolean
