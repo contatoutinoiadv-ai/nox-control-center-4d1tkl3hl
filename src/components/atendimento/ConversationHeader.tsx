@@ -27,6 +27,7 @@ export interface ConversationHeaderProps {
   onUpdatePriority: (priority: ConversationPriority) => void
   onTriggerAiTriage: () => void
   onSuggestResponse: () => void
+  onOpenTransferModal?: () => void
   className?: string
 }
 
@@ -37,6 +38,7 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
   onUpdatePriority,
   onTriggerAiTriage,
   onSuggestResponse,
+  onOpenTransferModal,
   className,
 }) => {
   const { participant, status, priority, responsible, linkedProcessNumber } = conversation
@@ -289,7 +291,14 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
           {moreActionsOpen && (
             <div className="absolute right-0 top-full mt-1 w-52 bg-[#09101f] border border-slate-700 rounded-lg shadow-xl shadow-black z-50 py-1 text-xs">
               <button
-                onClick={() => handleActionPlaceholder('Transferir Atendimento')}
+                onClick={() => {
+                  setMoreActionsOpen(false)
+                  if (onOpenTransferModal) {
+                    onOpenTransferModal()
+                  } else {
+                    handleActionPlaceholder('Transferir Atendimento')
+                  }
+                }}
                 className="w-full text-left px-3 py-1.5 text-slate-300 hover:bg-slate-800 hover:text-cyan-300 flex items-center gap-2"
               >
                 <User className="w-3.5 h-3.5" />

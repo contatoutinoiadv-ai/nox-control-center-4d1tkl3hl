@@ -42,6 +42,21 @@ export const FIXTURE_CONVERSATIONS: ConversationSummary[] = [
     createdAt: '2026-04-02T14:30:00.000Z',
     updatedAt: '2026-04-02T14:35:00.000Z',
     isMockDemo: true,
+    aiTriage: {
+      urgencyLevel: 'POSSÍVEL URGÊNCIA',
+      subject: 'Possível intimação judicial recebida',
+      summary: 'Cliente Maria da Silva relata ter recebido correspondência judicial/intimação física em sua residência hoje.',
+      intent: 'COMUNICAR_INTIMACAO',
+      riskLevel: 'ALTO (DECURSO DE PRAZO)',
+      suggestedResponse: 'Olá, Maria. Compreendido o seu relato sobre a intimação. Por favor, envie uma foto legível da folha recebida para que possamos verificar o processo e resguardar seu prazo imediatamente.',
+      entitiesIdentified: ['Intimação Judicial Física', '0812345-67.2026.8.12.0001', 'Hoje'],
+      recommendedActions: [
+        'Solicitar imagem da intimação',
+        'Verificar processo no DataJud',
+        'Criar tarefa de análise de prazo',
+        'Agendar alinhamento com cliente',
+      ],
+    },
   },
   {
     id: 'conv_joao_pereira',

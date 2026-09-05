@@ -282,6 +282,7 @@ export class MockConversationRepository implements IConversationRepository {
 
     conv.participant.isClient = true
     conv.participant.clientId = clientId
+    conv.clientId = clientId
     conv.isClientLead = 'CLIENTE'
     conv.updatedAt = new Date().toISOString()
     this.notify('conversation:updated', conv)
@@ -298,9 +299,17 @@ export class MockConversationRepository implements IConversationRepository {
     }
 
     conv.responsible = responsibleName.trim()
+    conv.assignedTo = responsibleName.trim()
     conv.updatedAt = new Date().toISOString()
     this.notify('conversation:updated', conv)
     return okResult(conv)
+  }
+
+  public async assignConversation(
+    conversationId: string,
+    responsibleName: string,
+  ): Promise<ServiceResult<ConversationSummary>> {
+    return this.assignResponsible(conversationId, responsibleName)
   }
 }
 

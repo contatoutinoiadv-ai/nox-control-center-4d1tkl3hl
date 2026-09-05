@@ -77,9 +77,25 @@ export interface ConversationParticipant {
   cpf?: string
 }
 
+export interface ConversationAiTriage {
+  urgencyLevel: string
+  subject: string
+  summary: string
+  intent: string
+  riskLevel: string
+  suggestedResponse: string
+  entitiesIdentified?: string[]
+  recommendedActions?: string[]
+}
+
 export interface ConversationSummary {
   id: string
   participant: ConversationParticipant
+  /** Conveniência para compatibilidade */
+  participantName?: string
+  participantPhone?: string
+  clientId?: string
+  assignedTo?: string
   lastMessage: {
     content: string
     createdAt: string
@@ -100,6 +116,7 @@ export interface ConversationSummary {
   createdAt: string
   updatedAt: string
   isMockDemo?: boolean
+  aiTriage?: ConversationAiTriage
 }
 
 export interface ConversationFilterParams {

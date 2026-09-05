@@ -21,6 +21,8 @@ export interface MessageComposerProps {
   onSendMessage: (content: string, mentions?: string[]) => void
   onSendInternalNote: (content: string, mentions?: string[]) => void
   onAttachFile?: () => void
+  presetContent?: string | null
+  onPresetContentConsumed?: () => void
   disabled?: boolean
   className?: string
 }
@@ -29,11 +31,28 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
   onSendMessage,
   onSendInternalNote,
   onAttachFile,
+  presetContent,
+  onPresetContentConsumed,
   disabled = false,
   className,
 }) => {
   const [mode, setMode] = useState<ComposerMode>('CLIENT_MESSAGE')
   const [text, setText] = useState('')
+
+  useEffect(() => {
+    if (presetContent) {
+      setText(presetContent)
+      setMode('CLIENT_MESSAGE')
+      if (onPresetContentConsumed) {
+        onPresetContentConsumed()
+      }
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus()
+        }
+      }, 50)
+    }
+  }, [presetContent, onPresetContentConsumed])
   const [showMentionMenu, setShowMentionMenu] = useState(false)
   const [mentionFilter, setMentionFilter] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)

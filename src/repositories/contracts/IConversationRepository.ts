@@ -80,6 +80,14 @@ export interface IConversationRepository {
   ): Promise<ServiceResult<ConversationSummary>>
 
   /**
+   * Alias de compatibilidade para assignResponsible
+   */
+  assignConversation(
+    conversationId: string,
+    responsibleName: string,
+  ): Promise<ServiceResult<ConversationSummary>>
+
+  /**
    * Assina atualizações em tempo real (callback para reatividade)
    */
   subscribe(callback: (event: { type: string; payload: unknown }) => void): () => void
