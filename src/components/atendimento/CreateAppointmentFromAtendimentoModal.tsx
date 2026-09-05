@@ -41,7 +41,7 @@ export const CreateAppointmentFromAtendimentoModal: React.FC<
   onConfirmCreateAppointment,
 }) => {
   const [title, setTitle] = useState(
-    defaultClientName ? `Atendimento Jurídico — ${defaultClientName}` : 'Compromisso com Cliente',
+    defaultClientName ? `Atendimento Jurídico: ${defaultClientName}` : 'Compromisso com Cliente',
   )
   const [eventType, setEventType] = useState<AgendaEventType>('ATENDIMENTO')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])

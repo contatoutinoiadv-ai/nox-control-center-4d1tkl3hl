@@ -128,7 +128,7 @@ export const ConversationListItem: React.FC<ConversationListItemProps> = ({
             {participant.phone}
           </div>
 
-          {/* Prévia da última mensagem (texto puro — sem injeção) */}
+          {/* Prévia da última mensagem (texto puro: sem injeção) */}
           <p className="text-xs text-slate-400 truncate leading-relaxed">
             {renderMessageIcon()}
             {lastMessage.direction === 'OUTGOING' && (

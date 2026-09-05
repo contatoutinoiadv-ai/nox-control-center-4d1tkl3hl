@@ -146,7 +146,7 @@ export const IntelligencePanelPlaceholder: React.FC<IntelligencePanelPlaceholder
         )}
       </NoxCard>
 
-      {/* Alerta de Triagem IA — Oráculo NOX */}
+      {/* Alerta de Triagem IA: Oráculo NOX */}
       <div className="p-3 rounded-lg bg-gradient-to-br from-purple-950/40 via-[#100d1e] to-[#0b1222] border border-purple-700/50 space-y-2 shadow-md">
         <div className="flex items-center gap-1.5 text-purple-300 font-mono text-xs font-bold uppercase">
           <Sparkles className="w-3.5 h-3.5 text-purple-400" />

@@ -108,9 +108,9 @@ export const CentralAtendimentoPage: React.FC = () => {
       try {
         const clientRes = await clientService.listClients()
         if (clientRes.success && clientRes.data) {
-          setAllClients(clientRes.data.items)
+          setAllClients(clientRes.data)
         }
-        const procs = datajudService.getProcessosMonitorados()
+        const procs = await datajudService.getProcessosMonitorados()
         setAllMonitoredProcesses(procs)
       } catch (err) {
         console.warn('Erro ao carregar dados integrados:', err)
@@ -197,7 +197,7 @@ export const CentralAtendimentoPage: React.FC = () => {
         const fCli = (foundClient?.nome || '').trim().toLowerCase()
         return (
           pCli === fCli ||
-          (p.cliente_id && p.cliente_id === foundClient?.id) ||
+          (p.client_id && p.client_id === foundClient?.id) ||
           (selectedConversation.linkedProcessNumber &&
             p.numero_processo === selectedConversation.linkedProcessNumber)
         )
@@ -242,13 +242,15 @@ export const CentralAtendimentoPage: React.FC = () => {
 
     // Registra evento de auditoria conceitual
     try {
-      await auditService.log({
-        actor: conv.assignedTo || 'Operador NOX',
-        action: 'CONVERSATION_OPENED',
-        entityType: 'CONVERSATION',
-        entityId: conv.id,
-        summary: `Atendimento com ${conv.participantName} aberto para análise operacional.`,
-      })
+      await auditService.log(
+        'CONVERSATION_OPENED',
+        'sistema',
+        conv.assignedTo || 'Operador NOX',
+        conv.id,
+        {
+          summary: `Atendimento com ${conv.participantName} aberto para análise operacional.`,
+        },
+      )
     } catch {
       // Ignora erro de auditoria para não travar UI
     }
@@ -443,16 +445,14 @@ export const CentralAtendimentoPage: React.FC = () => {
 
     try {
       const res = await taskService.createTask({
-        titulo: taskData.title,
-        descricao: taskData.description,
-        prioridade: taskData.priority,
-        processo_numero: taskData.processNumber,
-        cliente_nome: taskData.clientName,
-        data_limite_fatal: taskData.internalDueDate,
-        data_limite_escritorio: taskData.internalDueDate,
-        responsavel: taskData.responsible,
-        status: 'PENDENTE',
-        origem: 'CENTRAL DE ATENDIMENTO',
+        title: taskData.title,
+        description: `[Origem: CENTRAL DE ATENDIMENTO] ${taskData.description}`,
+        priority: taskData.priority,
+        processNumber: taskData.processNumber,
+        clientName: taskData.clientName,
+        internalDueDate: taskData.internalDueDate,
+        responsible: taskData.responsible,
+        status: 'A_FAZER',
       })
 
       if (res.success) {
@@ -509,17 +509,17 @@ export const CentralAtendimentoPage: React.FC = () => {
 
     try {
       const res = await appointmentService.createAppointment({
-        titulo: appointmentData.title,
-        descricao: appointmentData.description,
-        tipo_evento: appointmentData.eventType,
-        processo_numero: appointmentData.processNumber,
-        cliente_nome: appointmentData.clientName,
-        data_inicio: appointmentData.startDate,
-        data_fim: appointmentData.endDate,
-        responsavel: appointmentData.responsible,
-        local_ou_link: appointmentData.locationOrLink,
+        title: appointmentData.title,
+        description: `[Origem: CENTRAL DE ATENDIMENTO] ${appointmentData.description}`,
+        eventType: appointmentData.eventType,
+        processNumber: appointmentData.processNumber,
+        clientName: appointmentData.clientName,
+        startDate: appointmentData.startDate,
+        endDate: appointmentData.endDate,
+        isVirtual: appointmentData.isVirtual,
+        locationOrLink: appointmentData.locationOrLink,
+        responsible: appointmentData.responsible,
         status: 'AGENDADO',
-        lembretes_ativos: true,
       })
 
       if (res.success) {
@@ -657,7 +657,7 @@ export const CentralAtendimentoPage: React.FC = () => {
           icon={MessageSquare}
           badge={
             <span className="text-[10px] font-mono font-bold tracking-wider uppercase px-2 py-0.5 rounded bg-gradient-to-r from-purple-950 to-cyan-950 text-cyan-300 border border-cyan-500/50">
-              FASE 5 — LOTE 2 (FINAL)
+              FASE 5: LOTE 2 (FINAL)
             </span>
           }
           actions={
@@ -726,10 +726,10 @@ export const CentralAtendimentoPage: React.FC = () => {
           />
         </div>
       ) : (
-        /* LAYOUT PRINCIPAL — RESPONSIVIDADE ESTRITA:
-         * Desktop (>= 1024px): 3 colunas (FILA 24% | CHAT 46% | INTELIGÊNCIA 30%)
-         * Tablet (768px - 1023px): 2 colunas (FILA 32% | CHAT 68%) + Drawer Tablet para Inteligência
-         * Mobile (< 768px): 1 coluna sequencial (Tela 1 Fila -> Tela 2 Chat -> Tela 3 Inteligência)
+        /* LAYOUT PRINCIPAL: RESPONSIVIDADE ESTRITA:
+         * Desktop (>= 1024px): 3 colunas (FILA 24% | CHAT 46% | INTELIGENCIA 30%)
+         * Tablet (768px - 1023px): 2 colunas (FILA 32% | CHAT 68%) + Drawer Tablet para Inteligencia
+         * Mobile (< 768px): 1 coluna sequencial (Tela 1 Fila -> Tela 2 Chat -> Tela 3 Inteligencia)
          */
         <div className="flex-1 flex overflow-hidden min-h-0 relative">
           {/* ============================================================== */}
@@ -780,6 +780,9 @@ export const CentralAtendimentoPage: React.FC = () => {
                   onTriggerAiTriage={handleTriggerAiTriage}
                   onSuggestResponse={handleSuggestResponse}
                   onOpenTransferModal={() => setIsTransferModalOpen(true)}
+                  onCreateTask={() => setIsCreateTaskModalOpen(true)}
+                  onScheduleAppointment={() => setIsCreateAppointmentModalOpen(true)}
+                  onLinkProcess={() => setIsLinkProcessModalOpen(true)}
                 />
 
                 {/* Barra de Acesso Rápido Mobile/Tablet ao Painel de Inteligência */}

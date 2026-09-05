@@ -48,8 +48,8 @@ export const IntelligenceClientTab: React.FC<IntelligenceClientTabProps> = ({
             <h4 className="text-sm font-bold text-slate-200 font-mono">CONTATO NÃO IDENTIFICADO</h4>
             <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
               Esta conversa está associada ao remetente{' '}
-              <strong>{conversation.participant.name}</strong> ({conversation.participant.phone}), mas
-              não há cadastro oficial vinculado.
+              <strong>{conversation.participant.name}</strong> ({conversation.participant.phone}),
+              mas não há cadastro oficial vinculado.
             </p>
           </div>
           <div className="p-2.5 rounded-lg bg-amber-950/20 border border-amber-900/40 text-[11px] text-amber-300 font-mono text-left">
@@ -203,13 +203,13 @@ export const IntelligenceClientTab: React.FC<IntelligenceClientTabProps> = ({
       </div>
 
       {/* Observações / Notas do Cliente */}
-      {client.areaDemanda && (
+      {client.demanda && (
         <div className="p-3 rounded-xl bg-slate-900/30 border border-slate-800/60 space-y-1">
           <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1.5">
             <FileText className="w-3 h-3 text-cyan-400" />
             <span>ÁREA DE DEMANDA CADASTRADA</span>
           </div>
-          <p className="text-xs text-slate-300 leading-relaxed font-sans">{client.areaDemanda}</p>
+          <p className="text-xs text-slate-300 leading-relaxed font-sans">{client.demanda}</p>
         </div>
       )}
     </div>

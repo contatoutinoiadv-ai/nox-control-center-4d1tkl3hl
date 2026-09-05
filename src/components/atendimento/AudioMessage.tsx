@@ -67,7 +67,7 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({
         </div>
       </div>
 
-      {/* Área Reservada — TRANSCRIÇÃO NOX (somente demonstrativa / placeholder no Lote 1) */}
+      {/* Área Reservada: TRANSCRIÇÃO NOX (somente demonstrativa / placeholder no Lote 1) */}
       <div className="rounded-lg border border-purple-900/40 bg-purple-950/20 p-2.5 text-xs">
         <div
           className="flex items-center justify-between cursor-pointer select-none"

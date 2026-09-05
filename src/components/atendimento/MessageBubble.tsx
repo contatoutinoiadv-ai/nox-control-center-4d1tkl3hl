@@ -73,7 +73,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, className
     )
   }
 
-  // Caso 2: NOTA INTERNA — PROTEÇÃO CRÍTICA (Fundo âmbar escuro + badge textual indelével)
+  // Caso 2: NOTA INTERNA: PROTEÇÃO CRÍTICA (Fundo âmbar escuro + badge textual indelével)
   if (isInternal) {
     return (
       <div className={cn('flex justify-center my-3 w-full px-2', className)}>
@@ -85,7 +85,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, className
                 <Lock className="w-3.5 h-3.5" />
               </span>
               <span className="text-[11px] font-mono font-extrabold uppercase tracking-wider text-amber-300">
-                NOTA INTERNA — NÃO SERÁ ENVIADA AO CLIENTE
+                NOTA INTERNA: NÃO SERÁ ENVIADA AO CLIENTE
               </span>
             </div>
             <div className="text-[10px] font-mono text-amber-400/80">
@@ -141,7 +141,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, className
           {message.isMockDemo && (
             <span
               className="text-[8px] font-mono px-1 py-0 rounded bg-slate-800/80 text-slate-400 border border-slate-700/60"
-              title="Dado demonstrativo isolado — nenhum envio real pelo WhatsApp nesta fase"
+              title="Dado demonstrativo isolado: nenhum envio real pelo WhatsApp nesta fase"
             >
               MOCK/DEMO
             </span>
@@ -154,7 +154,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, className
         ) : (message.type === 'DOCUMENT' || message.type === 'IMAGE') && message.attachment ? (
           <DocumentMessage attachment={message.attachment} isIncoming={isIncoming} />
         ) : (
-          /* Texto puro — sem dangerouslySetInnerHTML, blindado contra injeções */
+          /* Texto puro: sem dangerouslySetInnerHTML, blindado contra injeções */
           <div className="text-xs font-sans whitespace-pre-wrap leading-relaxed text-slate-100 select-text">
             {message.content}
           </div>

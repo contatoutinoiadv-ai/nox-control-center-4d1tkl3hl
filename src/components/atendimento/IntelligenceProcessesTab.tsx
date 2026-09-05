@@ -48,12 +48,14 @@ export const IntelligenceProcessesTab: React.FC<IntelligenceProcessesTabProps> =
           <div>
             <div className="text-xs font-mono font-bold text-slate-100 flex items-center justify-between">
               <span>{linkedProcess.numero_processo}</span>
-              <span className="text-[11px] font-mono text-cyan-300">{linkedProcess.tribunal}</span>
+              <span className="text-[11px] font-mono text-cyan-300">
+                {linkedProcess.tribunal || 'TJMS'}
+              </span>
             </div>
             <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
-              <span>Classe: {linkedProcess.classe_processual || 'Procedimento Comum'}</span>
+              <span>Cliente: {linkedProcess.cliente || 'Vinculado'}</span>
               <span>&bull;</span>
-              <span>{linkedProcess.vara || 'Vara Cível'}</span>
+              <span>Status: {linkedProcess.ativo ? 'Monitoramento Ativo' : 'Inativo'}</span>
             </div>
           </div>
 
@@ -64,37 +66,18 @@ export const IntelligenceProcessesTab: React.FC<IntelligenceProcessesTabProps> =
               <span>ÚLTIMA MOVIMENTAÇÃO DATAJUD</span>
             </div>
             <div className="text-slate-200 font-medium text-[11px] leading-tight">
-              {linkedProcess.ultima_movimentacao_resumo ||
-                'Intimação eletrônica expedida via sistema.'}
+              {linkedProcess.tem_prazo_aberto
+                ? 'Prazo processual aberto aguardando manifestação.'
+                : 'Processo sincronizado com a base do CNJ DataJud.'}
             </div>
             <div className="text-[10px] font-mono text-slate-500">
-              Data: {linkedProcess.ultima_movimentacao_data || 'Hoje'}
+              Mapeamento: {linkedProcess.ultimo_status_mapeamento || 'Sincronizado'}
             </div>
           </div>
 
-          {/* Alertas Existentes */}
-          {linkedProcess.alertas_ativos && linkedProcess.alertas_ativos.length > 0 && (
-            <div className="space-y-1">
-              <div className="text-[10px] font-mono text-amber-400 flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" />
-                <span>ALERTAS OPERACIONAIS</span>
-              </div>
-              <div className="space-y-1">
-                {linkedProcess.alertas_ativos.map((alerta, idx) => (
-                  <div
-                    key={idx}
-                    className="p-1.5 rounded bg-amber-950/30 border border-amber-900/50 text-[11px] text-amber-200 font-mono"
-                  >
-                    &bull; {alerta}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           <div className="flex items-center gap-2 pt-1 border-t border-cyan-900/40">
             <NoxButton
-              variant="outline"
+              variant="secondary"
               size="sm"
               icon={FolderGit2}
               onClick={onOpenLinkModal}
@@ -175,8 +158,8 @@ export const IntelligenceProcessesTab: React.FC<IntelligenceProcessesTabProps> =
                         {proc.numero_processo}
                       </NoxMono>
                       <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                        {proc.tribunal} &bull; {proc.polo || 'AUTOR'} &bull;{' '}
-                        {proc.status || 'ATIVO'}
+                        {proc.tribunal || 'TJ'} &bull; {proc.cliente || 'Cliente'} &bull;{' '}
+                        {proc.ativo ? 'ATIVO' : 'INATIVO'}
                       </div>
                     </div>
                     {isSelected ? (
@@ -197,7 +180,9 @@ export const IntelligenceProcessesTab: React.FC<IntelligenceProcessesTabProps> =
                   </div>
 
                   <div className="mt-2 text-[11px] text-slate-300 line-clamp-2 bg-[#050811]/60 p-1.5 rounded border border-slate-800/80">
-                    {proc.ultima_movimentacao_resumo || 'Sem movimentações recentes.'}
+                    {proc.tem_prazo_aberto
+                      ? 'Prazo aberto em andamento.'
+                      : 'Monitoramento DataJud ativo sem prazos abertos.'}
                   </div>
                 </div>
               )

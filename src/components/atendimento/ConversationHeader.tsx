@@ -28,6 +28,9 @@ export interface ConversationHeaderProps {
   onTriggerAiTriage: () => void
   onSuggestResponse: () => void
   onOpenTransferModal?: () => void
+  onCreateTask?: () => void
+  onScheduleAppointment?: () => void
+  onLinkProcess?: () => void
   className?: string
 }
 
@@ -39,6 +42,9 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
   onTriggerAiTriage,
   onSuggestResponse,
   onOpenTransferModal,
+  onCreateTask,
+  onScheduleAppointment,
+  onLinkProcess,
   className,
 }) => {
   const { participant, status, priority, responsible, linkedProcessNumber } = conversation
@@ -247,7 +253,10 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
             variant="ghost"
             size="sm"
             icon={CheckSquare}
-            onClick={() => handleActionPlaceholder('Criar Tarefa Operacional')}
+            onClick={() => {
+              if (onCreateTask) onCreateTask()
+              else handleActionPlaceholder('Criar Tarefa Operacional')
+            }}
             className="text-slate-300 text-[11px] h-7 px-2"
           >
             Criar Tarefa
@@ -257,7 +266,10 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
             variant="ghost"
             size="sm"
             icon={Calendar}
-            onClick={() => handleActionPlaceholder('Agendar Compromisso')}
+            onClick={() => {
+              if (onScheduleAppointment) onScheduleAppointment()
+              else handleActionPlaceholder('Agendar Compromisso')
+            }}
             className="text-slate-300 text-[11px] h-7 px-2"
           >
             Agendar
@@ -267,7 +279,10 @@ export const ConversationHeader: React.FC<ConversationHeaderProps> = ({
             variant="ghost"
             size="sm"
             icon={LinkIcon}
-            onClick={() => handleActionPlaceholder('Vincular Processo CNJ')}
+            onClick={() => {
+              if (onLinkProcess) onLinkProcess()
+              else handleActionPlaceholder('Vincular Processo CNJ')
+            }}
             className="text-slate-300 text-[11px] h-7 px-2"
           >
             Vincular Processo

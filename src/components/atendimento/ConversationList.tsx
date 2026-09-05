@@ -89,7 +89,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
           className="h-8 text-xs bg-[#09101f]"
         />
 
-        {/* Barra de Filtros Principais — Scroll horizontal ou pills */}
+        {/* Barra de Filtros Principais: Scroll horizontal ou pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none nox-filter-scroll">
           {FILTERS.map((f) => {
             const isActive = currentFilter === f.id

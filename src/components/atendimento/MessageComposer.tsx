@@ -191,7 +191,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
         {isInternal ? (
           <div className="flex items-center gap-1.5 text-amber-300 font-mono text-[10px] font-extrabold uppercase animate-pulse">
             <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-            <span>NOTA INTERNA — NÃO SERÁ ENVIADA AO CLIENTE</span>
+            <span>NOTA INTERNA: NÃO SERÁ ENVIADA AO CLIENTE</span>
           </div>
         ) : (
           <div className="text-[10px] font-mono text-slate-500">

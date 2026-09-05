@@ -1,5 +1,5 @@
 /**
- * FIXTURES DE DEMONSTRAÇÃO E DESENVOLVIMENTO — CENTRAL DE ATENDIMENTO NOX
+ * FIXTURES DE DEMONSTRAÇÃO E DESENVOLVIMENTO: CENTRAL DE ATENDIMENTO NOX
  *
  * Regra Arquitetural Obrigatória (Fase 5):
  * 1. Todos os dados fictícios ficam ISOLADOS neste arquivo.
@@ -45,10 +45,12 @@ export const FIXTURE_CONVERSATIONS: ConversationSummary[] = [
     aiTriage: {
       urgencyLevel: 'POSSÍVEL URGÊNCIA',
       subject: 'Possível intimação judicial recebida',
-      summary: 'Cliente Maria da Silva relata ter recebido correspondência judicial/intimação física em sua residência hoje.',
+      summary:
+        'Cliente Maria da Silva relata ter recebido correspondência judicial/intimação física em sua residência hoje.',
       intent: 'COMUNICAR_INTIMACAO',
       riskLevel: 'ALTO (DECURSO DE PRAZO)',
-      suggestedResponse: 'Olá, Maria. Compreendido o seu relato sobre a intimação. Por favor, envie uma foto legível da folha recebida para que possamos verificar o processo e resguardar seu prazo imediatamente.',
+      suggestedResponse:
+        'Olá, Maria. Compreendido o seu relato sobre a intimação. Por favor, envie uma foto legível da folha recebida para que possamos verificar o processo e resguardar seu prazo imediatamente.',
       entitiesIdentified: ['Intimação Judicial Física', '0812345-67.2026.8.12.0001', 'Hoje'],
       recommendedActions: [
         'Solicitar imagem da intimação',

@@ -32,7 +32,7 @@ export const DocumentMessage: React.FC<DocumentMessageProps> = ({
 
   const handlePreview = () => {
     toast.info(`Visualizar documento: ${fileName}`, {
-      description: 'Ambiente seguro de sandbox NOX — execução de código e scripts desabilitada.',
+      description: 'Ambiente seguro de sandbox NOX: execução de código e scripts desabilitada.',
     })
   }
 

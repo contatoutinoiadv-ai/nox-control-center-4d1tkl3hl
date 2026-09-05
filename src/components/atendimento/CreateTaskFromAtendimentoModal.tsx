@@ -37,7 +37,7 @@ export const CreateTaskFromAtendimentoModal: React.FC<CreateTaskFromAtendimentoM
 }) => {
   const [title, setTitle] = useState(
     defaultClientName
-      ? `Atendimento — ${defaultClientName}: Providência Jurídica`
+      ? `Atendimento: ${defaultClientName} (Providência Jurídica)`
       : 'Atendimento: Providência',
   )
   const [description, setDescription] = useState(
@@ -191,7 +191,8 @@ export const CreateTaskFromAtendimentoModal: React.FC<CreateTaskFromAtendimentoM
               disabled={isSubmitting || !title.trim()}
             >
               {isSubmitting ? 'Gravando...' : 'Gravar Tarefa'}
-            </NoxButton>          </div>
+            </NoxButton>{' '}
+          </div>
         </form>
       </DialogContent>
     </Dialog>

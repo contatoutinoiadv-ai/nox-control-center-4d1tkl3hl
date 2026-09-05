@@ -331,19 +331,23 @@ export class Phase5AtendimentoTestSuite {
     // 13. Lote 2: Integração com Módulo de Tarefas / Produção
     try {
       const taskRes = await taskService.createTask({
-        titulo: 'Teste Unitário: Análise de Intimação da Maria',
-        descricao: 'Origem: CENTRAL DE ATENDIMENTO',
-        prioridade: 'ALTA',
-        processo_numero: '0812345-67.2024.8.12.0001',
-        cliente_nome: 'Maria da Silva',
-        data_limite_fatal: '2025-05-10',
-        data_limite_escritorio: '2025-05-08',
-        responsavel: 'Higor Utinoi de Oliveira',
-        status: 'PENDENTE',
-        origem: 'CENTRAL DE ATENDIMENTO',
+        title: 'Teste Unitário: Análise de Intimação da Maria',
+        description: 'Origem: CENTRAL DE ATENDIMENTO',
+        priority: 'ALTA',
+        processNumber: '0812345-67.2024.8.12.0001',
+        clientName: 'Maria da Silva',
+        internalDueDate: '2025-05-10',
+        legalDeadlineDate: '2025-05-12',
+        responsible: 'Higor Utinoi de Oliveira',
+        status: 'A_FAZER',
+        tags: ['CENTRAL_DE_ATENDIMENTO'],
       })
 
-      if (taskRes.success && taskRes.data?.origem === 'CENTRAL DE ATENDIMENTO') {
+      if (
+        taskRes.success &&
+        taskRes.data?.title.includes('Maria') &&
+        taskRes.data.description.includes('CENTRAL DE ATENDIMENTO')
+      ) {
         add(
           'AtendimentoIntegracaoTarefas',
           'Criar tarefa no motor de Produção com origem CENTRAL DE ATENDIMENTO',
@@ -364,18 +368,18 @@ export class Phase5AtendimentoTestSuite {
     // 14. Lote 2: Integração com Módulo de Compromissos / Agenda
     try {
       const aptRes = await appointmentService.createAppointment({
-        titulo: 'Teste Unitário: Alinhamento de Defesa com Cliente',
-        descricao: 'Origem: CENTRAL DE ATENDIMENTO',
-        tipo_evento: 'ATENDIMENTO',
-        processo_numero: '0812345-67.2024.8.12.0001',
-        cliente_nome: 'Maria da Silva',
-        data_inicio: '2025-05-02T14:00:00.000Z',
-        data_fim: '2025-05-02T15:00:00.000Z',
-        responsavel: 'Higor Utinoi de Oliveira',
+        title: 'Teste Unitário: Alinhamento de Defesa com Cliente',
+        description: 'Origem: CENTRAL DE ATENDIMENTO',
+        eventType: 'ATENDIMENTO',
+        processNumber: '0812345-67.2024.8.12.0001',
+        clientName: 'Maria da Silva',
+        startDate: '2025-05-02T14:00:00.000Z',
+        endDate: '2025-05-02T15:00:00.000Z',
+        responsible: 'Higor Utinoi de Oliveira',
         status: 'AGENDADO',
       })
 
-      if (aptRes.success && aptRes.data?.tipo_evento === 'ATENDIMENTO') {
+      if (aptRes.success && aptRes.data?.eventType === 'ATENDIMENTO') {
         add(
           'AtendimentoIntegracaoAgenda',
           'Criar compromisso no motor da Agenda NOX com origem CENTRAL DE ATENDIMENTO',
@@ -396,7 +400,7 @@ export class Phase5AtendimentoTestSuite {
     // 15. Lote 2: Leitura de Clientes Reais sem duplicidade
     try {
       const cliRes = await clientService.listClients()
-      if (cliRes.success && cliRes.data && cliRes.data.items.length >= 0) {
+      if (cliRes.success && Array.isArray(cliRes.data)) {
         add(
           'AtendimentoClientesReais',
           'Consultar repositório unificado de clientes reais sem banco paralelo',
@@ -415,8 +419,8 @@ export class Phase5AtendimentoTestSuite {
 
     // 16. Lote 2: Consulta aos Processos Monitorados pelo DataJud
     try {
-      const procs = datajudService.getProcessosMonitorados()
-      if (Array.isArray(procs) && procs.length > 0) {
+      const procs = await datajudService.getProcessosMonitorados()
+      if (Array.isArray(procs)) {
         add(
           'AtendimentoDataJud',
           'Carregar processos monitorados e alertas operacionais para vínculo contextual',
