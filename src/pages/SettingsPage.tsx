@@ -30,6 +30,7 @@ import { Phase3ServiceTestSuite, ServiceUnitTestResult } from '@/services/phase3
 import { Phase5AtendimentoTestSuite } from '@/services/atendimento/phase5AtendimentoTestSuite'
 import { Phase6AtendimentoTestSuite } from '@/services/atendimento/phase6AtendimentoTestSuite'
 import { Phase7RealtimeTestSuite } from '@/services/atendimento/phase7RealtimeTestSuite'
+import { Phase8EvolutionTestSuite } from '@/services/atendimento/phase8EvolutionTestSuite'
 import { toast } from 'sonner'
 
 export const SettingsPage: React.FC = () => {
@@ -63,6 +64,14 @@ export const SettingsPage: React.FC = () => {
 
   const [isRunningPhase7Tests, setIsRunningPhase7Tests] = useState(false)
   const [phase7Summary, setPhase7Summary] = useState<{
+    total: number
+    passed: number
+    failed: number
+    results: any[]
+  } | null>(null)
+
+  const [isRunningPhase8Tests, setIsRunningPhase8Tests] = useState(false)
+  const [phase8Summary, setPhase8Summary] = useState<{
     total: number
     passed: number
     failed: number
@@ -667,6 +676,38 @@ export const SettingsPage: React.FC = () => {
               <Button
                 size="sm"
                 variant="outline"
+                disabled={isRunningPhase8Tests}
+                onClick={async () => {
+                  setIsRunningPhase8Tests(true)
+                  try {
+                    const res = await Phase8EvolutionTestSuite.runAll()
+                    setPhase8Summary(res)
+                    if (res.failed === 0) {
+                      toast.success(
+                        `${res.passed}/${res.total} Testes da Fase 8 (Evolution & Gateway) Aprovados!`,
+                        {
+                          description:
+                            'Idempotência, deduplicação de echo, normalização inbound, kill switch e proteção de nota interna validados.',
+                        },
+                      )
+                    } else {
+                      toast.error(`${res.failed} teste(s) falharam na suite da Fase 8.`)
+                    }
+                  } finally {
+                    setIsRunningPhase8Tests(false)
+                  }
+                }}
+                className="h-8 text-xs border-purple-500 bg-purple-950/70 text-purple-200 hover:bg-purple-900/60 font-mono font-bold"
+              >
+                <CheckCircle2
+                  className={`w-3.5 h-3.5 mr-1.5 ${isRunningPhase8Tests ? 'animate-spin' : ''}`}
+                />
+                {isRunningPhase8Tests ? 'Testando Fase 8...' : 'Bateria Fase 8 (Evolution)'}
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline"
                 onClick={async () => {
                   await legacyStorageAdapter.runFullMigration()
                   await dataStore.reloadFromPocketBase()
@@ -868,6 +909,50 @@ export const SettingsPage: React.FC = () => {
                   >
                     <div className="truncate pr-2">
                       <span className="text-blue-400 font-mono text-[10px] mr-1">[{r.suite}]</span>
+                      <span className="text-slate-300">{r.test}</span>
+                    </div>
+                    <Badge
+                      className={`text-[9px] font-mono px-1 py-0 shrink-0 ${
+                        r.status === 'PASS'
+                          ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
+                          : 'bg-rose-950 text-rose-400 border-rose-800'
+                      }`}
+                    >
+                      {r.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {phase8Summary && (
+            <div className="p-3 bg-slate-950 rounded-xl border border-purple-800/80 text-xs space-y-2 mt-2">
+              <div className="flex items-center justify-between font-mono font-semibold">
+                <span className="text-purple-300">
+                  Relatório da Bateria da Fase 8 — Evolution API, Gateway NOX & Segurança (
+                  {phase8Summary.passed}/{phase8Summary.total} Aprovados)
+                </span>
+                <Badge
+                  className={`text-[10px] font-mono ${
+                    phase8Summary.failed === 0
+                      ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
+                      : 'bg-rose-950 text-rose-300 border-rose-700'
+                  }`}
+                >
+                  {phase8Summary.failed === 0 ? '100% VERDE' : `${phase8Summary.failed} FALHAS`}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto">
+                {phase8Summary.results.map((r, idx) => (
+                  <div
+                    key={`${r.suite}_${idx}`}
+                    className="flex items-center justify-between px-2 py-1 rounded bg-slate-900 border border-slate-800/80 text-[11px]"
+                  >
+                    <div className="truncate pr-2">
+                      <span className="text-purple-400 font-mono text-[10px] mr-1">
+                        [{r.suite}]
+                      </span>
                       <span className="text-slate-300">{r.test}</span>
                     </div>
                     <Badge

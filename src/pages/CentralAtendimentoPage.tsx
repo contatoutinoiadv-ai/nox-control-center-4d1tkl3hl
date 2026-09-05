@@ -32,10 +32,21 @@ import { taskService } from '@/services/tasks/TaskService'
 import { appointmentService } from '@/services/appointments/AppointmentService'
 import { datajudService, ProcessoMonitorado } from '@/services/datajudService'
 import { auditService } from '@/services/audit/AuditService'
+import { evolutionGateway } from '@/services/atendimento/EvolutionGateway'
+import { IntegrationHealthResponse } from '@/types/gateway'
 import { NoxClient } from '@/types/nox'
 import { TaskPriority, AgendaEventType } from '@/types/sentinela'
 import { cn } from '@/lib/utils'
-import { MessageSquare, Sparkles, WifiOff, PanelRightOpen, ArrowRight, Plus } from 'lucide-react'
+import {
+  MessageSquare,
+  Sparkles,
+  WifiOff,
+  PanelRightOpen,
+  ArrowRight,
+  Plus,
+  Radio,
+  ShieldAlert,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { useIsMobile } from '@/hooks/use-mobile'
 
@@ -91,6 +102,17 @@ export const CentralAtendimentoPage: React.FC = () => {
   // Texto para inserir no composer ao aprovar sugestão de IA
   const [composerPresetText, setComposerPresetText] = useState<string | null>(null)
 
+  // Estado de saúde da integração Evolution / WhatsApp
+  const [integrationHealth, setIntegrationHealth] = useState<IntegrationHealthResponse>({
+    configured: false,
+    status: 'NOT_CONFIGURED',
+    instanceName: null,
+    killSwitchActive: false,
+    discoveryStatus: 'NOT_CONFIGURED',
+    checkedAt: new Date().toISOString(),
+  })
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false)
+
   // Carrega lista de conversas
   const loadConversations = useCallback(async () => {
     setIsLoadingList(true)
@@ -140,7 +162,7 @@ export const CentralAtendimentoPage: React.FC = () => {
     }
   }, [loadConversations, repository, selectedConversation])
 
-  // Carrega clientes reais e processos reais da base NOX
+  // Carrega clientes reais, processos reais e status de saúde da integração
   useEffect(() => {
     const loadRealData = async () => {
       try {
@@ -150,8 +172,15 @@ export const CentralAtendimentoPage: React.FC = () => {
         }
         const procs = await datajudService.getProcessosMonitorados()
         setAllMonitoredProcesses(procs)
+
+        // Consulta de saúde da integração
+        setIsCheckingHealth(true)
+        const health = await evolutionGateway.checkHealth()
+        setIntegrationHealth(health)
       } catch (err) {
         console.warn('Erro ao carregar dados integrados:', err)
+      } finally {
+        setIsCheckingHealth(false)
       }
     }
     loadRealData()
@@ -690,11 +719,59 @@ export const CentralAtendimentoPage: React.FC = () => {
           icon={MessageSquare}
           badge={
             <span className="text-[10px] font-mono font-bold tracking-wider uppercase px-2 py-0.5 rounded bg-gradient-to-r from-purple-950 to-cyan-950 text-cyan-300 border border-cyan-500/50">
-              FASE 6: LOTE 2 (FINAL)
+              FASE 8: EVOLUTION READY
             </span>
           }
           actions={
             <div className="flex items-center gap-2">
+              {/* Badge Dinâmico de Integração WhatsApp */}
+              <div
+                className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1 rounded border text-[11px] font-mono transition-all',
+                  integrationHealth.status === 'CONNECTED'
+                    ? 'bg-emerald-950/70 border-emerald-500/60 text-emerald-300'
+                    : integrationHealth.status === 'CONNECTING'
+                      ? 'bg-amber-950/70 border-amber-500/60 text-amber-300'
+                      : integrationHealth.status === 'NOT_CONFIGURED'
+                        ? 'bg-slate-900 border-slate-700/80 text-slate-400'
+                        : 'bg-rose-950/70 border-rose-500/60 text-rose-300',
+                )}
+                title={
+                  integrationHealth.status === 'NOT_CONFIGURED'
+                    ? 'Segredos da Evolution API não cadastrados. Cadastre no painel Skip Cloud para ativar.'
+                    : `Status WhatsApp: ${integrationHealth.status}`
+                }
+              >
+                <Radio
+                  className={cn(
+                    'w-3 h-3',
+                    integrationHealth.status === 'CONNECTED' && 'text-emerald-400 animate-pulse',
+                    integrationHealth.status === 'CONNECTING' && 'text-amber-400 animate-spin',
+                    integrationHealth.status === 'NOT_CONFIGURED' && 'text-slate-500',
+                  )}
+                />
+                <span>
+                  {integrationHealth.status === 'CONNECTED'
+                    ? 'WHATSAPP CONECTADO'
+                    : integrationHealth.status === 'CONNECTING'
+                      ? 'WHATSAPP CONECTANDO...'
+                      : integrationHealth.status === 'NOT_CONFIGURED'
+                        ? 'WHATSAPP NÃO CONFIGURADO'
+                        : 'WHATSAPP DESCONECTADO'}
+                </span>
+              </div>
+
+              {/* Kill Switch Alerta se ativo */}
+              {integrationHealth.killSwitchActive && (
+                <div
+                  className="flex items-center gap-1 px-2 py-1 rounded bg-rose-950 border border-rose-700 text-rose-300 text-[10px] font-mono font-bold"
+                  title="Kill switch administrativo ativo: envio suspenso."
+                >
+                  <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+                  <span>KILL SWITCH ATIVO</span>
+                </div>
+              )}
+
               {/* Botão de abrir painel de inteligência em tablet */}
               {selectedConversation && (
                 <button
@@ -705,9 +782,6 @@ export const CentralAtendimentoPage: React.FC = () => {
                   <span>Painel Inteligência</span>
                 </button>
               )}
-              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded">
-                BACKEND REAL (POCKETBASE)
-              </span>
             </div>
           }
         />
@@ -846,6 +920,18 @@ export const CentralAtendimentoPage: React.FC = () => {
                   onPresetContentConsumed={() => setComposerPresetText(null)}
                   onSendMessage={handleSendMessage}
                   onSendInternalNote={handleSendInternalNote}
+                  isExternalSendingDisabled={
+                    !integrationHealth.configured ||
+                    integrationHealth.status !== 'CONNECTED' ||
+                    integrationHealth.killSwitchActive
+                  }
+                  externalDisabledReason={
+                    integrationHealth.killSwitchActive
+                      ? 'Envio suspenso via Kill Switch administrativo.'
+                      : !integrationHealth.configured
+                        ? 'WhatsApp não configurado. Cadastre os segredos no painel Skip Cloud.'
+                        : 'Instância WhatsApp desconectada.'
+                  }
                 />
               </>
             ) : (

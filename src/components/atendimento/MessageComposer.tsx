@@ -24,6 +24,8 @@ export interface MessageComposerProps {
   presetContent?: string | null
   onPresetContentConsumed?: () => void
   disabled?: boolean
+  isExternalSendingDisabled?: boolean
+  externalDisabledReason?: string
   className?: string
 }
 
@@ -34,6 +36,8 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
   presetContent,
   onPresetContentConsumed,
   disabled = false,
+  isExternalSendingDisabled = false,
+  externalDisabledReason,
   className,
 }) => {
   const [mode, setMode] = useState<ComposerMode>('CLIENT_MESSAGE')
@@ -288,17 +292,28 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
             <div className="flex items-center gap-2">
               <NoxButton
                 type="submit"
-                disabled={!text.trim() || disabled}
+                disabled={!text.trim() || disabled || (!isInternal && isExternalSendingDisabled)}
                 size="sm"
                 icon={isInternal ? Lock : Send}
+                title={
+                  !isInternal && isExternalSendingDisabled
+                    ? externalDisabledReason || 'Envio externo indisponível no momento.'
+                    : undefined
+                }
                 className={cn(
                   'h-8 px-4 text-xs font-mono font-bold tracking-wider uppercase transition-all',
                   isInternal
                     ? 'bg-amber-600 hover:bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-950'
-                    : 'bg-cyan-600 hover:bg-cyan-500 text-slate-950 border-cyan-400 shadow-md shadow-cyan-950',
+                    : isExternalSendingDisabled
+                      ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
+                      : 'bg-cyan-600 hover:bg-cyan-500 text-slate-950 border-cyan-400 shadow-md shadow-cyan-950',
                 )}
               >
-                {isInternal ? 'Gravar Nota Interna' : 'Enviar Mensagem'}
+                {isInternal
+                  ? 'Gravar Nota Interna'
+                  : isExternalSendingDisabled
+                    ? 'Envio Desabilitado'
+                    : 'Enviar Mensagem'}
               </NoxButton>
             </div>
           </div>

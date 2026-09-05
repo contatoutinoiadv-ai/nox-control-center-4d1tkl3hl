@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-05T00:35:53.945Z",
+  "generatedAt": "2026-09-05T01:34:19.222Z",
   "collections": [
     {
       "name": "users",
@@ -2522,6 +2522,169 @@
         "CREATE INDEX idx_nox_wh_status ON nox_webhook_events (status)",
         "CREATE INDEX idx_nox_wh_created ON nox_webhook_events (created DESC)"
       ]
+    },
+    {
+      "name": "nox_integration_discovery",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\" && @request.auth.role = \"admin\"",
+        "update": "@request.auth.id != \"\" && @request.auth.role = \"admin\"",
+        "delete": "@request.auth.id != \"\" && @request.auth.role = \"admin\""
+      },
+      "fields": [
+        {
+          "name": "provider",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["PENDING", "NOT_CONFIGURED", "DISCOVERED", "FAILED"]
+        },
+        {
+          "name": "detected_version",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "instance_name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "instance_state",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "endpoints_confirmed",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "events_available",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "webhook_format",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "auth_mode",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "raw_summary_sanitized",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "error_message",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "executed_at",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_nox_disc_provider ON nox_integration_discovery (provider)",
+        "CREATE INDEX idx_nox_disc_status ON nox_integration_discovery (status)",
+        "CREATE INDEX idx_nox_disc_created ON nox_integration_discovery (created DESC)"
+      ]
+    },
+    {
+      "name": "nox_integration_settings",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != \"\"",
+        "view": "@request.auth.id != \"\"",
+        "create": "@request.auth.id != \"\" && @request.auth.role = \"admin\"",
+        "update": "@request.auth.id != \"\" && @request.auth.role = \"admin\"",
+        "delete": "@request.auth.id != \"\" && @request.auth.role = \"admin\""
+      },
+      "fields": [
+        {
+          "name": "setting_key",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "is_enabled",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "setting_value",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "metadata_json",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "updated_by",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE UNIQUE INDEX idx_nox_sett_key ON nox_integration_settings (setting_key)"]
     }
   ]
 }

@@ -127,10 +127,24 @@ export class MessageService {
    * 2. REJEITA explicitamente qualquer objeto que contenha flag ou tipo de nota interna.
    */
   public async sendExternal(
-    message: NoxMessageRecord | { isInternalNote?: boolean; type?: string },
-  ): Promise<ServiceResult<{ sent: boolean; reason: string }>> {
-    // PROTEÇÃO CRÍTICA OBRIGATÓRIA:
-    if ((message as any).isInternalNote === true || (message as any).type === 'INTERNAL_NOTE') {
+    message: NoxMessageRecord | { isInternalNote?: boolean; type?: string; collection?: string },
+    recipientPhone?: string,
+  ): Promise<
+    ServiceResult<{
+      sent: boolean
+      status: NoxMessageStatus
+      reason?: string
+      externalMessageId?: string | null
+    }>
+  > {
+    // PROTEÇÃO CRÍTICA OBRIGATÓRIA MULTI-CAMADA:
+    const unsafeMsg = message as any
+    if (
+      unsafeMsg.isInternalNote === true ||
+      unsafeMsg.type === 'INTERNAL_NOTE' ||
+      unsafeMsg.collection === 'nox_internal_notes' ||
+      (unsafeMsg.metadata && unsafeMsg.metadata.isInternalNote === true)
+    ) {
       return failResult(
         new ValidationError(
           'VIOLAÇÃO DE SEGURANÇA: Uma nota interna (nox_internal_notes) NUNCA pode ser enviada externamente.',
@@ -138,11 +152,39 @@ export class MessageService {
       )
     }
 
-    // Regra absoluta do Lote 2: NENHUM canal externo é disparado
+    // Importação dinâmica / singleton do Gateway NOX
+    const { evolutionGateway } = await import('@/services/atendimento/EvolutionGateway')
+
+    const cleanPhone = (recipientPhone || unsafeMsg.sender_external_id || '').replace(/\D/g, '')
+    if (!cleanPhone) {
+      return failResult(
+        new ValidationError('Telefone de destino é obrigatório para envio externo via WhatsApp.'),
+      )
+    }
+
+    const gatewayResult = await evolutionGateway.sendTextMessage({
+      messageId: (message as NoxMessageRecord).id,
+      recipientPhone: cleanPhone,
+      text: (message as NoxMessageRecord).content_text || '',
+      conversationId: (message as NoxMessageRecord).conversation_id,
+    })
+
+    if (!gatewayResult.success) {
+      // Mensagem permanece com status FAILED
+      if ((message as NoxMessageRecord).id) {
+        await this.updateStatus((message as NoxMessageRecord).id, 'FAILED')
+      }
+      return failResult(
+        new ValidationError(
+          gatewayResult.error || 'Mensagem não enviada. Verifique conexão da instância WhatsApp.',
+        ),
+      )
+    }
+
     return okResult({
-      sent: false,
-      reason:
-        'Envio externo desativado por política de segurança da Fase 6 (Sem conexão WhatsApp/Evolution API).',
+      sent: true,
+      status: 'SENT',
+      externalMessageId: gatewayResult.externalMessageId,
     })
   }
 
