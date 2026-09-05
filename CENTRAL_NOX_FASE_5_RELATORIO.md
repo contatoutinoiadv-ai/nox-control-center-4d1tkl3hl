@@ -1,4 +1,5 @@
 # RELATORIO DE CONCLUSAO DA FASE 5: CENTRAL DE ATENDIMENTO NOX
+
 ## PROJETO CENTRAL NOX V2
 
 Data de Conclusao: 19 de Abril de 2026
@@ -15,6 +16,7 @@ A EVOLUTION API NAO FOI CONECTADA. NENHUM WEBHOOK FOI HABILITADO. NENHUMA CREDEN
 A Central de Atendimento NOX (Fase 5) foi concebida sob o principio de isolamento estrito de camada, seguranca defensiva e interoperabilidade com os modulos preexistentes da aplicacao.
 
 A arquitetura organiza-se em:
+
 1. Camada de Apresentacao: Pagina principal `CentralAtendimentoPage.tsx` e arvore modular em `src/components/atendimento/`.
 2. Camada de Repositorios e Abstracoes: Contrato estrito `IConversationRepository` exposto em `src/repositories/contracts/IConversationRepository.ts` e provido dinamicamente via `conversationRepositoryProvider.ts`.
 3. Camada de Adaptadores: Implementacao de contingencia e demonstracao `MockConversationRepository.ts`, que opera sobre dados imutaveis e controlados.
@@ -45,11 +47,12 @@ O modulo conta com uma suite completa de componentes desacoplados em `src/compon
 16. `IntelligenceHistoryTab.tsx`: Auditoria e linha do tempo de eventos operacionais da sessao ativa.
 17. `ConversationStatusBadge.tsx` e `ConversationPriorityBadge.tsx`: Badges de sinalizacao em conformidade com o NOX Design System.
 18. Modais de Acao:
-   - `TransferAtendimentoModal.tsx`: Transferencia formal de custodia para operadores reais.
-   - `CreateTaskFromAtendimentoModal.tsx`: Criacao de tarefa no modulo de Producao.
-   - `CreateAppointmentFromAtendimentoModal.tsx`: Agendamento de compromisso na Agenda NOX.
-   - `LinkProcessModal.tsx`: Vinculacao manual de numero CNJ.
-   - `LinkClientModal.tsx`: Vinculacao manual de cliente da base NOX.
+
+- `TransferAtendimentoModal.tsx`: Transferencia formal de custodia para operadores reais.
+- `CreateTaskFromAtendimentoModal.tsx`: Criacao de tarefa no modulo de Producao.
+- `CreateAppointmentFromAtendimentoModal.tsx`: Agendamento de compromisso na Agenda NOX.
+- `LinkProcessModal.tsx`: Vinculacao manual de numero CNJ.
+- `LinkClientModal.tsx`: Vinculacao manual de cliente da base NOX.
 
 ---
 
@@ -205,6 +208,7 @@ Como o ambiente sandbox nao dispõe de display grafico ou navegador headless com
 ### 11. DIFERENCAS EM RELACAO A REFERENCIA VISUAL APROVADA
 
 A implementacao seguiu com fidelidade o mockup e o design system do CENTRAL NOX, com as seguintes adaptacoes tecnicas deliberadas:
+
 1. Canais Externos: Nao ha botao de conexao direta com WhatsApp Web ou Evolution API; substituidos pelo indicador informativo `MOCK ADAPTER NOX`.
 2. Seguranca de Notas Internas: Foi reforcada a barreira visual da nota interna em relacao ao mockup inicial para mitigar qualquer risco de envio acidental a clientes.
 3. Responsividade: Adicao de uma terceira tela sequencial para dispositivos moveis de modo a permitir visualizacao completa do Painel de Inteligencia em smartphones.

@@ -417,7 +417,7 @@ export class Phase5AtendimentoTestSuite {
       add('AtendimentoClientesReais', 'Consulta unificada de clientes', 'FAIL', e?.message)
     }
 
-    // 16. Lote 2: Consulta aos Processos Monitorados pelo DataJud
+    // 16. Lote 2: Consulta aos Processos Monitorados pelo DataJud (Validação Produção v0.0.62)
     try {
       const procs = await datajudService.getProcessosMonitorados()
       if (Array.isArray(procs)) {
