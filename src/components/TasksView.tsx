@@ -129,7 +129,14 @@ export const TasksView: React.FC = () => {
       updatedAt: new Date().toISOString(),
     }
 
-    dataStore.addTask(newTask)
+    const res = dataStore.addTask(newTask)
+    if (!res.success) {
+      toast.error('Criação bloqueada por DUPLICATA!', {
+        description:
+          'Já existe uma tarefa cadastrada para esta mesma origem, título e responsável.',
+      })
+      return
+    }
     setTasks(dataStore.getTasks())
     setCreateModalOpen(false)
     setNewTitle('')

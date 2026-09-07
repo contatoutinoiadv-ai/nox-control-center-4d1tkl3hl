@@ -31,6 +31,11 @@ import { Phase5AtendimentoTestSuite } from '@/services/atendimento/phase5Atendim
 import { Phase6AtendimentoTestSuite } from '@/services/atendimento/phase6AtendimentoTestSuite'
 import { Phase7RealtimeTestSuite } from '@/services/atendimento/phase7RealtimeTestSuite'
 import { Phase8EvolutionTestSuite } from '@/services/atendimento/phase8EvolutionTestSuite'
+import {
+  AntiDuplicityTestSuite,
+  AntiDuplicitySuiteSummary,
+} from '@/services/antiDuplicityTestSuite'
+import { TjmsCalendarTestSuite, TjmsCalendarSuiteSummary } from '@/services/tjmsCalendarTestSuite'
 import { toast } from 'sonner'
 
 export const SettingsPage: React.FC = () => {
@@ -77,6 +82,15 @@ export const SettingsPage: React.FC = () => {
     failed: number
     results: any[]
   } | null>(null)
+
+  const [isRunningAntiDuplicityTests, setIsRunningAntiDuplicityTests] = useState(false)
+  const [antiDuplicitySummary, setAntiDuplicitySummary] =
+    useState<AntiDuplicitySuiteSummary | null>(null)
+
+  const [isRunningTjmsCalendarTests, setIsRunningTjmsCalendarTests] = useState(false)
+  const [tjmsCalendarSummary, setTjmsCalendarSummary] = useState<TjmsCalendarSuiteSummary | null>(
+    null,
+  )
 
   const lawyerProfile = dataStore.getLawyerProfile()
 
@@ -708,6 +722,74 @@ export const SettingsPage: React.FC = () => {
               <Button
                 size="sm"
                 variant="outline"
+                disabled={isRunningAntiDuplicityTests}
+                onClick={async () => {
+                  setIsRunningAntiDuplicityTests(true)
+                  try {
+                    const res = await AntiDuplicityTestSuite.runAllTests()
+                    setAntiDuplicitySummary(res)
+                    if (res.failed === 0) {
+                      toast.success(
+                        `${res.passed}/${res.total} Testes de Antiduplicidade Aprovados!`,
+                        {
+                          description:
+                            'Fingerprint, bloqueio ativo 2x/5x, distinção de processos, tarefas e auditoria validados.',
+                        },
+                      )
+                    } else {
+                      toast.error(`${res.failed} teste(s) falharam na suite de antiduplicidade.`)
+                    }
+                  } finally {
+                    setIsRunningAntiDuplicityTests(false)
+                  }
+                }}
+                className="h-8 text-xs border-amber-500 bg-amber-950/60 text-amber-300 hover:bg-amber-900/60 font-mono font-bold"
+              >
+                <CheckCircle2
+                  className={`w-3.5 h-3.5 mr-1.5 ${isRunningAntiDuplicityTests ? 'animate-spin' : ''}`}
+                />
+                {isRunningAntiDuplicityTests
+                  ? 'Testando Antiduplicidade...'
+                  : 'Bateria Antiduplicidade'}
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isRunningTjmsCalendarTests}
+                onClick={async () => {
+                  setIsRunningTjmsCalendarTests(true)
+                  try {
+                    const res = await TjmsCalendarTestSuite.runAllTests()
+                    setTjmsCalendarSummary(res)
+                    if (res.failed === 0) {
+                      toast.success(
+                        `${res.passed}/${res.total} Testes de Feriados TJMS Aprovados!`,
+                        {
+                          description:
+                            'Feriados municipais, nacionais (08/12), recesso Art. 268 CODJ e ponto facultativo validados.',
+                        },
+                      )
+                    } else {
+                      toast.error(`${res.failed} teste(s) falharam na suite de calendário TJMS.`)
+                    }
+                  } finally {
+                    setIsRunningTjmsCalendarTests(false)
+                  }
+                }}
+                className="h-8 text-xs border-emerald-500 bg-emerald-950/60 text-emerald-300 hover:bg-emerald-900/60 font-mono font-bold"
+              >
+                <CheckCircle2
+                  className={`w-3.5 h-3.5 mr-1.5 ${isRunningTjmsCalendarTests ? 'animate-spin' : ''}`}
+                />
+                {isRunningTjmsCalendarTests
+                  ? 'Testando Calendário TJMS...'
+                  : 'Bateria Calendário TJMS'}
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline"
                 onClick={async () => {
                   await legacyStorageAdapter.runFullMigration()
                   await dataStore.reloadFromPocketBase()
@@ -954,6 +1036,96 @@ export const SettingsPage: React.FC = () => {
                         [{r.suite}]
                       </span>
                       <span className="text-slate-300">{r.test}</span>
+                    </div>
+                    <Badge
+                      className={`text-[9px] font-mono px-1 py-0 shrink-0 ${
+                        r.status === 'PASS'
+                          ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
+                          : 'bg-rose-950 text-rose-400 border-rose-800'
+                      }`}
+                    >
+                      {r.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Antiduplicity Summary */}
+          {antiDuplicitySummary && (
+            <div className="p-3 bg-slate-950 rounded-xl border border-amber-800/80 text-xs space-y-2 mt-2">
+              <div className="flex items-center justify-between font-mono font-semibold">
+                <span className="text-amber-300">
+                  Relatório de Antiduplicidade com Bloqueio Ativo ({antiDuplicitySummary.passed}/
+                  {antiDuplicitySummary.total} Aprovados)
+                </span>
+                <Badge
+                  className={`text-[10px] font-mono ${
+                    antiDuplicitySummary.failed === 0
+                      ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
+                      : 'bg-rose-950 text-rose-300 border-rose-700'
+                  }`}
+                >
+                  {antiDuplicitySummary.failed === 0
+                    ? '100% VERDE'
+                    : `${antiDuplicitySummary.failed} FALHAS`}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto">
+                {antiDuplicitySummary.results.map((r) => (
+                  <div
+                    key={r.id}
+                    className="flex items-center justify-between px-2 py-1 rounded bg-slate-900 border border-slate-800/80 text-[11px]"
+                  >
+                    <div className="truncate pr-2">
+                      <span className="text-amber-400 font-mono text-[10px] mr-1">[{r.id}]</span>
+                      <span className="text-slate-300">{r.name}</span>
+                    </div>
+                    <Badge
+                      className={`text-[9px] font-mono px-1 py-0 shrink-0 ${
+                        r.status === 'PASS'
+                          ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
+                          : 'bg-rose-950 text-rose-400 border-rose-800'
+                      }`}
+                    >
+                      {r.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TJMS Calendar Summary */}
+          {tjmsCalendarSummary && (
+            <div className="p-3 bg-slate-950 rounded-xl border border-emerald-800/80 text-xs space-y-2 mt-2">
+              <div className="flex items-center justify-between font-mono font-semibold">
+                <span className="text-emerald-300">
+                  Relatório do Calendário Forense TJMS & Art. 268 CODJ ({tjmsCalendarSummary.passed}
+                  /{tjmsCalendarSummary.total} Aprovados)
+                </span>
+                <Badge
+                  className={`text-[10px] font-mono ${
+                    tjmsCalendarSummary.failed === 0
+                      ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
+                      : 'bg-rose-950 text-rose-300 border-rose-700'
+                  }`}
+                >
+                  {tjmsCalendarSummary.failed === 0
+                    ? '100% VERDE'
+                    : `${tjmsCalendarSummary.failed} FALHAS`}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto">
+                {tjmsCalendarSummary.results.map((r) => (
+                  <div
+                    key={r.id}
+                    className="flex items-center justify-between px-2 py-1 rounded bg-slate-900 border border-slate-800/80 text-[11px]"
+                  >
+                    <div className="truncate pr-2">
+                      <span className="text-emerald-400 font-mono text-[10px] mr-1">[{r.id}]</span>
+                      <span className="text-slate-300">{r.name}</span>
                     </div>
                     <Badge
                       className={`text-[9px] font-mono px-1 py-0 shrink-0 ${

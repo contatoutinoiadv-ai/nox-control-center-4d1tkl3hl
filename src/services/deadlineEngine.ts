@@ -1,4 +1,5 @@
 // Deterministic Brazilian Legal Calendar & Explainable Deadline Calculator
+// Fonte do calendário: Calendário Forense TJMS e Art. 268 do Código de Organização e Divisão Judiciárias (CODJ)
 import {
   DeadlineMemorial,
   DeadlineStep,
@@ -7,7 +8,257 @@ import {
   PRAZO_NAO_DETERMINAVEL_AUTOMATICAMENTE,
 } from '@/types/sentinela'
 
-// Base National Holidays (Brazil) + Regimental Court Suspensões (2025-2027)
+/**
+ * Normaliza o nome da comarca para correspondência exata sem discrepância de acento ou caixa.
+ * Regra: match exato de comarca/município, sem vincular por coincidência de dígitos ou parcial.
+ */
+export function normalizeComarcaName(name?: string): string {
+  if (!name) return ''
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/^(comarca de|comarca da|comarca do|municipio de|municipio da|municipio do)\s+/i, '')
+    .trim()
+}
+
+/**
+ * Lista anual/recorrente de feriados municipais do TJMS informados textualmente:
+ * - Feriados municipais suspendem prazo SOMENTE para processos da comarca correspondente.
+ */
+export interface TjmsRecurringMunicipalHoliday {
+  month: number // 1-12 (9: Setembro, 10: Outubro, 11: Novembro, 12: Dezembro)
+  day: number
+  comarcas: string[] // nomes canônicos das comarcas onde é feriado municipal
+  name: string
+}
+
+export const TJMS_RECURRING_MUNICIPAL_HOLIDAYS: TjmsRecurringMunicipalHoliday[] = [
+  // SETEMBRO
+  {
+    month: 9,
+    day: 21,
+    comarcas: ['Corumba'],
+    name: 'Feriado municipal em Corumbá (Fundação do Município)',
+  },
+  {
+    month: 9,
+    day: 28,
+    comarcas: ['Amambai', 'Aparecida do Taboado'],
+    name: 'Feriado municipal em Amambai (Emancipação do município) e Aparecida do Taboado (Aniversário da cidade)',
+  },
+  {
+    month: 9,
+    day: 29,
+    comarcas: ['Sao Gabriel do Oeste', 'Deodapolis'],
+    name: 'Feriado municipal em São Gabriel do Oeste (Arcanjo São Gabriel - Padroeiro da cidade) e Deodápolis (Homenagem ao Fundador do Município)',
+  },
+  {
+    month: 9,
+    day: 30,
+    comarcas: ['Camapua'],
+    name: 'Feriado municipal em Camapuã (Aniversário da cidade)',
+  },
+
+  // OUTUBRO
+  {
+    month: 10,
+    day: 2,
+    comarcas: ['Bonito'],
+    name: 'Feriado municipal em Bonito (Aniversário da cidade)',
+  },
+  {
+    month: 10,
+    day: 7,
+    comarcas: ['Dois Irmaos do Buriti'],
+    name: 'Feriado municipal em Dois Irmãos do Buriti (Padroeira da Cidade)',
+  },
+  {
+    month: 10,
+    day: 8,
+    comarcas: ['Anaurilandia'],
+    name: 'Feriado municipal em Anaurilândia (São João Calábria)',
+  },
+  {
+    month: 10,
+    day: 23,
+    comarcas: ['Chapadao do Sul'],
+    name: 'Feriado municipal em Chapadão do Sul (Aniversário da cidade)',
+  },
+  {
+    month: 10,
+    day: 27,
+    comarcas: ['Nova Alvorada do Sul'],
+    name: 'Feriado municipal em Nova Alvorada do Sul (Aniversário da cidade)',
+  },
+
+  // NOVEMBRO
+  {
+    month: 11,
+    day: 11,
+    comarcas: ['Anaurilandia', 'Ivinhema', 'Navirai', 'Pedro Gomes'],
+    name: 'Feriado municipal em Anaurilândia, Ivinhema, Naviraí e Pedro Gomes (Aniversário da cidade)',
+  },
+  {
+    month: 11,
+    day: 12,
+    comarcas: ['Bataypora'],
+    name: 'Feriado municipal em Batayporã (Aniversário da cidade)',
+  },
+  {
+    month: 11,
+    day: 13,
+    comarcas: ['Dois Irmaos do Buriti'],
+    name: 'Feriado municipal em Dois Irmãos do Buriti (Emancipação da Cidade)',
+  },
+  {
+    month: 11,
+    day: 27,
+    comarcas: ['Mundo Novo'],
+    name: 'Feriado municipal em Mundo Novo (Padroeira do Município - Nossa Senhora das Graças)',
+  },
+
+  // DEZEMBRO
+  {
+    month: 12,
+    day: 8,
+    comarcas: [
+      'Aquidauana',
+      'Dourados',
+      'Iguatemi',
+      'Miranda',
+      'Porto Murtinho',
+      'Rio Brilhante',
+      'Ribas do Rio Pardo',
+      'Sete Quedas',
+      'Coronel Sapucaia',
+    ],
+    name: 'Feriado municipal (Nossa Senhora do Cacupê / Nossa Senhora da Conceição)',
+  },
+  {
+    month: 12,
+    day: 10,
+    comarcas: ['Itapora'],
+    name: 'Feriado municipal em Itaporã (Aniversário da cidade)',
+  },
+  {
+    month: 12,
+    day: 11,
+    comarcas: ['Bataguassu', 'Sidrolandia'],
+    name: 'Feriado municipal em Bataguassu e Sidrolândia (Aniversário da cidade)',
+  },
+  {
+    month: 12,
+    day: 15,
+    comarcas: ['Coronel Sapucaia'],
+    name: 'Feriado municipal em Coronel Sapucaia (Aniversário da cidade)',
+  },
+  {
+    month: 12,
+    day: 16,
+    comarcas: ['Rio Verde de Mato Grosso'],
+    name: 'Feriado municipal em Rio Verde de Mato Grosso (Aniversário da cidade)',
+  },
+]
+
+/**
+ * Feriados Anuais e Fixos Nacionais / TJMS com suspensão geral em todas as comarcas:
+ * - 07/09: Feriado (Independência do Brasil)
+ * - 12/10: Feriado (Nossa Senhora Aparecida)
+ * - 30/10: Feriado (Dia do Servidor Público)
+ * - 02/11: Feriado (Finados)
+ * - 15/11: Feriado (Proclamação da República)
+ * - 20/11: Feriado nacional (Dia Nacional de Zumbi e da Consciência Negra)
+ * - 08/12: Feriado Nacional (Dia da Justiça) suspende prazo em TODAS as comarcas
+ * - 20 a 31/12: Feriado Forense (Art. 268, CODJ) suspende prazo em todas as comarcas
+ * - 07/12: Ponto facultativo em todas as Comarcas (NÃO suspende prazo, dia útil informativo)
+ */
+export interface RecurringGeneralHoliday {
+  month: number
+  day: number
+  name: string
+  type: HolidayOrSuspension['type']
+  suspendsDeadline: boolean // false para pontos facultativos
+}
+
+export const RECURRING_GENERAL_HOLIDAYS: RecurringGeneralHoliday[] = [
+  {
+    month: 1,
+    day: 1,
+    name: 'Confraternização Universal',
+    type: 'FERIADO_NACIONAL',
+    suspendsDeadline: true,
+  },
+  { month: 4, day: 21, name: 'Tiradentes', type: 'FERIADO_NACIONAL', suspendsDeadline: true },
+  { month: 5, day: 1, name: 'Dia do Trabalho', type: 'FERIADO_NACIONAL', suspendsDeadline: true },
+  {
+    month: 8,
+    day: 11,
+    name: 'Dia da Criação dos Cursos Jurídicos / Magistratura',
+    type: 'FERIADO_REGIMENTAL',
+    suspendsDeadline: true,
+  },
+  {
+    month: 9,
+    day: 7,
+    name: 'Feriado (Independência do Brasil)',
+    type: 'FERIADO_NACIONAL',
+    suspendsDeadline: true,
+  },
+  {
+    month: 10,
+    day: 12,
+    name: 'Feriado (Nossa Senhora Aparecida)',
+    type: 'FERIADO_NACIONAL',
+    suspendsDeadline: true,
+  },
+  {
+    month: 10,
+    day: 30,
+    name: 'Feriado (Dia do Servidor Público)',
+    type: 'FERIADO_REGIMENTAL',
+    suspendsDeadline: true,
+  },
+  {
+    month: 11,
+    day: 2,
+    name: 'Feriado (Finados)',
+    type: 'FERIADO_NACIONAL',
+    suspendsDeadline: true,
+  },
+  {
+    month: 11,
+    day: 15,
+    name: 'Proclamação da República',
+    type: 'FERIADO_NACIONAL',
+    suspendsDeadline: true,
+  },
+  {
+    month: 11,
+    day: 20,
+    name: 'Feriado nacional (Dia Nacional de Zumbi e da Consciência Negra)',
+    type: 'FERIADO_NACIONAL',
+    suspendsDeadline: true,
+  },
+  {
+    month: 12,
+    day: 7,
+    name: 'Ponto facultativo em todas as Comarcas',
+    type: 'SUSPENSAO_EXPEDIENTE',
+    suspendsDeadline: false,
+  },
+  {
+    month: 12,
+    day: 8,
+    name: 'Feriado Nacional (Dia da Justiça)',
+    type: 'FERIADO_NACIONAL',
+    suspendsDeadline: true,
+  },
+  { month: 12, day: 25, name: 'Natal', type: 'FERIADO_NACIONAL', suspendsDeadline: true },
+]
+
+// Base National Holidays móveis (Carnaval, Sexta-feira Santa, Corpus Christi etc.) pré-cadastrados por ano
 export const BRAZILIAN_HOLIDAYS_AND_SUSPENSIONS: HolidayOrSuspension[] = [
   { date: '2025-01-01', name: 'Confraternização Universal', type: 'FERIADO_NACIONAL' },
   { date: '2025-03-03', name: 'Carnaval (Segunda-feira)', type: 'FERIADO_REGIMENTAL' },
@@ -26,42 +277,84 @@ export const BRAZILIAN_HOLIDAYS_AND_SUSPENSIONS: HolidayOrSuspension[] = [
     name: 'Dia da Criação dos Cursos Jurídicos / Dia do Advogado',
     type: 'FERIADO_REGIMENTAL',
   },
-  { date: '2025-09-07', name: 'Independência do Brasil', type: 'FERIADO_NACIONAL' },
-  { date: '2025-10-12', name: 'Nossa Senhora Aparecida', type: 'FERIADO_NACIONAL' },
-  { date: '2025-10-28', name: 'Dia do Servidor Público (Art. 236)', type: 'FERIADO_REGIMENTAL' },
-  { date: '2025-11-02', name: 'Finados', type: 'FERIADO_NACIONAL' },
+  { date: '2025-09-07', name: 'Feriado (Independência do Brasil)', type: 'FERIADO_NACIONAL' },
+  { date: '2025-10-12', name: 'Feriado (Nossa Senhora Aparecida)', type: 'FERIADO_NACIONAL' },
+  { date: '2025-10-30', name: 'Feriado (Dia do Servidor Público)', type: 'FERIADO_REGIMENTAL' },
+  { date: '2025-11-02', name: 'Feriado (Finados)', type: 'FERIADO_NACIONAL' },
   { date: '2025-11-15', name: 'Proclamação da República', type: 'FERIADO_NACIONAL' },
   {
     date: '2025-11-20',
-    name: 'Dia Nacional de Zumbi e Consciência Negra',
+    name: 'Feriado nacional (Dia Nacional de Zumbi e da Consciência Negra)',
     type: 'FERIADO_NACIONAL',
   },
   {
-    date: '2025-12-08',
-    name: 'Dia da Justiça (Art. 62, I, Lei 5.010/66)',
+    date: '2025-12-07',
+    name: 'Ponto facultativo em todas as Comarcas',
+    type: 'SUSPENSAO_EXPEDIENTE',
+  },
+  { date: '2025-12-08', name: 'Feriado Nacional (Dia da Justiça)', type: 'FERIADO_NACIONAL' },
+  { date: '2025-12-25', name: 'Natal', type: 'FERIADO_NACIONAL' },
+
+  { date: '2026-01-01', name: 'Confraternização Universal', type: 'FERIADO_NACIONAL' },
+  { date: '2026-02-16', name: 'Carnaval (Segunda-feira)', type: 'FERIADO_REGIMENTAL' },
+  { date: '2026-02-17', name: 'Carnaval (Terça-feira)', type: 'FERIADO_REGIMENTAL' },
+  { date: '2026-02-18', name: 'Quarta-feira de Cinzas', type: 'SUSPENSAO_EXPEDIENTE' },
+  {
+    date: '2026-04-02',
+    name: 'Quinta-feira Santa (Art. 164, §2º CODJ)',
     type: 'FERIADO_REGIMENTAL',
   },
-  { date: '2025-12-20', name: 'Início do Recesso Forense (Art. 220 CPC)', type: 'RECESSO_FORENSE' },
-  { date: '2026-01-01', name: 'Confraternização Universal', type: 'FERIADO_NACIONAL' },
-  {
-    date: '2026-01-20',
-    name: 'Término da Suspensão de Prazos CPC (Art. 220)',
-    type: 'RECESSO_FORENSE',
-  },
-  { date: '2026-02-16', name: 'Carnaval', type: 'FERIADO_REGIMENTAL' },
-  { date: '2026-02-17', name: 'Carnaval', type: 'FERIADO_REGIMENTAL' },
   { date: '2026-04-03', name: 'Sexta-feira Santa', type: 'FERIADO_NACIONAL' },
   { date: '2026-04-21', name: 'Tiradentes', type: 'FERIADO_NACIONAL' },
   { date: '2026-05-01', name: 'Dia do Trabalho', type: 'FERIADO_NACIONAL' },
   { date: '2026-06-04', name: 'Corpus Christi', type: 'FERIADO_NACIONAL' },
-  { date: '2026-08-11', name: 'Dia da Justiça / Magistratura', type: 'FERIADO_REGIMENTAL' },
-  { date: '2026-09-07', name: 'Independência', type: 'FERIADO_NACIONAL' },
-  { date: '2026-10-12', name: 'Nossa Senhora Aparecida', type: 'FERIADO_NACIONAL' },
-  { date: '2026-10-28', name: 'Dia do Servidor Público', type: 'FERIADO_REGIMENTAL' },
-  { date: '2026-11-02', name: 'Finados', type: 'FERIADO_NACIONAL' },
+  {
+    date: '2026-08-11',
+    name: 'Dia da Justiça / Magistratura (Art. 164, §2º CODJ)',
+    type: 'FERIADO_REGIMENTAL',
+  },
+  { date: '2026-09-07', name: 'Feriado (Independência do Brasil)', type: 'FERIADO_NACIONAL' },
+  { date: '2026-10-12', name: 'Feriado (Nossa Senhora Aparecida)', type: 'FERIADO_NACIONAL' },
+  { date: '2026-10-30', name: 'Feriado (Dia do Servidor Público)', type: 'FERIADO_REGIMENTAL' },
+  { date: '2026-11-02', name: 'Feriado (Finados)', type: 'FERIADO_NACIONAL' },
   { date: '2026-11-15', name: 'Proclamação da República', type: 'FERIADO_NACIONAL' },
-  { date: '2026-11-20', name: 'Consciência Negra', type: 'FERIADO_NACIONAL' },
-  { date: '2026-12-08', name: 'Dia da Justiça', type: 'FERIADO_REGIMENTAL' },
+  {
+    date: '2026-11-20',
+    name: 'Feriado nacional (Dia Nacional de Zumbi e da Consciência Negra)',
+    type: 'FERIADO_NACIONAL',
+  },
+  {
+    date: '2026-12-07',
+    name: 'Ponto facultativo em todas as Comarcas',
+    type: 'SUSPENSAO_EXPEDIENTE',
+  },
+  { date: '2026-12-08', name: 'Feriado Nacional (Dia da Justiça)', type: 'FERIADO_NACIONAL' },
+  { date: '2026-12-25', name: 'Natal', type: 'FERIADO_NACIONAL' },
+
+  { date: '2027-01-01', name: 'Confraternização Universal', type: 'FERIADO_NACIONAL' },
+  { date: '2027-02-08', name: 'Carnaval (Segunda-feira)', type: 'FERIADO_REGIMENTAL' },
+  { date: '2027-02-09', name: 'Carnaval (Terça-feira)', type: 'FERIADO_REGIMENTAL' },
+  { date: '2027-03-26', name: 'Sexta-feira Santa', type: 'FERIADO_NACIONAL' },
+  { date: '2027-04-21', name: 'Tiradentes', type: 'FERIADO_NACIONAL' },
+  { date: '2027-05-01', name: 'Dia do Trabalho', type: 'FERIADO_NACIONAL' },
+  { date: '2027-05-27', name: 'Corpus Christi', type: 'FERIADO_NACIONAL' },
+  { date: '2027-09-07', name: 'Feriado (Independência do Brasil)', type: 'FERIADO_NACIONAL' },
+  { date: '2027-10-12', name: 'Feriado (Nossa Senhora Aparecida)', type: 'FERIADO_NACIONAL' },
+  { date: '2027-10-30', name: 'Feriado (Dia do Servidor Público)', type: 'FERIADO_REGIMENTAL' },
+  { date: '2027-11-02', name: 'Feriado (Finados)', type: 'FERIADO_NACIONAL' },
+  { date: '2027-11-15', name: 'Proclamação da República', type: 'FERIADO_NACIONAL' },
+  {
+    date: '2027-11-20',
+    name: 'Feriado nacional (Dia Nacional de Zumbi e da Consciência Negra)',
+    type: 'FERIADO_NACIONAL',
+  },
+  {
+    date: '2027-12-07',
+    name: 'Ponto facultativo em todas as Comarcas',
+    type: 'SUSPENSAO_EXPEDIENTE',
+  },
+  { date: '2027-12-08', name: 'Feriado Nacional (Dia da Justiça)', type: 'FERIADO_NACIONAL' },
+  { date: '2027-12-25', name: 'Natal', type: 'FERIADO_NACIONAL' },
 ]
 
 export interface LegalRulePreset {
@@ -168,19 +461,93 @@ export function isDateWeekend(dateObj: Date): boolean {
   return day === 0 || day === 6
 }
 
+/**
+ * Consulta unificada e auditável de feriados e suspensões.
+ *
+ * REGRAS APLICADAS (Retificação de Prazos):
+ * 1. Feriados Nacionais/Estaduais e Feriado Nacional do Dia da Justiça (08/12) suspendem prazo em TODAS as comarcas.
+ * 2. Feriado Forense de 20 a 31 de dezembro (Art. 268, CODJ) suspende prazos em TODAS as comarcas (Art. 268 CODJ).
+ * 3. Feriados MUNICIPAIS suspendem prazo SOMENTE para processos da comarca correspondente (match exato comarca/município).
+ * 4. Ponto Facultativo (ex.: 07/12): NÃO suspende prazo (dia útil), mas fica registrado no calendário com isSuspension = false.
+ *
+ * @param onlySuspensions Quando true (default para cálculo de prazo), ignora pontos facultativos pois são dias úteis.
+ */
 export function getHolidayOrSuspension(
   dateStr: string,
   tribunal?: string,
   comarca?: string,
   customSuspensions: HolidayOrSuspension[] = [],
+  onlySuspensions: boolean = true,
 ): HolidayOrSuspension | undefined {
-  const all = [...BRAZILIAN_HOLIDAYS_AND_SUSPENSIONS, ...customSuspensions]
-  return all.find((h) => {
+  const [yearStr, monthStr, dayStr] = dateStr.split('-')
+  const month = parseInt(monthStr, 10)
+  const day = parseInt(dayStr, 10)
+
+  // 1. Feriado Forense 20 a 31 de Dezembro (Art. 268 CODJ)
+  if (month === 12 && day >= 20 && day <= 31) {
+    return {
+      date: dateStr,
+      name: 'Feriado Forense de 20 a 31 de dezembro (Art. 268, CODJ)',
+      type: 'RECESSO_FORENSE',
+      tribunal: 'TJMS',
+    }
+  }
+
+  // 2. Feriado Nacional do Dia da Justiça (08/12) e demais gerais fixos recorrentes
+  const recurringGeneral = RECURRING_GENERAL_HOLIDAYS.find(
+    (h) => h.month === month && h.day === day,
+  )
+  if (recurringGeneral) {
+    if (onlySuspensions && !recurringGeneral.suspendsDeadline) {
+      // Ponto facultativo não suspende prazo (é dia útil)
+      // Não retorna como suspensão para que o loop de dias continue contando
+    } else {
+      return {
+        date: dateStr,
+        name: recurringGeneral.name,
+        type: recurringGeneral.type,
+      }
+    }
+  }
+
+  // 3. Feriados Municipais TJMS (recorrentes / anuais)
+  // Match exato de comarca
+  if (comarca) {
+    const normComarca = normalizeComarcaName(comarca)
+    const munHoliday = TJMS_RECURRING_MUNICIPAL_HOLIDAYS.find((m) => {
+      if (m.month !== month || m.day !== day) return false
+      return m.comarcas.some((c) => normalizeComarcaName(c) === normComarca)
+    })
+    if (munHoliday) {
+      return {
+        date: dateStr,
+        name: munHoliday.name,
+        type: 'FERIADO_REGIMENTAL',
+        comarca,
+      }
+    }
+  }
+
+  // 4. Base de feriados móveis ou explícitos por data (ex.: Carnaval, Sexta-feira Santa, Corpus Christi)
+  const allBase = [...BRAZILIAN_HOLIDAYS_AND_SUSPENSIONS, ...customSuspensions]
+  const matchBase = allBase.find((h) => {
     if (h.date !== dateStr) return false
     if (h.tribunal && tribunal && h.tribunal !== tribunal) return false
-    if (h.comarca && comarca && h.comarca !== comarca) return false
+    if (h.comarca && comarca && normalizeComarcaName(h.comarca) !== normalizeComarcaName(comarca)) {
+      return false
+    }
     return true
   })
+
+  if (matchBase) {
+    // 07/12 é Ponto Facultativo: não suspende prazo
+    if (onlySuspensions && matchBase.name.toLowerCase().includes('ponto facultativo')) {
+      return undefined
+    }
+    return matchBase
+  }
+
+  return undefined
 }
 
 export function formatDateIso(d: Date): string {
@@ -228,14 +595,13 @@ export function calculateLegalDeadline(params: {
     customDaysType,
     initialDate,
     tribunal,
-    comarca = 'Capital',
+    comarca = 'Campo Grande',
     customSuspensions = [],
     reviewer = 'Sistema Sentinela NOX',
   } = params
 
   let preset = LEGAL_RULES_PRESETS.find((p) => p.id === rulePresetId)
   if (!preset && !customDays) {
-    // Attempt keyword heuristic detection
     const lower = originText.toLowerCase()
     preset = LEGAL_RULES_PRESETS.find((p) => p.keywords.some((k) => lower.includes(k)))
   }
@@ -270,7 +636,7 @@ export function calculateLegalDeadline(params: {
       divergences: ['Texto da publicação excessivamente curto ou ambíguo.'],
       missingData: ['Tipo de ato não identificado com precisão.'],
       reviewApprovalStatus: 'PENDENTE',
-      ruleVersion: 'v1.4-CPC',
+      ruleVersion: 'v2.2-TJMS-CODJ',
       internalDeadlineDate: initialDate,
     }
   }
@@ -365,7 +731,7 @@ export function calculateLegalDeadline(params: {
         })
       }
     } else {
-      // Dias corridos
+      // Dias corridos (Art. 798 CPP etc.)
       counted++
       if (hol) holidaysApplied.push(hol)
       steps.push({
@@ -415,7 +781,7 @@ export function calculateLegalDeadline(params: {
   }
   const internalDeadlineDate = formatDateIso(internalD)
 
-  const confidenceScore = preset ? 0.96 : 0.82
+  const confidenceScore = preset ? 0.98 : 0.88
   const confidenceLevel = confidenceScore >= 0.9 ? 'ALTA' : 'MODERADA'
 
   return {
@@ -434,19 +800,19 @@ export function calculateLegalDeadline(params: {
     holidaysApplied,
     calculationSteps: steps,
     finalDeadlineDate: finalDStr,
-    finalDeadlineTime: '23:59:59 (PJe)',
+    finalDeadlineTime: '23:59:59 (PJe/TJMS)',
     confidenceScore,
     confidenceLevel,
     isDeterminable: true,
     divergences: isFinalDayAdjusted
-      ? ['Vencimento original coincidiu com feriado/fim de semana; prorrogado ex vi legis.']
+      ? ['Vencimento original coincidiu com feriado/fim de semana/recesso; prorrogado ex vi legis.']
       : [],
     missingData: [],
     reviewedBy: reviewer,
     reviewedAt: new Date().toISOString(),
     reviewApprovalStatus: 'APROVADO',
-    ruleVersion: 'CPC/2015-v2.1',
+    ruleVersion: 'CPC/2015-CODJ-TJMS-v2.2',
     internalDeadlineDate,
-    notes: `Cálculo memorial auditável gerado pelo Motor de Verdade Temporal NOX.`,
+    notes: `Cálculo memorial auditável gerado com Calendário Forense TJMS e Art. 268 CODJ.`,
   }
 }

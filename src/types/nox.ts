@@ -2,7 +2,12 @@
 
 export type RecordStatus = 'novo' | 'em_revisao' | 'processado' | 'quarentena' | 'resolvido'
 export type SeverityLevel = 'informativo' | 'medio' | 'alto' | 'critico'
-export type AlertType = 'operacional' | 'qualidade_dado' | 'importacao' | 'futuro_lex_tempus'
+export type AlertType =
+  | 'operacional'
+  | 'qualidade_dado'
+  | 'importacao'
+  | 'futuro_lex_tempus'
+  | 'duplicidade'
 export type PriorityLevel = 'baixa' | 'media' | 'alta' | 'urgente'
 
 export interface RawSentinelaRow {
@@ -11,7 +16,12 @@ export interface RawSentinelaRow {
 
 export interface ValidationIssue {
   field: string
-  type: 'missing_field' | 'format_error' | 'ambiguous_value' | 'suspicious_payload'
+  type:
+    | 'missing_field'
+    | 'format_error'
+    | 'ambiguous_value'
+    | 'suspicious_payload'
+    | 'duplicate_record'
   message: string
   severity: 'warning' | 'error'
 }

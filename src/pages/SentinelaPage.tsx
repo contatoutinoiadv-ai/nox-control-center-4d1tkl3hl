@@ -587,13 +587,16 @@ export const SentinelaHub: React.FC = () => {
     initialDate: string,
     days: number,
     tribunal: string,
+    comarcaParam?: string,
   ) => {
+    const chosenComarca = comarcaParam || 'Campo Grande'
     const calc = calculateLegalDeadline({
       originText: 'Cálculo inline Sentinela NOX',
       customDays: days,
       customDaysType: 'uteis',
       initialDate,
       tribunal,
+      comarca: chosenComarca,
     })
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -604,13 +607,16 @@ export const SentinelaHub: React.FC = () => {
       ...prev,
       [commId]: {
         days,
-        comarca: tribunal,
+        comarca: chosenComarca,
         resultDate: calc.finalDeadlineDate,
         diffDays,
         scheduled: false,
       },
     }))
-    toast.info(`Prazo calculado: ${calc.finalDeadlineDate} (${diffDays} dias restantes)`)
+    const suspCount = calc.holidaysApplied.length
+    toast.info(
+      `Prazo calculado: ${calc.finalDeadlineDate} (${diffDays} dias restantes${suspCount > 0 ? ` · ${suspCount} dia(s) suspenso(s)` : ''})`,
+    )
   }
 
   // Export to Markdown
@@ -1792,7 +1798,8 @@ export const SentinelaHub: React.FC = () => {
                               comm.id,
                               comm.dataDisponibilizacao || new Date().toISOString().split('T')[0],
                               inlineState.days,
-                              comm.tribunal || 'DJEN',
+                              comm.tribunal || 'TJMS',
+                              comm.orgaoJulgador || 'Campo Grande',
                             )
                           }
                           className="bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs h-7 px-2"

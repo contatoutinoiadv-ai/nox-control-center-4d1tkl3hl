@@ -22,11 +22,12 @@ import { Progress } from '@/components/ui/progress'
 import { dataStore } from '@/services/dataStore'
 import {
   calculateSha256,
-  detectEncodingAndBom,
   detectCsvDelimiter,
+  detectEncodingAndBom,
   parseCsvRows,
   validateImportedRow,
 } from '@/services/csvEngine'
+import { antiDuplicityEngine, generatePublicationFingerprint } from '@/services/antiDuplicityEngine'
 import { ImportBatch, NoxRecord, RawSentinelaRow } from '@/types/nox'
 import { toast } from 'sonner'
 
@@ -130,12 +131,38 @@ export const ImportsPage: React.FC = () => {
     const quarantined: NoxRecord[] = []
     const rejected: Array<{ row: RawSentinelaRow; error: string }> = []
 
+    // Coleta fingerprints existentes no sistema para proteção contra duplicidade
+    const systemFingerprints = new Set<string>()
+    dataStore.getCommunications().forEach((comm) => {
+      systemFingerprints.add(
+        generatePublicationFingerprint({
+          numeroProcesso: comm.numeroProcesso,
+          teor: comm.teorCompleto || comm.teorResumido || '',
+          dataDisponibilizacao: comm.dataDisponibilizacao || '',
+          destinatario: comm.destinatario || '',
+          tribunal: comm.tribunal,
+        }),
+      )
+    })
+    dataStore.getRecords().forEach((rec) => {
+      systemFingerprints.add(
+        generatePublicationFingerprint({
+          numeroProcesso: rec.numeroProcesso,
+          teor: rec.alertDescription || rec.alertTitle || '',
+          dataDisponibilizacao: rec.dataDistribuicao || '',
+          destinatario: rec.partes || '',
+          tribunal: rec.tribunal,
+        }),
+      )
+    })
+
+    const seenInBatch = new Set<string>(systemFingerprints)
     const batchId = `batch_${Date.now()}`
     const total = parsedRows.length
 
     for (let i = 0; i < total; i++) {
       const row = parsedRows[i]
-      const validation = validateImportedRow(row, i + 1)
+      const validation = validateImportedRow(row, i + 1, seenInBatch)
 
       // Extract mapped fields
       const getField = (target: string) => {
@@ -163,9 +190,22 @@ export const ImportsPage: React.FC = () => {
       const valStr = getField('valorCausa') || String(row['vlr_causa'] || '0')
       const valorCausa = parseFloat(valStr.replace(',', '.')) || null
 
-      const isQuarantine = !validation.isValid || validation.issues.length > 0
+      const isDuplicate = validation.isDuplicate || false
+      const isQuarantine = !validation.isValid || validation.issues.length > 0 || isDuplicate
       const status = isQuarantine ? 'quarentena' : 'novo'
       const sev = validation.severitySuggestion
+
+      if (isDuplicate && validation.fingerprint) {
+        antiDuplicityEngine.recordBlockedAttempt(
+          'IMPORTACAO_CSV',
+          numeroProcesso,
+          validation.fingerprint,
+          `CSV_INGESTION (${currentFile.name})`,
+          `Linha ${i + 1} bloqueada por DUPLICATA de publicação existente.`,
+        )
+      } else if (validation.fingerprint) {
+        seenInBatch.add(validation.fingerprint)
+      }
 
       const noxRec: NoxRecord = {
         id: `rec_${batchId}_${i}`,
@@ -180,16 +220,20 @@ export const ImportsPage: React.FC = () => {
         valorCausa,
         status,
         severity: sev,
-        alertType: isQuarantine ? 'qualidade_dado' : 'operacional',
-        alertTitle: isQuarantine
-          ? `Inconsistência de Schema no Lote (${recordCode})`
-          : `Novo Registro Importado via CSV (${tribunal})`,
-        alertDescription: isQuarantine
-          ? validation.issues.map((iss) => iss.message).join(' | ')
-          : `Publicação e movimentação importada do Sentinela NOX pronta para análise operacional.`,
+        alertType: isDuplicate ? 'duplicidade' : isQuarantine ? 'qualidade_dado' : 'operacional',
+        alertTitle: isDuplicate
+          ? `Bloqueio Antiduplicidade: Motivo DUPLICATA (${recordCode})`
+          : isQuarantine
+            ? `Inconsistência de Schema no Lote (${recordCode})`
+            : `Novo Registro Importado via CSV (${tribunal})`,
+        alertDescription: isDuplicate
+          ? `Registro bloqueado preventivamente na entrada: DUPLICATA detectada por fingerprinting robusto.`
+          : isQuarantine
+            ? validation.issues.map((iss) => iss.message).join(' | ')
+            : `Publicação e movimentação importada do Sentinela NOX pronta para análise operacional.`,
         priority: sev === 'critico' ? 'urgente' : sev === 'alto' ? 'alta' : 'media',
         responsible: 'Operador NOX',
-        tags: [tribunal, 'Importação CSV', status.toUpperCase()],
+        tags: [tribunal, 'Importação CSV', isDuplicate ? 'DUPLICATA' : status.toUpperCase()],
         notes: [],
         history: [
           {

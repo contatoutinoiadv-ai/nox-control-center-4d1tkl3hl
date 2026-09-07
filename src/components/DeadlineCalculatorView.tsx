@@ -47,8 +47,8 @@ export const DeadlineCalculatorView: React.FC<DeadlineCalculatorViewProps> = ({
       'Ficam as partes intimadas para ciência da sentença e eventual interposição de Apelação no prazo legal de 15 (quinze) dias úteis.',
   )
   const [initialDate, setInitialDate] = useState(initialMemorial?.initialDateMarker || '2026-09-01')
-  const [tribunal, setTribunal] = useState(initialMemorial?.tribunal || 'TJSP')
-  const [comarca, setComarca] = useState(initialMemorial?.comarca || 'São Paulo')
+  const [tribunal, setTribunal] = useState(initialMemorial?.tribunal || 'TJMS')
+  const [comarca, setComarca] = useState(initialMemorial?.comarca || 'Campo Grande')
   const [selectedPresetId, setSelectedPresetId] = useState(
     initialMemorial?.legalRuleName ? 'CPC_APELACAO_15D' : 'CPC_APELACAO_15D',
   )
@@ -191,15 +191,57 @@ export const DeadlineCalculatorView: React.FC<DeadlineCalculatorViewProps> = ({
           </Button>
         </div>
 
-        {!readOnly && onApproveDeadline && (
-          <Button
-            onClick={handleApprove}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-8 shadow-md shadow-emerald-950 flex items-center gap-1.5"
-          >
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            Homologar & Distribuir Prazo
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded px-2.5 py-1 text-xs">
+            <span className="text-[10px] font-mono text-slate-400">Comarca TJMS:</span>
+            <select
+              value={comarca}
+              onChange={(e) => setComarca(e.target.value)}
+              className="bg-slate-950 text-slate-200 border-none text-xs rounded focus:ring-1 focus:ring-cyan-500 font-mono py-0.5 px-1"
+            >
+              <option value="Campo Grande">Campo Grande</option>
+              <option value="Corumbá">Corumbá</option>
+              <option value="Dourados">Dourados</option>
+              <option value="Amambai">Amambai</option>
+              <option value="Aparecida do Taboado">Aparecida do Taboado</option>
+              <option value="São Gabriel do Oeste">São Gabriel do Oeste</option>
+              <option value="Deodápolis">Deodápolis</option>
+              <option value="Camapuã">Camapuã</option>
+              <option value="Bonito">Bonito</option>
+              <option value="Dois Irmãos do Buriti">Dois Irmãos do Buriti</option>
+              <option value="Anaurilândia">Anaurilândia</option>
+              <option value="Chapadão do Sul">Chapadão do Sul</option>
+              <option value="Nova Alvorada do Sul">Nova Alvorada do Sul</option>
+              <option value="Ivinhema">Ivinhema</option>
+              <option value="Naviraí">Naviraí</option>
+              <option value="Pedro Gomes">Pedro Gomes</option>
+              <option value="Batayporã">Batayporã</option>
+              <option value="Mundo Novo">Mundo Novo</option>
+              <option value="Aquidauana">Aquidauana</option>
+              <option value="Iguatemi">Iguatemi</option>
+              <option value="Miranda">Miranda</option>
+              <option value="Porto Murtinho">Porto Murtinho</option>
+              <option value="Rio Brilhante">Rio Brilhante</option>
+              <option value="Ribas do Rio Pardo">Ribas do Rio Pardo</option>
+              <option value="Sete Quedas">Sete Quedas</option>
+              <option value="Coronel Sapucaia">Coronel Sapucaia</option>
+              <option value="Itaporã">Itaporã</option>
+              <option value="Bataguassu">Bataguassu</option>
+              <option value="Sidrolândia">Sidrolândia</option>
+              <option value="Rio Verde de Mato Grosso">Rio Verde de Mato Grosso</option>
+            </select>
+          </div>
+
+          {!readOnly && onApproveDeadline && (
+            <Button
+              onClick={handleApprove}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-8 shadow-md shadow-emerald-950 flex items-center gap-1.5"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Homologar & Distribuir Prazo
+            </Button>
+          )}
+        </div>
       </div>
 
       {activeTab === 'memorial' ? (

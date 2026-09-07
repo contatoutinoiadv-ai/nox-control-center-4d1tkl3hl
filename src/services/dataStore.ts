@@ -13,6 +13,7 @@ import {
   StressTestValidation,
 } from '@/types/nox'
 import { classificarNivelProducao } from '@/services/complexityService'
+import { antiDuplicityEngine, generatePublicationFingerprint } from '@/services/antiDuplicityEngine'
 import { generateFullSyntheticDataset, INITIAL_BATCH, INITIAL_AUDIT_LOGS } from '@/data/mockData'
 import {
   SentinelaCommunication,
@@ -2413,20 +2414,58 @@ export class NoxDataStore {
   public addDjenCommunications(newComms: SentinelaCommunication[]): number {
     if (!Array.isArray(newComms) || newComms.length === 0) return 0
 
-    // 1. Merge deduplicado na coleção de comunicações
+    // 1. Merge deduplicado com bloqueio ativo via motor de antiduplicidade
+    const existingPubFingerprints = new Set<string>()
+    this.communications.forEach((c) => {
+      existingPubFingerprints.add(
+        generatePublicationFingerprint({
+          numeroProcesso: c.numeroProcesso,
+          teor: c.teorCompleto || c.teorResumido || '',
+          dataDisponibilizacao: c.dataDisponibilizacao || '',
+          destinatario: c.destinatario,
+          tribunal: c.tribunal,
+          orgaoJulgador: c.orgaoJulgador,
+        }),
+      )
+    })
+
     const existingCommKeys = new Set(
       this.communications.map((c) => c.externalId || c.id).filter(Boolean),
     )
     let addedCommsCount = 0
+    let blockedDuplicatesCount = 0
     const commsToAdd: SentinelaCommunication[] = []
 
     for (const comm of newComms) {
       const key = comm.externalId || comm.id
-      if (key && !existingCommKeys.has(key)) {
-        existingCommKeys.add(key)
-        commsToAdd.push(comm)
-        addedCommsCount++
+      const fp = generatePublicationFingerprint({
+        numeroProcesso: comm.numeroProcesso,
+        teor: comm.teorCompleto || comm.teorResumido || '',
+        dataDisponibilizacao: comm.dataDisponibilizacao || '',
+        destinatario: comm.destinatario,
+        tribunal: comm.tribunal,
+        orgaoJulgador: comm.orgaoJulgador,
+      })
+
+      const isKeyDuplicate = key && existingCommKeys.has(key)
+      const isFpDuplicate = existingPubFingerprints.has(fp)
+
+      if (isKeyDuplicate || isFpDuplicate) {
+        blockedDuplicatesCount++
+        antiDuplicityEngine.recordBlockedAttempt(
+          'PUBLICACAO',
+          comm.numeroProcesso || comm.id,
+          fp,
+          'DJEN_OR_SENTINELA_INGESTION',
+          `Publicação rejeitada por DUPLICATA: processo ${comm.numeroProcesso} em ${comm.dataDisponibilizacao}.`,
+        )
+        continue
       }
+
+      existingPubFingerprints.add(fp)
+      if (key) existingCommKeys.add(key)
+      commsToAdd.push(comm)
+      addedCommsCount++
     }
 
     if (commsToAdd.length > 0) {
@@ -2840,13 +2879,42 @@ export class NoxDataStore {
     this.notify()
   }
 
-  public addTask(task: SentinelaTask) {
+  public addTask(task: SentinelaTask): { success: boolean; task?: SentinelaTask; reason?: string } {
+    // Verificação de antiduplicidade com bloqueio ativo
+    const check = antiDuplicityEngine.checkTask(
+      {
+        communicationId: task.communicationId,
+        processNumber: task.processNumber,
+        title: task.title,
+        responsible: task.responsible,
+      },
+      this.tasks.map((t) => ({
+        id: t.id,
+        communicationId: t.communicationId,
+        processNumber: t.processNumber,
+        title: t.title,
+        responsible: t.responsible,
+      })),
+    )
+
+    if (check.isDuplicate) {
+      antiDuplicityEngine.recordBlockedAttempt(
+        'TAREFA',
+        task.communicationId || task.processNumber || task.id,
+        check.fingerprint,
+        'DATASTORE_ADDTASK',
+        check.message || 'Criação bloqueada por DUPLICATA.',
+      )
+      return { success: false, reason: 'DUPLICATA' }
+    }
+
     this.tasks.unshift(task)
     this.saveTasks()
     this.logAction('TAREFA_CRIADA', 'sistema', task.responsible, task.id, { title: task.title })
     this.syncTaskToPocketBase(task).catch((err) =>
       console.warn('Sync addTask to PocketBase failed:', err),
     )
+    return { success: true, task }
   }
 
   public updateTask(id: string, updates: Partial<SentinelaTask>) {

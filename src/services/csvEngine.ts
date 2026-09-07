@@ -178,13 +178,19 @@ export function sanitizeCsvField(value: unknown): string {
 /**
  * Validates a single imported row against NOX quality rules.
  */
+import { generatePublicationFingerprint, normalizeProcessNumber } from './antiDuplicityEngine'
+
 export function validateImportedRow(
   row: RawSentinelaRow,
   index: number,
+  existingFingerprints?: Set<string>,
 ): {
   isValid: boolean
   issues: ValidationIssue[]
   severitySuggestion: 'informativo' | 'medio' | 'alto' | 'critico'
+  isDuplicate?: boolean
+  duplicateReason?: string
+  fingerprint?: string
 } {
   const issues: ValidationIssue[] = []
 
@@ -219,16 +225,47 @@ export function validateImportedRow(
     })
   }
 
+  // Anti-duplicity check via fingerprint
+  const teorVal = String(row['payload_raw'] || row['teor'] || row['conteudo'] || row['texto'] || '')
+  const dataDispVal = String(
+    row['dt_distribuicao'] || row['data_disponibilizacao'] || row['data'] || '',
+  )
+  const destVal = String(row['polo_ativo_nome'] || row['destinatario'] || row['partes'] || '')
+  const tribVal = tribunalKey ? String(row[tribunalKey] || '') : ''
+
+  const fp = generatePublicationFingerprint({
+    numeroProcesso: processoVal || `PROC-${index}`,
+    teor: teorVal,
+    dataDisponibilizacao: dataDispVal,
+    destinatario: destVal,
+    tribunal: tribVal,
+  })
+
+  let isDuplicate = false
+  if (existingFingerprints && existingFingerprints.has(fp)) {
+    isDuplicate = true
+    issues.push({
+      field: processoKey || 'numero_processo',
+      type: 'duplicate_record',
+      message: `Linha ${index}: Registro rejeitado/bloqueado por DUPLICATA (processo, teor e data já existentes no lote ou sistema).`,
+      severity: 'error',
+    })
+  }
+
   const hasError = issues.some((i) => i.severity === 'error')
   const hasWarning = issues.length > 0
 
   let severitySuggestion: 'informativo' | 'medio' | 'alto' | 'critico' = 'informativo'
-  if (hasError) severitySuggestion = 'alto'
+  if (isDuplicate) severitySuggestion = 'critico'
+  else if (hasError) severitySuggestion = 'alto'
   else if (hasWarning) severitySuggestion = 'medio'
 
   return {
     isValid: !hasError,
     issues,
     severitySuggestion,
+    isDuplicate,
+    duplicateReason: isDuplicate ? 'DUPLICATA' : undefined,
+    fingerprint: fp,
   }
 }
