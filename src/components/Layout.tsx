@@ -15,6 +15,7 @@ import {
   Users,
   Layers,
   MessageSquare,
+  RadioTower,
 } from 'lucide-react'
 import { CommandPalette } from './CommandPalette'
 import { MigrationStatusBanner } from './MigrationStatusBanner'
@@ -126,6 +127,14 @@ export const Layout: React.FC = () => {
 
   const allNavLinks: NoxNavItem[] = [
     { moduleKey: 'central_nox', name: 'Central NOX', path: '/', icon: Activity, badge: null },
+    {
+      moduleKey: 'nox_neural_link',
+      name: 'NOX NEURAL LINK',
+      path: '/neural-link',
+      icon: RadioTower,
+      badge: 'COMUNICAÇÃO NEURAL',
+      badgeVariant: 'cyan',
+    },
     {
       moduleKey: 'atendimento',
       name: 'CENTRAL DE ATENDIMENTO',

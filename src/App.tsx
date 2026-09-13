@@ -27,6 +27,7 @@ import CompromissosPage from './pages/CompromissosPage'
 import ClientesPage from './pages/ClientesPage'
 import ProducaoPage from './pages/ProducaoPage'
 import CentralAtendimentoPage from './pages/CentralAtendimentoPage'
+import NoxNeuralLinkPage from './pages/NoxNeuralLinkPage'
 import IntakePublicPage from './pages/IntakePublicPage'
 import PreparacaoPublicPage from './pages/PreparacaoPublicPage'
 import NotFound from './pages/NotFound'
@@ -164,6 +165,16 @@ const AppRoutes = () => {
             element={
               <ProtectedModuleRoute moduleKey="central_nox" moduleName="Central NOX">
                 <Index />
+              </ProtectedModuleRoute>
+            }
+          />
+          <Route
+            path="/neural-link"
+            element={
+              <ProtectedModuleRoute moduleKey="nox_neural_link" moduleName="NOX NEURAL LINK">
+                <ErrorBoundary moduleName="NOX NEURAL LINK">
+                  <NoxNeuralLinkPage />
+                </ErrorBoundary>
               </ProtectedModuleRoute>
             }
           />

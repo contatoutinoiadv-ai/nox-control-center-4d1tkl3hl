@@ -319,6 +319,7 @@ export type UserRole = 'admin' | 'operador'
 
 export type SystemModuleKey =
   | 'central_nox'
+  | 'nox_neural_link'
   | 'atendimento'
   | 'sentinela'
   | 'clientes'

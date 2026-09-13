@@ -1,0 +1,2053 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>NOX · Neural Core</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Space+Grotesk:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #020408;
+        --accent: #00e5ff;
+        --accent-soft: rgba(0, 229, 255, 0.14);
+        --accent-line: rgba(0, 229, 255, 0.45);
+        --glass: rgba(8, 14, 28, 0.55);
+        --glass-deep: rgba(4, 8, 18, 0.72);
+        --text: #dbe7f4;
+        --text-dim: #7d8fa8;
+        --font-hud: 'Orbitron', monospace;
+        --font-body: 'Space Grotesk', sans-serif;
+      }
+      body[data-state='listening'] {
+        --accent: #00ff9d;
+        --accent-soft: rgba(0, 255, 157, 0.12);
+        --accent-line: rgba(0, 255, 157, 0.45);
+      }
+      body[data-state='thinking'] {
+        --accent: #ffd700;
+        --accent-soft: rgba(255, 215, 0, 0.12);
+        --accent-line: rgba(255, 215, 0, 0.45);
+      }
+      body[data-state='speaking'] {
+        --accent: #d946ef;
+        --accent-soft: rgba(217, 70, 239, 0.14);
+        --accent-line: rgba(217, 70, 239, 0.48);
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        overflow: hidden;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font-body);
+        -webkit-font-smoothing: antialiased;
+        user-select: none;
+      }
+
+      /* ============ CENA 3D ============ */
+      #stage {
+        position: fixed;
+        inset: 0;
+        z-index: 1;
+      }
+      #stage canvas {
+        display: block;
+      }
+
+      /* vinheta + scanlines por cima da cena */
+      #vignette {
+        position: fixed;
+        inset: 0;
+        z-index: 2;
+        pointer-events: none;
+        background:
+          repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.014) 0 1px, transparent 1px 3px),
+          radial-gradient(ellipse 120% 90% at 50% 42%, transparent 52%, rgba(2, 4, 8, 0.9) 100%);
+      }
+
+      /* ============ HUD ============ */
+      #hud {
+        position: fixed;
+        inset: 0;
+        z-index: 3;
+        pointer-events: none;
+      }
+      #hud > * {
+        pointer-events: auto;
+      }
+
+      .glass {
+        position: relative;
+        background: linear-gradient(135deg, var(--glass), var(--glass-deep));
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        box-shadow:
+          0 8px 32px rgba(0, 0, 0, 0.45),
+          0 0 24px var(--accent-soft);
+        transition: box-shadow 0.6s ease;
+      }
+      .glass::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        padding: 1px;
+        pointer-events: none;
+        background: linear-gradient(
+          135deg,
+          var(--accent-line),
+          rgba(120, 90, 220, 0.28) 55%,
+          var(--accent-line)
+        );
+        -webkit-mask:
+          linear-gradient(#fff 0 0) content-box,
+          linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+        transition: background 0.6s ease;
+      }
+
+      /* pílula de status */
+      #statusPill {
+        position: absolute;
+        top: max(18px, env(safe-area-inset-top));
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 22px;
+        border-radius: 999px;
+        border: none;
+        cursor: pointer;
+        white-space: nowrap;
+        font-family: var(--font-body);
+      }
+      #statusDot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow:
+          0 0 10px var(--accent),
+          0 0 22px var(--accent);
+        animation: dotPulse 1.8s ease-in-out infinite;
+        transition: background 0.5s ease;
+      }
+      @keyframes dotPulse {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(1.55);
+          opacity: 0.55;
+        }
+      }
+      #pillText {
+        font-family: var(--font-hud);
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.32em;
+        text-transform: uppercase;
+        color: var(--text);
+      }
+      #pillText b {
+        color: var(--accent);
+        font-weight: 700;
+        transition: color 0.5s ease;
+      }
+      #hint {
+        position: absolute;
+        top: calc(max(18px, env(safe-area-inset-top)) + 46px);
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        color: var(--text-dim);
+        text-transform: uppercase;
+        font-family: var(--font-hud);
+        font-weight: 400;
+        pointer-events: none;
+        animation: hintFade 9s ease forwards;
+      }
+      @keyframes hintFade {
+        0%,
+        60% {
+          opacity: 0.9;
+        }
+        100% {
+          opacity: 0;
+        }
+      }
+
+      /* ============ PAINEL DE CONFIG ============ */
+      #gearBtn {
+        position: absolute;
+        top: max(18px, env(safe-area-inset-top));
+        right: 18px;
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        border: none;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        color: var(--accent);
+        transition:
+          transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.4),
+          color 0.5s;
+      }
+      #gearBtn:hover {
+        transform: rotate(90deg) scale(1.06);
+      }
+      #gearBtn svg {
+        width: 20px;
+        height: 20px;
+      }
+      #gearBtn.spin svg {
+        animation: gearSpin 1.2s ease;
+      }
+      @keyframes gearSpin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      #configPanel {
+        position: absolute;
+        top: max(18px, env(safe-area-inset-top));
+        right: 18px;
+        width: min(340px, calc(100vw - 36px));
+        border-radius: 18px;
+        padding: 20px;
+        transform-origin: top right;
+        transform: scale(0.92) translateY(-8px);
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+      }
+      #configPanel.open {
+        transform: none;
+        opacity: 1;
+        visibility: visible;
+      }
+      #configPanel h2 {
+        font-family: var(--font-hud);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.3em;
+        color: var(--accent);
+        text-transform: uppercase;
+        margin-bottom: 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: color 0.5s;
+      }
+      #closeConfig {
+        background: none;
+        border: none;
+        color: var(--text-dim);
+        cursor: pointer;
+        font-size: 16px;
+        line-height: 1;
+        padding: 4px;
+        font-family: var(--font-body);
+      }
+      #closeConfig:hover {
+        color: var(--text);
+      }
+      .field {
+        margin-bottom: 14px;
+      }
+      .field label {
+        display: block;
+        font-size: 10px;
+        font-family: var(--font-hud);
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+        margin-bottom: 6px;
+      }
+      .field input[type='password'],
+      .field input[type='text'],
+      .field select {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(120, 140, 180, 0.18);
+        background: rgba(3, 6, 14, 0.6);
+        color: var(--text);
+        font-family: var(--font-body);
+        font-size: 13px;
+        outline: none;
+        transition:
+          border-color 0.3s,
+          box-shadow 0.3s;
+      }
+      .field input:focus,
+      .field select:focus {
+        border-color: var(--accent-line);
+        box-shadow: 0 0 0 3px var(--accent-soft);
+      }
+      .field select option {
+        background: #060b18;
+      }
+      .keyRow {
+        display: flex;
+        gap: 8px;
+      }
+      .keyRow input {
+        flex: 1;
+      }
+      .iconBtn {
+        width: 42px;
+        border-radius: 10px;
+        border: 1px solid rgba(120, 140, 180, 0.18);
+        background: rgba(3, 6, 14, 0.6);
+        color: var(--text-dim);
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        transition: all 0.25s;
+        flex: none;
+      }
+      .iconBtn:hover {
+        color: var(--accent);
+        border-color: var(--accent-line);
+      }
+      .iconBtn svg {
+        width: 16px;
+        height: 16px;
+      }
+      .rangeRow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .rangeRow input[type='range'] {
+        flex: 1;
+        appearance: none;
+        -webkit-appearance: none;
+        height: 3px;
+        border-radius: 2px;
+        background: linear-gradient(90deg, var(--accent), rgba(120, 140, 180, 0.25));
+        outline: none;
+      }
+      .rangeRow input[type='range']::-webkit-slider-thumb {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 10px var(--accent);
+        cursor: pointer;
+      }
+      .rangeRow output {
+        font-family: var(--font-hud);
+        font-size: 11px;
+        color: var(--accent);
+        min-width: 36px;
+        text-align: right;
+        transition: color 0.5s;
+      }
+      .switchRow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 14px;
+      }
+      .switchRow span {
+        font-size: 10px;
+        font-family: var(--font-hud);
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+      }
+      .switch {
+        position: relative;
+        width: 42px;
+        height: 22px;
+        flex: none;
+      }
+      .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .switch i {
+        position: absolute;
+        inset: 0;
+        border-radius: 999px;
+        cursor: pointer;
+        background: rgba(3, 6, 14, 0.7);
+        border: 1px solid rgba(120, 140, 180, 0.25);
+        transition: all 0.3s;
+      }
+      .switch i::after {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--text-dim);
+        transition: all 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.3);
+      }
+      .switch input:checked + i {
+        background: var(--accent-soft);
+        border-color: var(--accent-line);
+      }
+      .switch input:checked + i::after {
+        left: 22px;
+        background: var(--accent);
+        box-shadow: 0 0 8px var(--accent);
+      }
+      .panelActions {
+        display: flex;
+        gap: 8px;
+        margin-top: 4px;
+      }
+      .miniBtn {
+        flex: 1;
+        padding: 9px 10px;
+        border-radius: 10px;
+        cursor: pointer;
+        border: 1px solid rgba(120, 140, 180, 0.2);
+        background: rgba(3, 6, 14, 0.5);
+        color: var(--text-dim);
+        font-family: var(--font-hud);
+        font-size: 9.5px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        transition: all 0.25s;
+      }
+      .miniBtn:hover {
+        color: var(--accent);
+        border-color: var(--accent-line);
+        box-shadow: 0 0 14px var(--accent-soft);
+      }
+      #keyStatus {
+        font-size: 10px;
+        color: var(--text-dim);
+        margin-top: 6px;
+        letter-spacing: 0.06em;
+      }
+      #keyStatus.ok {
+        color: #00ff9d;
+      }
+
+      /* ============ LEGENDA DE CONVERSA ============ */
+      #legend {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 170px;
+        width: min(680px, calc(100vw - 32px));
+        text-align: center;
+        pointer-events: none;
+      }
+      #legendUser {
+        font-size: 12px;
+        color: var(--text-dim);
+        margin-bottom: 8px;
+        letter-spacing: 0.03em;
+        min-height: 16px;
+        font-weight: 300;
+        opacity: 0;
+        transition: opacity 0.3s;
+      }
+      #legendUser.show {
+        opacity: 1;
+      }
+      #legendAI {
+        font-size: 16px;
+        line-height: 1.55;
+        color: var(--text);
+        font-weight: 400;
+        letter-spacing: 0.01em;
+        min-height: 24px;
+        text-shadow: 0 0 22px var(--accent-soft);
+      }
+      #legendAI .who {
+        font-family: var(--font-hud);
+        font-size: 10px;
+        letter-spacing: 0.3em;
+        color: var(--accent);
+        text-transform: uppercase;
+        display: block;
+        margin-bottom: 6px;
+        transition: color 0.5s;
+      }
+      #legendAI .txt {
+        display: inline-block;
+        animation: riseIn 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+      }
+      @keyframes riseIn {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      /* ============ BASE: OSCILOSCÓPIO + FAB ============ */
+      #bottomBar {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 150px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        pointer-events: none;
+      }
+      #scope {
+        width: 100%;
+        height: 110px;
+        display: block;
+        mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+        -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+      }
+      #fab {
+        position: absolute;
+        bottom: 104px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 66px;
+        height: 66px;
+        border-radius: 50%;
+        border: none;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        color: var(--accent);
+        z-index: 4;
+        transition:
+          transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.5),
+          color 0.5s,
+          box-shadow 0.5s;
+      }
+      #fab:hover {
+        transform: translateX(-50%) scale(1.08);
+      }
+      #fab:active {
+        transform: translateX(-50%) scale(0.94);
+      }
+      #fab svg {
+        width: 24px;
+        height: 24px;
+      }
+      #fab .ring {
+        position: absolute;
+        inset: -7px;
+        border-radius: 50%;
+        border: 1px solid var(--accent-line);
+        opacity: 0.55;
+        animation: ringPulse 2.4s ease-out infinite;
+      }
+      @keyframes ringPulse {
+        0% {
+          transform: scale(0.86);
+          opacity: 0.7;
+        }
+        100% {
+          transform: scale(1.28);
+          opacity: 0;
+        }
+      }
+      #fabLabel {
+        position: absolute;
+        bottom: 76px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-family: var(--font-hud);
+        font-size: 9px;
+        letter-spacing: 0.3em;
+        color: var(--text-dim);
+        text-transform: uppercase;
+        white-space: nowrap;
+        pointer-events: none;
+        transition: color 0.4s;
+      }
+
+      /* ============ HISTÓRICO ============ */
+      #historyBtn {
+        position: absolute;
+        top: max(18px, env(safe-area-inset-top));
+        left: 18px;
+        height: 44px;
+        padding: 0 18px;
+        border-radius: 14px;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        font-family: var(--font-hud);
+        font-size: 10px;
+        letter-spacing: 0.26em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+        transition: color 0.3s;
+      }
+      #historyBtn:hover {
+        color: var(--accent);
+      }
+      #historyBtn svg {
+        width: 15px;
+        height: 15px;
+      }
+      #historyPanel {
+        position: absolute;
+        top: max(18px, env(safe-area-inset-top));
+        left: 18px;
+        width: min(360px, calc(100vw - 36px));
+        height: min(560px, calc(100vh - 220px));
+        border-radius: 18px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        transform: scale(0.95) translateX(-10px);
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+      }
+      #historyPanel.open {
+        transform: none;
+        opacity: 1;
+        visibility: visible;
+      }
+      #historyPanel header {
+        padding: 16px 18px 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid rgba(120, 140, 180, 0.12);
+        flex: none;
+      }
+      #historyPanel header h2 {
+        font-family: var(--font-hud);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.3em;
+        color: var(--accent);
+        text-transform: uppercase;
+        transition: color 0.5s;
+      }
+      #historyPanel header button {
+        background: none;
+        border: none;
+        color: var(--text-dim);
+        cursor: pointer;
+        font-size: 15px;
+        font-family: var(--font-body);
+      }
+      #chatLog {
+        flex: 1;
+        overflow-y: auto;
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      #chatLog::-webkit-scrollbar {
+        width: 4px;
+      }
+      #chatLog::-webkit-scrollbar-thumb {
+        background: rgba(120, 140, 180, 0.25);
+        border-radius: 2px;
+      }
+      .msg {
+        max-width: 88%;
+        padding: 9px 13px;
+        border-radius: 13px;
+        font-size: 13px;
+        line-height: 1.5;
+        animation: riseIn 0.3s ease;
+      }
+      .msg.user {
+        align-self: flex-end;
+        background: rgba(0, 229, 255, 0.08);
+        border: 1px solid rgba(0, 229, 255, 0.18);
+        border-bottom-right-radius: 4px;
+      }
+      .msg.ai {
+        align-self: flex-start;
+        background: rgba(217, 70, 239, 0.07);
+        border: 1px solid rgba(217, 70, 239, 0.16);
+        border-bottom-left-radius: 4px;
+      }
+      .msg .tag {
+        display: block;
+        font-family: var(--font-hud);
+        font-size: 8px;
+        letter-spacing: 0.25em;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+        opacity: 0.75;
+      }
+      .msg.user .tag {
+        color: #00e5ff;
+      }
+      .msg.ai .tag {
+        color: #d946ef;
+      }
+      #chatEmpty {
+        margin: auto;
+        text-align: center;
+        color: var(--text-dim);
+        font-size: 12px;
+        letter-spacing: 0.05em;
+        line-height: 1.8;
+      }
+      #textForm {
+        display: flex;
+        gap: 8px;
+        padding: 12px 14px;
+        border-top: 1px solid rgba(120, 140, 180, 0.12);
+        flex: none;
+      }
+      #textForm input {
+        flex: 1;
+        padding: 10px 13px;
+        border-radius: 10px;
+        border: 1px solid rgba(120, 140, 180, 0.18);
+        background: rgba(3, 6, 14, 0.6);
+        color: var(--text);
+        font-family: var(--font-body);
+        font-size: 13px;
+        outline: none;
+      }
+      #textForm input:focus {
+        border-color: var(--accent-line);
+        box-shadow: 0 0 0 3px var(--accent-soft);
+      }
+      #textForm button {
+        width: 42px;
+        border-radius: 10px;
+        border: 1px solid rgba(120, 140, 180, 0.2);
+        background: rgba(3, 6, 14, 0.6);
+        color: var(--accent);
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        transition: all 0.25s;
+      }
+      #textForm button:hover {
+        border-color: var(--accent-line);
+        box-shadow: 0 0 12px var(--accent-soft);
+      }
+      #textForm button svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      /* ============ TOASTS ============ */
+      #toasts {
+        position: fixed;
+        top: calc(max(18px, env(safe-area-inset-top)) + 54px);
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 9;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        align-items: center;
+        pointer-events: none;
+      }
+      .toast {
+        padding: 10px 20px;
+        border-radius: 999px;
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        color: var(--text);
+        animation: toastIn 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.3);
+        max-width: min(520px, calc(100vw - 40px));
+        text-align: center;
+      }
+      .toast.err {
+        color: #ff8fa3;
+        box-shadow: 0 0 22px rgba(255, 80, 110, 0.14);
+      }
+      .toast.err::before {
+        background: linear-gradient(135deg, rgba(255, 90, 120, 0.5), rgba(255, 90, 120, 0.25));
+      }
+      @keyframes toastIn {
+        from {
+          opacity: 0;
+          transform: translateY(-10px) scale(0.95);
+        }
+      }
+      .toast.out {
+        opacity: 0;
+        transform: translateY(-8px);
+        transition: all 0.4s;
+      }
+
+      @media (max-width: 640px) {
+        #legend {
+          bottom: 158px;
+        }
+        #legendAI {
+          font-size: 14px;
+        }
+        #historyBtn span {
+          display: none;
+        }
+        #historyBtn {
+          width: 44px;
+          justify-content: center;
+          padding: 0;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #statusDot,
+        #fab .ring,
+        #hint {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body data-state="idle">
+    <div id="stage" aria-label="Cérebro neural 3D interativo"></div>
+    <div id="vignette"></div>
+
+    <div id="hud">
+      <!-- pílula de status -->
+      <button
+        id="statusPill"
+        class="glass"
+        title="Estado do núcleo neural (clique durante a fala para interromper)"
+      >
+        <span id="statusDot"></span>
+        <span id="pillText">NOX · NEURAL LINK :: <b>INICIANDO</b></span>
+      </button>
+      <div id="hint">fale com o núcleo · arraste para orbitar · scroll para aproximar</div>
+
+      <!-- histórico -->
+      <button id="historyBtn" class="glass" aria-label="Abrir histórico de conversa">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+        <span>Registros</span>
+      </button>
+      <section id="historyPanel" class="glass">
+        <header>
+          <h2>Registros de sessão</h2>
+          <button id="closeHistory" aria-label="Fechar histórico">✕</button>
+        </header>
+        <div id="chatLog">
+          <div id="chatEmpty">
+            Nenhum registro ainda.<br />Fale ou digite para iniciar o enlace neural.
+          </div>
+        </div>
+        <form id="textForm">
+          <input
+            id="textinput"
+            type="text"
+            placeholder="Digite uma mensagem…"
+            autocomplete="off"
+            aria-label="Mensagem de texto"
+          />
+          <button type="submit" aria-label="Enviar mensagem">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M22 2 11 13" />
+              <path d="M22 2 15 22l-4-9-9-4z" />
+            </svg>
+          </button>
+        </form>
+      </section>
+
+      <!-- configuração -->
+      <button id="gearBtn" class="glass" aria-label="Abrir configurações">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="12" cy="12" r="3" />
+          <path
+            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+          />
+        </svg>
+      </button>
+      <section id="configPanel" class="glass" role="dialog" aria-label="Configurações">
+        <h2>Configuração do núcleo <button id="closeConfig" aria-label="Fechar">✕</button></h2>
+        <div class="field">
+          <label for="apiKey">Gemini API Key</label>
+          <div class="keyRow">
+            <input
+              id="apiKey"
+              type="password"
+              placeholder="AIza…"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button class="iconBtn" id="eyeBtn" type="button" aria-label="Mostrar ou ocultar chave">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            </button>
+          </div>
+          <div id="keyStatus">chave não configurada</div>
+        </div>
+        <div class="field">
+          <label for="voiceSel">Voz de síntese</label>
+          <select id="voiceSel">
+            <option value="">Padrão do sistema (pt-BR)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="rateRange">Velocidade da fala</label>
+          <div class="rangeRow">
+            <input id="rateRange" type="range" min="0.7" max="1.4" step="0.05" value="1.05" />
+            <output id="rateOut">1.05</output>
+          </div>
+        </div>
+        <div class="field">
+          <label for="pitchRange">Tom da fala</label>
+          <div class="rangeRow">
+            <input id="pitchRange" type="range" min="0.6" max="1.4" step="0.05" value="1" />
+            <output id="pitchOut">1.00</output>
+          </div>
+        </div>
+        <div class="switchRow">
+          <span>Modo sentinela (wake word)</span>
+          <label class="switch"><input type="checkbox" id="wakeToggle" /><i></i></label>
+        </div>
+        <div class="panelActions">
+          <button class="miniBtn" id="testVoice" type="button">Testar voz</button>
+          <button class="miniBtn" id="clearChat" type="button">Limpar sessão</button>
+        </div>
+      </section>
+
+      <!-- legenda + base -->
+      <div id="legend">
+        <div id="legendUser"></div>
+        <div id="legendAI"></div>
+      </div>
+
+      <div id="bottomBar">
+        <canvas id="scope" aria-hidden="true"></canvas>
+      </div>
+      <button id="fab" class="glass" aria-label="Ativar microfone">
+        <span class="ring"></span>
+        <span id="fabIcon"></span>
+      </button>
+      <div id="fabLabel">falar</div>
+    </div>
+
+    <div id="toasts"></div>
+
+    <script>
+      /* aviso caso os CDNs falhem */
+      setTimeout(function () {
+        if (!window.__noxBooted) {
+          var el = document.getElementById('pillText')
+          if (el) el.innerHTML = 'NOX · <b>FALHA NO CDN</b>'
+        }
+      }, 9000)
+    </script>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+
+    <script type="module">
+      import * as THREE from 'three'
+      import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+      import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
+      import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
+      import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
+      import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
+
+      /* ================================================================
+   NOX · NEURAL CORE
+   Estados: idle | listening | thinking | speaking
+================================================================ */
+
+      const $ = (id) => document.getElementById(id)
+      const clamp = (v, a, b) => Math.min(b, Math.max(a, v))
+      const lerp = (a, b, t) => a + (b - a) * t
+
+      /* ---------- Parâmetros por estado ---------- */
+      const STATES = {
+        idle: {
+          color: 0x00e5ff,
+          css: '#00e5ff',
+          bloom: 0.85,
+          pulse: 1.3,
+          rot: 0.14,
+          line: 0.06,
+          label: 'AGUARDANDO',
+        },
+        listening: {
+          color: 0x00ff9d,
+          css: '#00ff9d',
+          bloom: 1.0,
+          pulse: 2.4,
+          rot: 0.2,
+          line: 0.1,
+          label: 'OUVINDO',
+        },
+        thinking: {
+          color: 0xffd700,
+          css: '#ffd700',
+          bloom: 1.12,
+          pulse: 6.5,
+          rot: 0.9,
+          line: 0.34,
+          label: 'PROCESSANDO',
+        },
+        speaking: {
+          color: 0xd946ef,
+          css: '#d946ef',
+          bloom: 1.05,
+          pulse: 3.2,
+          rot: 0.28,
+          line: 0.1,
+          label: 'RESPONDENDO',
+        },
+      }
+
+      let state = null // força a primeira passagem de setState('idle')
+      const cur = {
+        // valores atuais (interpolados)
+        color: new THREE.Color(STATES.idle.color),
+        bloom: STATES.idle.bloom,
+        pulse: STATES.idle.pulse,
+        rot: STATES.idle.rot,
+        line: STATES.idle.line,
+        w0: 1,
+        w1: 0,
+        w2: 0,
+        w3: 0,
+      }
+      const accentHex = {
+        idle: '#00e5ff',
+        listening: '#00ff9d',
+        thinking: '#ffd700',
+        speaking: '#d946ef',
+      }
+
+      /* ================================================================
+   1 · CENA THREE.JS
+================================================================ */
+      const stage = $('stage')
+      const renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: 'high-performance',
+      })
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
+      renderer.setSize(innerWidth, innerHeight)
+      renderer.setClearColor(0x020408, 1)
+      stage.appendChild(renderer.domElement)
+
+      const scene = new THREE.Scene()
+      const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 60)
+      camera.position.set(0, 0.35, 4.4)
+
+      const controls = new OrbitControls(camera, renderer.domElement)
+      controls.enableDamping = true
+      controls.dampingFactor = 0.06
+      controls.enablePan = false
+      controls.minDistance = 2.6
+      controls.maxDistance = 9
+      controls.rotateSpeed = 0.55
+
+      /* ---------- Pós-processamento: bloom holográfico ---------- */
+      const composer = new EffectComposer(renderer)
+      composer.addPass(new RenderPass(scene, camera))
+      const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.9, 0.62, 0.08)
+      composer.addPass(bloom)
+      composer.addPass(new OutputPass())
+
+      /* ---------- Grid digital de fundo (dentro do WebGL p/ glow) ---------- */
+      const gridMat = new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        depthTest: false,
+        uniforms: { uTime: { value: 0 } },
+        vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy, 0.9995, 1.0); }`,
+        fragmentShader: `
+    varying vec2 vUv; uniform float uTime;
+    float gridLine(vec2 c){
+      vec2 g = abs(fract(c) - 0.5);
+      float l = max(smoothstep(0.492, 0.5, g.x), smoothstep(0.492, 0.5, g.y));
+      return l;
+    }
+    void main(){
+      vec2 c = vUv * 34.0;
+      float l = gridLine(c);
+      float d = distance(vUv, vec2(0.5, 0.46));
+      float fade = smoothstep(0.78, 0.18, d);
+      float breath = 0.72 + 0.28 * sin(uTime * 0.5);
+      vec3 cyan = vec3(0.0, 0.55, 0.75);
+      vec3 violet = vec3(0.35, 0.2, 0.65);
+      vec3 col = mix(cyan, violet, smoothstep(0.0, 1.0, vUv.x));
+      float a = l * fade * 0.20 * breath;
+      gl_FragColor = vec4(col * a, a);
+    }`,
+      })
+      const gridQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), gridMat)
+      gridQuad.frustumCulled = false
+      gridQuad.renderOrder = -10
+      scene.add(gridQuad)
+
+      /* ---------- Uniforms compartilhados (partículas + sinapses) ---------- */
+      const U = {
+        uTime: { value: 0 },
+        uPulseSpeed: { value: 1.3 },
+        uW0: { value: 1 },
+        uW1: { value: 0 },
+        uW2: { value: 0 },
+        uW3: { value: 0 },
+        uAudio: { value: 0 },
+        uWave: { value: 0 },
+        uBass: { value: 0 },
+        uMid: { value: 0 },
+        uTreble: { value: 0 },
+        uColor: { value: new THREE.Color(STATES.idle.color) },
+        uSize: { value: 0.115 },
+        uLineBase: { value: 0.06 },
+      }
+
+      /* Deformação comum: pulsa IDLE · anéis LISTENING · bandas SPEAKING */
+      const DISP = `
+  float hash13(vec3 p){
+    p = fract(p * 0.1031);
+    p += dot(p, p.yzx + 33.33);
+    return fract((p.x + p.y) * p.z);
+  }
+  vec3 displace(vec3 p, float h){
+    vec3 n = normalize(p);
+    vec3 d = vec3(0.0);
+    d += n * 0.020 * sin(uTime * 1.4 + h * 6.2831) * uW0;
+    float r = length(p);
+    d += n * 0.085 * uW1 * (0.25 + uWave) * sin(r * 7.0 - uTime * 5.0 + h * 1.7);
+    d += n * uW3 * (
+      uBass * 0.13 +
+      uMid * 0.11 * sin(p.y * 9.0 + uTime * 9.0) +
+      uTreble * 0.07 * sin(p.x * 14.0 - uTime * 14.0) +
+      0.02 * sin(uTime * 12.0 + h * 6.2831)
+    );
+    return d;
+  }
+`
+
+      /* ---------- Geometria do cérebro: elipsoide + giros + fissura ---------- */
+      const NODES = 2000
+      function brainPoint() {
+        const u = Math.random() * 2 - 1,
+          th = Math.random() * Math.PI * 2
+        const s = Math.sqrt(1 - u * u)
+        const x = s * Math.cos(th),
+          y = u,
+          z = s * Math.sin(th)
+        let px = x * 1.16,
+          py = y * 0.8,
+          pz = z * 1.34
+        const sulci =
+          0.5 + 0.5 * Math.sin(7.0 * Math.atan2(z, x) + 5.0 * y + 2.0 * Math.sin(y * 6.28))
+        const shrink = 1 - 0.1 * sulci
+        px *= shrink
+        py *= shrink
+        pz *= shrink
+        const f = 0.17 * Math.exp(-(px * px) / 0.018)
+        px += (px >= 0 ? 1 : -1) * f
+        py -= f * 0.25
+        if (py < 0) py *= 0.9
+        return [px, py, pz]
+      }
+
+      const nodePos = new Float32Array(NODES * 3)
+      for (let i = 0; i < NODES; i++) {
+        const p = brainPoint()
+        nodePos[i * 3] = p[0]
+        nodePos[i * 3 + 1] = p[1]
+        nodePos[i * 3 + 2] = p[2]
+      }
+
+      /* sinapses: pares próximos, embaralhados, com teto de custo */
+      const cand = []
+      const MAXD2 = 0.042
+      for (let i = 0; i < NODES; i++) {
+        const ax = nodePos[i * 3],
+          ay = nodePos[i * 3 + 1],
+          az = nodePos[i * 3 + 2]
+        for (let j = i + 1; j < NODES; j++) {
+          const dx = nodePos[j * 3] - ax,
+            dy = nodePos[j * 3 + 1] - ay,
+            dz = nodePos[j * 3 + 2] - az
+          const d2 = dx * dx + dy * dy + dz * dz
+          if (d2 < MAXD2) cand.push(Math.random() < 0.5 ? [i, j] : [j, i])
+        }
+      }
+      for (let i = cand.length - 1; i > 0; i--) {
+        const k = (Math.random() * (i + 1)) | 0
+        ;[cand[i], cand[k]] = [cand[k], cand[i]]
+      }
+      const LINKS = Math.min(cand.length, 4200)
+
+      const linePos = new Float32Array(LINKS * 6)
+      const lineT = new Float32Array(LINKS * 2)
+      const lineSeed = new Float32Array(LINKS * 2)
+      for (let s = 0; s < LINKS; s++) {
+        const pair = cand[s],
+          a = pair[0],
+          b = pair[1],
+          o = s * 6
+        linePos[o] = nodePos[a * 3]
+        linePos[o + 1] = nodePos[a * 3 + 1]
+        linePos[o + 2] = nodePos[a * 3 + 2]
+        linePos[o + 3] = nodePos[b * 3]
+        linePos[o + 4] = nodePos[b * 3 + 1]
+        linePos[o + 5] = nodePos[b * 3 + 2]
+        lineT[s * 2] = 0
+        lineT[s * 2 + 1] = 1
+        lineSeed[s * 2] = Math.random()
+        lineSeed[s * 2 + 1] = lineSeed[s * 2]
+      }
+
+      /* ---------- Nós (partículas) ---------- */
+      const nodeGeo = new THREE.BufferGeometry()
+      nodeGeo.setAttribute('position', new THREE.BufferAttribute(nodePos, 3))
+      const nodeMat = new THREE.ShaderMaterial({
+        uniforms: U,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        vertexShader: `
+    uniform float uTime, uPulseSpeed, uAudio, uW2, uSize;
+    uniform float uW0, uW1, uW3, uWave, uBass, uMid, uTreble;
+    varying float vB;
+    ${DISP}
+    void main(){
+      float h = hash13(position);
+      vec3 p = position + displace(position, h);
+      vec4 mv = modelViewMatrix * vec4(p, 1.0);
+      float flick = uW2 * step(0.74, fract(h * 9.0 + uTime * 4.2));
+      vB = 0.45 + 0.55 * sin(uTime * uPulseSpeed + h * 6.2831);
+      vB = mix(vB, 0.82, uW2);
+      vB += uAudio * 0.9 + flick * 0.85;
+      gl_PointSize = uSize * (0.75 + 0.6*h) * (1.0 + uAudio * 0.9 + flick * 0.55) * (140.0 / -mv.z);
+      gl_Position = projectionMatrix * mv;
+    }`,
+        fragmentShader: `
+    uniform vec3 uColor;
+    varying float vB;
+    void main(){
+      float d = length(gl_PointCoord - 0.5);
+      float core = smoothstep(0.5, 0.10, d);
+      float halo = smoothstep(0.5, 0.0, d) * 0.35;
+      vec3 col = mix(uColor, vec3(1.0), core * 0.42);
+      float a = (core * 0.9 + halo) * vB;
+      gl_FragColor = vec4(col * a, a);
+    }`,
+      })
+      const nodes = new THREE.Points(nodeGeo, nodeMat)
+
+      /* ---------- Sinapses (linhas com pulsos viajantes) ---------- */
+      const lineGeo = new THREE.BufferGeometry()
+      lineGeo.setAttribute('position', new THREE.BufferAttribute(linePos, 3))
+      lineGeo.setAttribute('aT', new THREE.BufferAttribute(lineT, 1))
+      lineGeo.setAttribute('aSeed', new THREE.BufferAttribute(lineSeed, 1))
+      const lineMat = new THREE.ShaderMaterial({
+        uniforms: U,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        vertexShader: `
+    attribute float aT; attribute float aSeed;
+    varying float vT; varying float vSeed; varying float vH;
+    uniform float uTime, uW0, uW1, uW3, uWave, uBass, uMid, uTreble;
+    ${DISP}
+    void main(){
+      vT = aT; vSeed = aSeed;
+      vH = hash13(position);
+      vec3 p = position + displace(position, vH);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+    }`,
+        fragmentShader: `
+    uniform vec3 uColor; uniform float uTime, uW2, uLineBase;
+    varying float vT; varying float vSeed; varying float vH;
+    void main(){
+      float head = fract(uTime * (0.4 + vSeed * 1.1) + vSeed * 7.31);
+      float d = abs(head - vT); d = min(d, 1.0 - d);
+      float pulse = exp(-d * d * 160.0);
+      float act = uLineBase + uW2 * pulse * 1.65 + pulse * 0.08;
+      gl_FragColor = vec4(uColor * act, act);
+    }`,
+      })
+      const synapses = new THREE.LineSegments(lineGeo, lineMat)
+
+      /* ---------- Poeira estelar de profundidade ---------- */
+      const DUST = 260
+      const dustPos = new Float32Array(DUST * 3)
+      for (let i = 0; i < DUST; i++) {
+        const r = 5 + Math.random() * 5,
+          u = Math.random() * 2 - 1,
+          th = Math.random() * Math.PI * 2,
+          s = Math.sqrt(1 - u * u)
+        dustPos[i * 3] = r * s * Math.cos(th)
+        dustPos[i * 3 + 1] = r * u
+        dustPos[i * 3 + 2] = r * s * Math.sin(th)
+      }
+      const dustGeo = new THREE.BufferGeometry()
+      dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3))
+      const dust = new THREE.Points(
+        dustGeo,
+        new THREE.PointsMaterial({
+          size: 0.03,
+          color: 0x2a4a7a,
+          transparent: true,
+          opacity: 0.5,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }),
+      )
+
+      const brainGroup = new THREE.Group()
+      brainGroup.add(nodes, synapses)
+      brainGroup.scale.setScalar(1.12)
+      scene.add(brainGroup, dust)
+
+      /* ================================================================
+   2 · ÁUDIO: AnalyserNode do mic + envelope sintético do TTS
+================================================================ */
+      let actx = null,
+        micAnalyser = null,
+        micSrc = null,
+        micStream = null
+      let freqData = null,
+        timeData = null,
+        micActive = false
+
+      async function ensureCtx() {
+        if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)()
+        if (actx.state === 'suspended') await actx.resume()
+        return actx
+      }
+      async function startMic() {
+        try {
+          await ensureCtx()
+          micStream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true },
+          })
+          micSrc = actx.createMediaStreamSource(micStream)
+          micAnalyser = actx.createAnalyser()
+          micAnalyser.fftSize = 128 // 64 bins, conforme espec.
+          micAnalyser.smoothingTimeConstant = 0.72
+          micSrc.connect(micAnalyser)
+          freqData = new Uint8Array(micAnalyser.frequencyBinCount)
+          timeData = new Uint8Array(micAnalyser.fftSize)
+          micActive = true
+        } catch (e) {
+          toast('Microfone indisponível: ' + e.message, true)
+        }
+      }
+      function stopMic() {
+        if (micStream) {
+          micStream.getTracks().forEach((t) => t.stop())
+        }
+        if (micSrc) {
+          try {
+            micSrc.disconnect()
+          } catch (_) {}
+        }
+        micActive = false
+      }
+
+      /* ---------- envelope sintético da fala da IA ---------- */
+      let speakPulse = 0,
+        speakTimer = null,
+        startWatch = null,
+        speakGen = 0,
+        ttsWarmed = false
+      function readMicBands() {
+        micAnalyser.getByteFrequencyData(freqData)
+        micAnalyser.getByteTimeDomainData(timeData)
+        const n = freqData.length
+        let bass = 0,
+          mid = 0,
+          treb = 0,
+          sum = 0
+        const b1 = (n / 8) | 0,
+          b2 = (n / 2) | 0
+        for (let i = 0; i < b1; i++) bass += freqData[i]
+        for (let i = b1; i < b2; i++) mid += freqData[i]
+        for (let i = b2; i < n; i++) treb += freqData[i]
+        bass /= b1 * 255
+        mid /= (b2 - b1) * 255
+        treb /= (n - b2) * 255
+        for (let i = 0; i < timeData.length; i++) {
+          const v = (timeData[i] - 128) / 128
+          sum += v * v
+        }
+        const rms = Math.sqrt(sum / timeData.length)
+        return { bass, mid, treble: treb, level: clamp(rms * 3.2, 0, 1), rms }
+      }
+      function speakBands(t) {
+        const lvl = clamp(speakPulse, 0, 1)
+        return {
+          bass: lvl * (0.65 + 0.35 * Math.sin(t * 8.0)),
+          mid: lvl * (0.55 + 0.45 * Math.sin(t * 12.5 + 1.3)),
+          treble: lvl * (0.45 + 0.55 * Math.sin(t * 23.0 + 0.4)),
+          level: lvl * (0.75 + 0.25 * Math.sin(t * 17.0)),
+        }
+      }
+
+      /* ================================================================
+   3 · TTS (Web Speech Synthesis) + barge-in
+================================================================ */
+      const synth = window.speechSynthesis
+      let voices = []
+      function loadVoices() {
+        voices = synth ? synth.getVoices() : []
+        const sel = $('voiceSel')
+        const curURI = localStorage.getItem('nox.voiceURI') || ''
+        const pt = voices.filter((v) => /^pt/i.test(v.lang))
+        sel.innerHTML =
+          '<option value="">Padrão do sistema (pt-BR)</option>' +
+          (pt.length ? pt : voices)
+            .map(
+              (v) =>
+                `<option value="${v.voiceURI}" ${v.voiceURI === curURI ? 'selected' : ''}>${v.name} · ${v.lang}</option>`,
+            )
+            .join('')
+      }
+      if (synth) {
+        loadVoices()
+        synth.onvoiceschanged = loadVoices
+      }
+
+      function pickVoice() {
+        const uri = localStorage.getItem('nox.voiceURI')
+        if (uri) {
+          const v = voices.find((v) => v.voiceURI === uri)
+          if (v) return v
+        }
+        return (
+          voices.find((v) => v.lang === 'pt-BR' && v.default) ||
+          voices.find((v) => v.lang === 'pt-BR') ||
+          voices.find((v) => /^pt/i.test(v.lang)) ||
+          null
+        )
+      }
+      /* WebKit só libera a síntese depois de um gesto do usuário: aquecemos o motor
+   em silêncio (volume 0) no primeiro toque em qualquer lugar da tela. */
+      function warmupTTS() {
+        if (!synth || ttsWarmed) return
+        try {
+          const w = new SpeechSynthesisUtterance(' ')
+          w.volume = 0
+          synth.speak(w)
+          ttsWarmed = true
+        } catch (_) {}
+      }
+      document.addEventListener('pointerdown', warmupTTS, { once: true })
+
+      function speak(text, isRetry, plain) {
+        if (!synth) {
+          toast('Síntese de voz não suportada neste navegador.', true)
+          setState('idle')
+          return
+        }
+        const gen = ++speakGen // invalida handlers de falas anteriores
+        synth.cancel()
+        clearTimeout(startWatch)
+        clearInterval(speakTimer)
+        const u = new SpeechSynthesisUtterance(text)
+        const v = plain ? null : pickVoice() // plain = voz padrão local do sistema
+        if (v) {
+          u.voice = v
+          u.lang = v.lang
+        } else {
+          u.lang = 'pt-BR'
+        }
+        u.rate = parseFloat(localStorage.getItem('nox.rate') || '1.05')
+        u.pitch = parseFloat(localStorage.getItem('nox.pitch') || '1')
+        let started = false
+        const done = () => {
+          if (gen !== speakGen) return
+          clearInterval(speakTimer)
+          clearTimeout(startWatch)
+          if (state === 'speaking' || state === 'thinking') setState('idle')
+        }
+        u.onstart = () => {
+          if (gen !== speakGen) return
+          started = true
+          setState('speaking')
+        }
+        u.onboundary = () => {
+          if (gen !== speakGen) return
+          speakPulse = Math.min(1, speakPulse + 0.55)
+        }
+        u.onerror = (ev) => {
+          if (gen !== speakGen) return
+          if (ev && ev.error && !/cancel|interrupt|abort/i.test(ev.error)) {
+            /* voz de rede caindo (network/synthesis-failed): re tenta com a voz
+         padrão local do sistema antes de desistir */
+            if (!plain && /network|synthesis|not-allowed|audio-busy/i.test(ev.error)) {
+              speak(text, false, true)
+              return
+            }
+            toast('Voz: ' + ev.error, true)
+          }
+          done()
+        }
+        u.onend = done
+        speakTimer = setInterval(() => {
+          speakPulse = Math.min(1, speakPulse + 0.28 + Math.random() * 0.3)
+          try {
+            if (synth.paused) synth.resume()
+          } catch (_) {} // bug de pausa fantasma do Chrome
+        }, 240)
+        synth.speak(u)
+        /* watchdog: engine mudo não dispara onstart nem onerror; uma segunda tentativa
+     resolve o engasgo pós-cancel; se persistir, avisa e entrega só o texto. */
+        startWatch = setTimeout(() => {
+          if (gen !== speakGen || started || synth.speaking || synth.pending) return
+          if (!isRetry) {
+            speak(text, true)
+            return
+          }
+          clearInterval(speakTimer)
+          toast(
+            'Síntese de voz indisponível agora; resposta exibida no texto e nos registros.',
+            true,
+          )
+          if (state === 'speaking' || state === 'thinking') setState('idle')
+        }, 1100)
+      }
+      function cutSpeech() {
+        speakGen++
+        if (synth) synth.cancel()
+        clearInterval(speakTimer)
+        clearTimeout(startWatch)
+        speakPulse = 0
+        if (state === 'speaking') setState('idle')
+      }
+
+      /* barge-in por clique: qualquer toque fora dos painéis corta a fala */
+      document.addEventListener(
+        'pointerdown',
+        (e) => {
+          if (state !== 'speaking') return
+          if (
+            e.target.closest('.glass') &&
+            !e.target.closest('#fab') &&
+            !e.target.closest('#statusPill')
+          )
+            return
+          cutSpeech()
+        },
+        true,
+      )
+      addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && state === 'speaking') cutSpeech()
+      })
+
+      /* ================================================================
+   4 · STT (Web Speech API, pt-BR) + wake word
+================================================================ */
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+      let rec = null,
+        recActive = false,
+        manualStop = false,
+        wakeMode = localStorage.getItem('nox.wake') === '1'
+      const WAKE_RE = /^\s*(assistente|nox)[\s,.:!?]+/i
+
+      function handleUtterance(text) {
+        if (state === 'speaking') cutSpeech() // barge-in por voz
+        const clean = text.replace(/\s+/g, ' ').trim()
+        if (!clean) return
+        if (wakeMode) {
+          if (!WAKE_RE.test(clean)) {
+            legendUser(clean)
+            return
+          }
+          sendToGemini(clean.replace(WAKE_RE, '').trim() || 'olá')
+        } else {
+          sendToGemini(clean)
+        }
+      }
+      function startRec() {
+        if (!SR) {
+          toast(
+            'Reconhecimento de voz indisponível. Use Chrome ou Edge, ou digite no painel de registros.',
+            true,
+          )
+          return
+        }
+        manualStop = false
+        try {
+          rec = new SR()
+          rec.lang = 'pt-BR'
+          rec.interimResults = true
+          rec.maxAlternatives = 1
+          rec.continuous = wakeMode
+          rec.onresult = (e) => {
+            let interim = '',
+              final = ''
+            for (let i = e.resultIndex; i < e.results.length; i++) {
+              const r = e.results[i]
+              if (r.isFinal) final += r[0].transcript
+              else interim += r[0].transcript
+            }
+            if (interim) legendUser(interim)
+            if (final) handleUtterance(final)
+          }
+          rec.onerror = (ev) => {
+            if (ev.error === 'not-allowed') {
+              toast('Permissão de microfone negada.', true)
+              wakeMode = false
+              $('wakeToggle').checked = false
+              localStorage.setItem('nox.wake', '0')
+            } else if (ev.error !== 'no-speech' && ev.error !== 'aborted')
+              toast('Voz: ' + ev.error, true)
+          }
+          rec.onend = () => {
+            recActive = false
+            if (wakeMode && !manualStop) {
+              try {
+                rec.start()
+                recActive = true
+              } catch (_) {}
+            } else if (state === 'listening') setState('idle')
+          }
+          rec.start()
+          recActive = true
+          setState('listening')
+          startMic()
+        } catch (e) {
+          toast('Falha ao iniciar escuta: ' + e.message, true)
+        }
+      }
+      function stopRec(manual) {
+        manualStop = !!manual
+        if (rec) {
+          try {
+            rec.stop()
+          } catch (_) {}
+        }
+        if (manual && !wakeMode) {
+          stopMic()
+          if (state === 'listening') setState('idle')
+        }
+      }
+
+      /* ================================================================
+   5 · GEMINI (gemini-3.6-flash, REST)
+================================================================ */
+      const SYSTEM_INSTRUCTION =
+        'Você é um assistente neural executivo com raciocínio de alta precisão. Suas respostas devem ser concisas, assertivas, naturais e diretas (máximo 2 a 3 frases por resposta falada).'
+      let history = []
+      const apiKeyInput = $('apiKey')
+
+      function currentKey() {
+        return (localStorage.getItem('nox.key') || '').trim()
+      }
+
+      async function sendToGemini(text) {
+        const key = currentKey()
+        if (!key) {
+          toast('Configure a Gemini API Key no painel de configuração.', true)
+          $('configPanel').classList.add('open')
+          apiKeyInput.focus()
+          return
+        }
+        addMsg('user', text)
+        history.push({ role: 'user', parts: [{ text }] })
+        while (history.length > 24) history.shift()
+        setState('thinking')
+        legendAI('')
+        try {
+          const res = await fetch(
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+              body: JSON.stringify({
+                system_instruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+                contents: history,
+                generationConfig: { temperature: 0.7, maxOutputTokens: 220 },
+              }),
+            },
+          )
+          if (!res.ok) {
+            const err = await res.json().catch(() => null)
+            throw new Error((err && err.error && err.error.message) || 'HTTP ' + res.status)
+          }
+          const data = await res.json()
+          const cand = data.candidates && data.candidates[0]
+          const out = (((cand || {}).content || {}).parts || [])
+            .map((p) => p.text || '')
+            .join('')
+            .trim()
+          if (!out) throw new Error('O núcleo retornou uma resposta vazia.')
+          history.push({ role: 'model', parts: [{ text: out }] })
+          addMsg('ai', out)
+          legendAI(out)
+          speak(out)
+        } catch (err) {
+          toast('Falha no enlace: ' + err.message, true)
+          setState('idle')
+        }
+      }
+
+      /* ================================================================
+   6 · HUD: estados, FAB, painéis, toasts, legendas
+================================================================ */
+      const fabIcons = {
+        mic: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>`,
+        stop: `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>`,
+        wave: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h2l2-6 3 12 3-16 3 20 2-10h3"/></svg>`,
+      }
+      function refreshFAB() {
+        $('fabIcon').innerHTML =
+          state === 'speaking' ? fabIcons.stop : state === 'thinking' ? fabIcons.wave : fabIcons.mic
+        $('fab').setAttribute(
+          'aria-label',
+          state === 'speaking' ? 'Interromper fala' : 'Ativar microfone',
+        )
+        $('fabLabel').textContent =
+          state === 'speaking' ? 'interromper' : recActive ? 'ouvindo' : 'falar'
+      }
+      function setState(s) {
+        if (state === s) return
+        state = s
+        document.body.dataset.state = s
+        $('pillText').innerHTML = 'NOX · NEURAL LINK :: <b>' + STATES[s].label + '</b>'
+        refreshFAB()
+      }
+      setState('idle')
+
+      $('fab').addEventListener('click', () => {
+        ensureCtx()
+        if (state === 'speaking') {
+          cutSpeech()
+          return
+        }
+        if (state === 'thinking') return
+        if (recActive) {
+          stopRec(true)
+        } else {
+          startRec()
+        }
+      })
+      $('statusPill').addEventListener('click', () => {
+        if (state === 'speaking') cutSpeech()
+      })
+
+      /* toasts */
+      function toast(msg, isErr) {
+        const t = document.createElement('div')
+        t.className = 'toast glass' + (isErr ? ' err' : '')
+        t.textContent = msg
+        $('toasts').appendChild(t)
+        setTimeout(() => {
+          t.classList.add('out')
+          setTimeout(() => t.remove(), 450)
+        }, 4200)
+      }
+
+      /* legendas */
+      let userHideTimer = null
+      function legendUser(text) {
+        const el = $('legendUser')
+        el.textContent = '» ' + text
+        el.classList.add('show')
+        clearTimeout(userHideTimer)
+        userHideTimer = setTimeout(() => el.classList.remove('show'), 4500)
+      }
+      function legendAI(text) {
+        const el = $('legendAI')
+        if (!text) {
+          el.innerHTML = ''
+          return
+        }
+        el.innerHTML = `<span class="who">NOX responde</span><span class="txt"></span>`
+        el.querySelector('.txt').textContent = text
+      }
+
+      /* histórico */
+      function addMsg(who, text) {
+        const empty = $('chatEmpty')
+        if (empty) empty.remove()
+        const log = $('chatLog')
+        const m = document.createElement('div')
+        m.className = 'msg ' + who
+        m.innerHTML = `<span class="tag">${who === 'user' ? 'Você' : 'NOX'}</span>`
+        const body = document.createElement('span')
+        body.textContent = text
+        m.appendChild(body)
+        log.appendChild(m)
+        log.scrollTop = log.scrollHeight
+      }
+      $('historyBtn').addEventListener('click', () => $('historyPanel').classList.toggle('open'))
+      $('closeHistory').addEventListener('click', () => $('historyPanel').classList.remove('open'))
+      $('textForm').addEventListener('submit', (e) => {
+        e.preventDefault()
+        const v = $('textinput').value.trim()
+        if (!v) return
+        $('textinput').value = ''
+        if (state === 'speaking') cutSpeech()
+        sendToGemini(v)
+      })
+
+      /* painel de config */
+      $('gearBtn').addEventListener('click', function () {
+        this.classList.remove('spin')
+        void this.offsetWidth
+        this.classList.add('spin')
+        $('configPanel').classList.toggle('open')
+      })
+      $('closeConfig').addEventListener('click', () => $('configPanel').classList.remove('open'))
+
+      function refreshKeyStatus() {
+        const ok = !!currentKey()
+        $('keyStatus').textContent = ok ? 'chave salva neste navegador' : 'chave não configurada'
+        $('keyStatus').className = ok ? 'ok' : ''
+      }
+      apiKeyInput.value = currentKey()
+      refreshKeyStatus()
+      let keySaveTimer = null
+      apiKeyInput.addEventListener('input', () => {
+        localStorage.setItem('nox.key', apiKeyInput.value.trim())
+        refreshKeyStatus()
+        clearTimeout(keySaveTimer)
+        keySaveTimer = setTimeout(() => toast('API Key salva com segurança local.'), 700)
+      })
+      $('eyeBtn').addEventListener('click', () => {
+        apiKeyInput.type = apiKeyInput.type === 'password' ? 'text' : 'password'
+      })
+      $('rateRange').value = localStorage.getItem('nox.rate') || '1.05'
+      $('pitchRange').value = localStorage.getItem('nox.pitch') || '1'
+      $('rateOut').textContent = parseFloat($('rateRange').value).toFixed(2)
+      $('pitchOut').textContent = parseFloat($('pitchRange').value).toFixed(2)
+      $('rateRange').addEventListener('input', (e) => {
+        $('rateOut').textContent = parseFloat(e.target.value).toFixed(2)
+        localStorage.setItem('nox.rate', e.target.value)
+      })
+      $('pitchRange').addEventListener('input', (e) => {
+        $('pitchOut').textContent = parseFloat(e.target.value).toFixed(2)
+        localStorage.setItem('nox.pitch', e.target.value)
+      })
+      $('voiceSel').addEventListener('change', (e) =>
+        localStorage.setItem('nox.voiceURI', e.target.value),
+      )
+      $('wakeToggle').checked = wakeMode
+      $('wakeToggle').addEventListener('change', (e) => {
+        wakeMode = e.target.checked
+        localStorage.setItem('nox.wake', wakeMode ? '1' : '0')
+        if (wakeMode) {
+          toast('Modo sentinela ativo: diga "assistente" ou "nox" para falar comigo.')
+          if (!recActive) startRec()
+        } else {
+          stopRec(true)
+          stopMic()
+          toast('Modo sentinela desativado.')
+        }
+      })
+      $('testVoice').addEventListener('click', () => {
+        speak('Enlace neural estabelecido. Todos os sistemas operando dentro dos parâmetros.')
+      })
+      $('clearChat').addEventListener('click', () => {
+        history = []
+        $('chatLog').innerHTML =
+          '<div id="chatEmpty">Nenhum registro ainda.<br>Fale ou digite para iniciar o enlace neural.</div>'
+        legendAI('')
+        toast('Sessão de conversa limpa.')
+      })
+
+      /* ================================================================
+   7 · OSCILOSCÓPIO 2D (base)
+================================================================ */
+      const scope = $('scope')
+      const sctx = scope.getContext('2d')
+      function sizeScope() {
+        const dpr = Math.min(devicePixelRatio, 2)
+        scope.width = Math.max(1, scope.clientWidth * dpr)
+        scope.height = Math.max(1, scope.clientHeight * dpr)
+      }
+      sizeScope()
+
+      function drawScope(t) {
+        const w = scope.width,
+          h = scope.height
+        if (!w || !h) return
+        sctx.clearRect(0, 0, w, h)
+        const mid = h * 0.52
+        const col = accentHex[state]
+        sctx.strokeStyle = col
+        sctx.lineWidth = Math.max(1.4, h * 0.016)
+        sctx.shadowColor = col
+        sctx.shadowBlur = 14
+        sctx.globalAlpha = 0.9
+        sctx.beginPath()
+        const N = 96
+        for (let i = 0; i <= N; i++) {
+          const x = (i / N) * w
+          let y = mid
+          if (state === 'listening' && micActive && timeData) {
+            const v = (timeData[((i / N) * (timeData.length - 1)) | 0] - 128) / 128
+            y = mid + v * h * 0.42
+          } else if (state === 'speaking') {
+            const env = clamp(speakPulse, 0, 1)
+            y = mid + Math.sin(i * 0.55 + t * 22) * Math.sin(i * 0.13 + t * 7) * env * h * 0.4
+          } else if (state === 'thinking') {
+            y = mid + Math.sin(i * 0.9 + t * 30) * h * 0.05 + Math.sin(i * 0.21 - t * 13) * h * 0.04
+          } else {
+            y = mid + Math.sin(i * 0.28 + t * 2.2) * h * 0.02
+          }
+          if (i === 0) sctx.moveTo(x, y)
+          else sctx.lineTo(x, y)
+        }
+        sctx.stroke()
+        sctx.shadowBlur = 0
+        sctx.globalAlpha = 1
+      }
+
+      /* ================================================================
+   8 · LOOP PRINCIPAL
+================================================================ */
+      const clock = new THREE.Clock()
+      let rotY = 0
+
+      function animate() {
+        requestAnimationFrame(animate)
+        const dt = Math.min(clock.getDelta(), 0.05)
+        const t = clock.elapsedTime
+        const k = 1 - Math.exp(-dt * 3.2)
+
+        /* --- áudio -> bandas --- */
+        let bands = { bass: 0, mid: 0, treble: 0, level: 0 }
+        if (state === 'listening' && micActive && micAnalyser) bands = readMicBands()
+        else if (state === 'speaking') bands = speakBands(t)
+        speakPulse *= Math.exp(-dt * 3.4)
+
+        /* barge-in por voz: microfone ativo detecta o usuário falando sobre a IA */
+        if (state === 'speaking' && micActive && micAnalyser && timeData) {
+          micAnalyser.getByteTimeDomainData(timeData)
+          let sum = 0
+          for (let i = 0; i < timeData.length; i++) {
+            const v = (timeData[i] - 128) / 128
+            sum += v * v
+          }
+          if (Math.sqrt(sum / timeData.length) > 0.14) cutSpeech()
+        }
+
+        /* --- interpolação de estado --- */
+        const S = STATES[state]
+        cur.color.lerp(_tmpColor.setHex(S.color), k)
+        cur.bloom = lerp(cur.bloom, S.bloom + bands.level * 0.5, k)
+        cur.pulse = lerp(cur.pulse, S.pulse, k)
+        cur.rot = lerp(cur.rot, S.rot, k)
+        cur.line = lerp(cur.line, S.line, k)
+        cur.w0 = lerp(cur.w0, state === 'idle' ? 1 : 0, k)
+        cur.w1 = lerp(cur.w1, state === 'listening' ? 1 : 0, k)
+        cur.w2 = lerp(cur.w2, state === 'thinking' ? 1 : 0, k)
+        cur.w3 = lerp(cur.w3, state === 'speaking' ? 1 : 0, k)
+
+        U.uTime.value = t
+        U.uPulseSpeed.value = cur.pulse
+        U.uColor.value.copy(cur.color)
+        U.uW0.value = cur.w0
+        U.uW1.value = cur.w1
+        U.uW2.value = cur.w2
+        U.uW3.value = cur.w3
+        U.uAudio.value = lerp(U.uAudio.value, bands.level, k * 2.2)
+        U.uWave.value = lerp(U.uWave.value, bands.level, k * 2.2)
+        U.uBass.value = lerp(U.uBass.value, bands.bass, k * 2.5)
+        U.uMid.value = lerp(U.uMid.value, bands.mid, k * 2.5)
+        U.uTreble.value = lerp(U.uTreble.value, bands.treble, k * 2.5)
+        U.uLineBase.value = cur.line
+        gridMat.uniforms.uTime.value = t
+
+        /* --- rotação orgânica + flutuação --- */
+        rotY += cur.rot * dt
+        brainGroup.rotation.y = rotY
+        brainGroup.rotation.z = Math.sin(t * 0.23) * 0.05
+        brainGroup.position.y = Math.sin(t * 0.6) * 0.085
+        dust.rotation.y = t * 0.012
+
+        bloom.strength = cur.bloom
+        controls.update()
+        composer.render()
+        drawScope(t)
+      }
+      const _tmpColor = new THREE.Color()
+
+      addEventListener('resize', () => {
+        camera.aspect = innerWidth / innerHeight
+        camera.updateProjectionMatrix()
+        renderer.setSize(innerWidth, innerHeight)
+        composer.setSize(innerWidth, innerHeight)
+        bloom.setSize(innerWidth, innerHeight)
+        sizeScope()
+      })
+
+      window.__noxBooted = true
+      animate()
+      if (!SR)
+        toast(
+          'Reconhecimento de voz não suportado. Abra no Chrome ou Edge; texto disponível no painel de registros.',
+          true,
+        )
+    </script>
+  </body>
+</html>

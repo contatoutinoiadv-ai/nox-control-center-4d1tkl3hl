@@ -24,6 +24,8 @@ routerAdd(
 
       const ALL_MODULES = [
         'central_nox',
+        'nox_neural_link',
+        'atendimento',
         'sentinela',
         'clientes',
         'producao',

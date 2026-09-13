@@ -18,6 +18,12 @@ export const SYSTEM_MODULES_LIST: Array<{
     category: 'Jurídico / Processual',
   },
   {
+    key: 'nox_neural_link',
+    name: 'NOX NEURAL LINK',
+    description: 'Interface central de comunicação por voz e texto com as inteligências NOX',
+    category: 'Jurídico / Processual',
+  },
+  {
     key: 'atendimento',
     name: 'Central de Atendimento',
     description: 'Mensageria operacional com clientes, triagem de demandas e notas internas',
@@ -328,7 +334,7 @@ export class AuthUsersService {
           role: (currentRecord.role as UserRole) || 'operador',
           allowedModules: isAdm
             ? SYSTEM_MODULES_LIST.map((m) => m.key).concat(['usuarios'])
-            : ['central_nox'],
+            : ['central_nox', 'nox_neural_link'],
           isAdmin: isAdm,
         }
         this.cachedMe = fallback
@@ -349,6 +355,8 @@ export class AuthUsersService {
     if (!this.cachedMe) return false
     if (this.cachedMe.isAdmin || this.cachedMe.role === 'admin') return true
     if (moduleKey === 'usuarios') return false // exclusivo admin
+    // central_nox e nox_neural_link são módulos operacionais acessíveis
+    if (moduleKey === 'central_nox' || moduleKey === 'nox_neural_link') return true
     return this.cachedMe.allowedModules.includes(moduleKey)
   }
 
