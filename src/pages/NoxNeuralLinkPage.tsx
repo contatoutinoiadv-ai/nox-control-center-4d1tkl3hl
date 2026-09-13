@@ -35,6 +35,9 @@ export const NoxNeuralLinkPage: React.FC = () => {
   const [isConfigOpen, setIsConfigOpen] = useState(false)
   const [recActive, setRecActive] = useState(false)
   const [micBlocked, setMicBlocked] = useState(false)
+  const [customStatusLabel, setCustomStatusLabel] = useState<string | null>(null)
+  const [statusTone, setStatusTone] = useState<'normal' | 'error' | 'warning'>('normal')
+  const [speechSupported, setSpeechSupported] = useState(true)
   const [userTranscript, setUserTranscript] = useState('')
   const [aiSubtitle, setAiSubtitle] = useState('')
   const [isSending, setIsSending] = useState(false)
@@ -60,6 +63,9 @@ export const NoxNeuralLinkPage: React.FC = () => {
   const startWatchRef = useRef<any>(null)
   const speakGenRef = useRef<number>(0)
   const userHideTimerRef = useRef<any>(null)
+  const silenceTimerRef = useRef<any>(null)
+  const hasRecognizedSpeechRef = useRef<boolean>(false)
+  const isIntentionalStopRef = useRef<boolean>(false)
   const stateRef = useRef<NeuralLinkState>(state)
   stateRef.current = state
   const preferencesRef = useRef<NeuralPreferences>(preferences)
@@ -97,7 +103,13 @@ export const NoxNeuralLinkPage: React.FC = () => {
     const hasRecognition =
       typeof window !== 'undefined' &&
       Boolean((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
-    setVoiceAvailable(hasSpeechSynthesis || hasRecognition)
+    setVoiceAvailable(hasSpeechSynthesis && hasRecognition)
+    setSpeechSupported(hasRecognition)
+
+    if (!hasRecognition) {
+      setCustomStatusLabel('RECONHECIMENTO INDISPONÍVEL')
+      setStatusTone('warning')
+    }
 
     if (hasSpeechSynthesis) {
       const loadVoices = () => {
@@ -133,6 +145,9 @@ export const NoxNeuralLinkPage: React.FC = () => {
     try {
       const ctx = await ensureAudioCtx()
       if (!ctx) return
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        return
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
       })
@@ -150,6 +165,9 @@ export const NoxNeuralLinkPage: React.FC = () => {
       timeDataRef.current = timeData
 
       setMicBlocked(false)
+      if (customStatusLabel === 'MICROFONE BLOQUEADO') {
+        setCustomStatusLabel(null)
+      }
 
       // Audio loop para atualizar audioBandsRef
       const updateAudio = () => {
@@ -199,8 +217,10 @@ export const NoxNeuralLinkPage: React.FC = () => {
     } catch (err: any) {
       console.warn('[NoxNeuralLink] Microfone não acessível:', err)
       setMicBlocked(true)
+      setCustomStatusLabel('MICROFONE BLOQUEADO')
+      setStatusTone('error')
       toast.error('Microfone bloqueado ou indisponível', {
-        description: 'Verifique as permissões de mídia no navegador para usar a voz.',
+        description: 'Permita o acesso ao microfone nas permissões do navegador para falar.',
       })
     }
   }
@@ -393,10 +413,15 @@ export const NoxNeuralLinkPage: React.FC = () => {
       speak(response.text)
     } catch (err: any) {
       console.error('[NoxNeuralLink] Erro no envio:', err)
+      setCustomStatusLabel('CONEXÃO INDISPONÍVEL')
+      setStatusTone('error')
       toast.error('Falha no enlace neural', {
         description: err.message || 'Não foi possível obter resposta da inteligência.',
       })
       setState('idle')
+      setTimeout(() => {
+        setCustomStatusLabel(null)
+      }, 4000)
     } finally {
       setIsSending(false)
     }
@@ -407,65 +432,175 @@ export const NoxNeuralLinkPage: React.FC = () => {
   ------------------------------------------------------------- */
   const WAKE_RE = /^\s*(assistente|nox)[\s,.:!?]+/i
 
+  const resetSilenceTimeout = () => {
+    clearTimeout(silenceTimerRef.current)
+    silenceTimerRef.current = setTimeout(() => {
+      // Se ficou 8 segundos em silêncio absoluto sem capturar nenhuma palavra final nem interim
+      if (stateRef.current === 'listening' && !hasRecognizedSpeechRef.current) {
+        toast.info('Nenhuma fala detectada', {
+          description: 'Fale próximo ao microfone ou digite no painel de registros.',
+        })
+        stopRec()
+      }
+    }, 8000)
+  }
+
   const startRec = () => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SR) {
-      toast.error('Reconhecimento de voz não suportado', {
-        description: 'Utilize o Google Chrome ou Edge, ou envie mensagens escritas no painel.',
+      setSpeechSupported(false)
+      setCustomStatusLabel('NAVEGADOR INCOMPATÍVEL')
+      setStatusTone('warning')
+      toast.error('Reconhecimento de voz não suportado neste navegador', {
+        description:
+          'Utilize o Google Chrome ou Edge, ou envie mensagens escritas no painel de registros.',
       })
       return
     }
 
+    // Se já havia uma instância em execução, fechar antes de recriar
+    if (recRef.current) {
+      try {
+        isIntentionalStopRef.current = true
+        recRef.current.abort()
+      } catch {
+        /* intentionally ignored */
+      }
+      recRef.current = null
+    }
+
     try {
+      isIntentionalStopRef.current = false
+      hasRecognizedSpeechRef.current = false
+      setCustomStatusLabel(null)
+      setStatusTone('normal')
+      setMicBlocked(false)
+
       const rec = new SR()
       recRef.current = rec
       rec.lang = 'pt-BR'
       rec.interimResults = true
       rec.maxAlternatives = 1
-      rec.continuous = preferences.wakeWordEnabled
+      // Continuous ativado para capturar frases completas sem corte precoce
+      rec.continuous = true
+
+      rec.onstart = () => {
+        setRecActive(true)
+        setState('listening')
+        setCustomStatusLabel(null)
+        resetSilenceTimeout()
+      }
 
       rec.onresult = (e: any) => {
+        hasRecognizedSpeechRef.current = true
+        clearTimeout(silenceTimerRef.current)
+
         let interim = ''
         let final = ''
+
         for (let i = e.resultIndex; i < e.results.length; i++) {
           const r = e.results[i]
-          if (r.isFinal) final += r[0].transcript
-          else interim += r[0].transcript
+          if (r.isFinal) {
+            final += r[0].transcript
+          } else {
+            interim += r[0].transcript
+          }
         }
-        if (interim) setUserTranscript(interim)
+
+        if (interim) {
+          setUserTranscript(interim)
+        }
+
         if (final) {
           const clean = final.replace(/\s+/g, ' ').trim()
           if (!clean) return
+
           if (preferencesRef.current.wakeWordEnabled) {
             if (!WAKE_RE.test(clean)) {
               setUserTranscript(clean)
+              resetSilenceTimeout()
               return
             }
-            handleSendMessage(clean.replace(WAKE_RE, '').trim() || 'olá')
+            const command = clean.replace(WAKE_RE, '').trim() || 'olá'
+            // Em modo wake word, para a escuta para responder
+            stopRec()
+            handleSendMessage(command)
           } else {
+            // Em modo push-to-talk / manual: final capturado dispara a inteligência imediatamente
+            stopRec()
             handleSendMessage(clean)
           }
         }
       }
 
       rec.onerror = (ev: any) => {
-        if (ev.error === 'not-allowed') {
+        clearTimeout(silenceTimerRef.current)
+        const errType = ev?.error || 'unknown'
+        console.warn('[NoxNeuralLink] Erro no SpeechRecognition:', errType)
+
+        if (errType === 'not-allowed' || errType === 'service-not-allowed') {
           setMicBlocked(true)
-          toast.error('Acesso ao microfone negado.')
-          setRecActive(false)
-        } else if (ev.error !== 'no-speech' && ev.error !== 'aborted') {
-          console.warn('[NoxNeuralLink] Erro de reconhecimento:', ev.error)
+          setCustomStatusLabel('MICROFONE BLOQUEADO')
+          setStatusTone('error')
+          toast.error('Acesso ao microfone bloqueado', {
+            description:
+              'Permita o acesso ao microfone nas permissões do navegador para usar a voz.',
+          })
+          stopRec()
+        } else if (errType === 'audio-capture') {
+          setMicBlocked(true)
+          setCustomStatusLabel('MICROFONE INDISPONÍVEL')
+          setStatusTone('error')
+          toast.error('Nenhum microfone encontrado', {
+            description: 'Conecte um dispositivo de entrada de áudio funcional.',
+          })
+          stopRec()
+        } else if (errType === 'network') {
+          setCustomStatusLabel('FALHA DE REDE DE VOZ')
+          setStatusTone('error')
+          toast.error('Erro de conexão no serviço de voz', {
+            description: 'O serviço de reconhecimento de fala do navegador falhou ao conectar.',
+          })
+          stopRec()
+        } else if (errType === 'no-speech') {
+          // No-speech ocorre quando o usuário não falou após abrir o microfone
+          if (!preferencesRef.current.wakeWordEnabled && !hasRecognizedSpeechRef.current) {
+            setCustomStatusLabel('NENHUMA FALA CAPTURADA')
+            setStatusTone('warning')
+            setTimeout(() => {
+              setCustomStatusLabel(null)
+            }, 3000)
+          }
+        } else if (errType !== 'aborted') {
+          toast.error(`Falha no reconhecimento de voz: ${errType}`)
         }
       }
 
       rec.onend = () => {
+        clearTimeout(silenceTimerRef.current)
         setRecActive(false)
-        if (preferencesRef.current.wakeWordEnabled) {
+
+        // Se foi parada intencional pelo usuário ou acionamento de mensagem, não reinicia
+        if (isIntentionalStopRef.current) {
+          if (stateRef.current === 'listening') {
+            setState('idle')
+          }
+          return
+        }
+
+        // Se wake word está ativada e não estamos processando nem respondendo, reinicia a escuta contínua
+        if (
+          preferencesRef.current.wakeWordEnabled &&
+          stateRef.current !== 'thinking' &&
+          stateRef.current !== 'speaking'
+        ) {
           try {
             rec.start()
             setRecActive(true)
+            setState('listening')
+            resetSilenceTimeout()
           } catch {
-            /* intentionally ignored */
+            setState('idle')
           }
         } else if (stateRef.current === 'listening') {
           setState('idle')
@@ -478,21 +613,33 @@ export const NoxNeuralLinkPage: React.FC = () => {
       startMicAudio()
     } catch (err: any) {
       console.warn('[NoxNeuralLink] Falha ao iniciar reconhecimento:', err)
+      setCustomStatusLabel('FALHA NA ESCUTA')
+      setStatusTone('error')
       toast.error(`Falha ao iniciar escuta: ${err.message || err}`)
+      stopRec()
     }
   }
 
   const stopRec = () => {
+    isIntentionalStopRef.current = true
+    clearTimeout(silenceTimerRef.current)
+
     if (recRef.current) {
       try {
         recRef.current.stop()
       } catch {
-        /* intentionally ignored */
+        try {
+          recRef.current.abort()
+        } catch {
+          /* intentionally ignored */
+        }
       }
       recRef.current = null
     }
+
     setRecActive(false)
     stopMicAudio()
+
     if (stateRef.current === 'listening') {
       setState('idle')
     }
@@ -504,7 +651,16 @@ export const NoxNeuralLinkPage: React.FC = () => {
       cutSpeech()
       return
     }
-    if (state === 'thinking') return
+    if (state === 'thinking' || isSending) return
+
+    if (!speechSupported) {
+      toast.error('Reconhecimento de voz não suportado neste navegador', {
+        description:
+          'Utilize o Google Chrome ou Edge para falar, ou abra o painel de Registros para digitar.',
+      })
+      setIsHistoryOpen(true)
+      return
+    }
 
     if (recActive) {
       stopRec()
@@ -529,6 +685,8 @@ export const NoxNeuralLinkPage: React.FC = () => {
   // Desmontagem e isolamento estrito de ciclo de vida
   useEffect(() => {
     return () => {
+      clearTimeout(silenceTimerRef.current)
+      clearTimeout(userHideTimerRef.current)
       cutSpeech()
       stopRec()
       stopMicAudio()
@@ -615,7 +773,13 @@ export const NoxNeuralLinkPage: React.FC = () => {
           </button>
 
           <div className="pointer-events-auto">
-            <NeuralStatusPill state={state} onInterrupt={cutSpeech} micBlocked={micBlocked} />
+            <NeuralStatusPill
+              state={state}
+              onInterrupt={cutSpeech}
+              micBlocked={micBlocked}
+              customStatusLabel={customStatusLabel}
+              statusTone={statusTone}
+            />
           </div>
 
           <button
@@ -666,6 +830,7 @@ export const NoxNeuralLinkPage: React.FC = () => {
             recActive={recActive}
             onClick={handleFabClick}
             disabled={!online}
+            micBlocked={micBlocked}
           />
         </div>
 

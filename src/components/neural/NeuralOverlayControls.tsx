@@ -140,18 +140,34 @@ interface NeuralStatusPillProps {
   state: NeuralLinkState
   onInterrupt: () => void
   micBlocked?: boolean
+  customStatusLabel?: string | null
+  statusTone?: 'normal' | 'error' | 'warning'
 }
 
 export const NeuralStatusPill: React.FC<NeuralStatusPillProps> = ({
   state,
   onInterrupt,
   micBlocked,
+  customStatusLabel,
+  statusTone = 'normal',
 }) => {
   const cfg = NEURAL_STATES[state]
   const color = NEURAL_ACCENT_COLORS[state]
 
   let labelText = cfg.label
-  if (micBlocked) labelText = 'MICROFONE BLOQUEADO'
+  let activeColor = color
+
+  if (micBlocked) {
+    labelText = 'MICROFONE BLOQUEADO'
+    activeColor = '#f43f5e'
+  } else if (customStatusLabel) {
+    labelText = customStatusLabel
+    if (statusTone === 'error') {
+      activeColor = '#f43f5e'
+    } else if (statusTone === 'warning') {
+      activeColor = '#f59e0b'
+    }
+  }
 
   return (
     <button
@@ -169,12 +185,12 @@ export const NeuralStatusPill: React.FC<NeuralStatusPillProps> = ({
       <span
         className="w-2.5 h-2.5 rounded-full transition-all duration-300 animate-pulse"
         style={{
-          backgroundColor: micBlocked ? '#f43f5e' : color,
-          boxShadow: `0 0 8px ${micBlocked ? '#f43f5e' : color}`,
+          backgroundColor: activeColor,
+          boxShadow: `0 0 8px ${activeColor}`,
         }}
       />
       <span className="font-mono text-[11px] tracking-widest text-slate-200 font-semibold uppercase">
-        NOX · NEURAL LINK :: <b style={{ color: micBlocked ? '#f43f5e' : color }}>{labelText}</b>
+        NOX · NEURAL LINK :: <b style={{ color: activeColor }}>{labelText}</b>
       </span>
     </button>
   )
@@ -188,6 +204,7 @@ interface NeuralFabButtonProps {
   recActive: boolean
   onClick: () => void
   disabled?: boolean
+  micBlocked?: boolean
 }
 
 export const NeuralFabButton: React.FC<NeuralFabButtonProps> = ({
@@ -195,10 +212,11 @@ export const NeuralFabButton: React.FC<NeuralFabButtonProps> = ({
   recActive,
   onClick,
   disabled = false,
+  micBlocked = false,
 }) => {
   const isSpeaking = state === 'speaking'
   const isThinking = state === 'thinking'
-  const color = NEURAL_ACCENT_COLORS[state]
+  const color = micBlocked ? '#f43f5e' : NEURAL_ACCENT_COLORS[state]
 
   return (
     <div className="flex flex-col items-center gap-1.5 pointer-events-auto">
@@ -211,14 +229,18 @@ export const NeuralFabButton: React.FC<NeuralFabButtonProps> = ({
             ? 'Interromper fala da IA'
             : recActive
               ? 'Interromper escuta do microfone'
-              : 'Ativar microfone para falar'
+              : micBlocked
+                ? 'Microfone bloqueado, clique para tentar novamente'
+                : 'Ativar microfone para falar'
         }
         className={`relative w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 shadow-xl focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-[#020408] ${
           isSpeaking
             ? 'bg-purple-950/80 border-2 border-purple-400 text-purple-300 hover:scale-105 active:scale-95 shadow-purple-950/60'
-            : recActive
-              ? 'bg-emerald-950/80 border-2 border-emerald-400 text-emerald-300 hover:scale-105 active:scale-95 shadow-emerald-950/60'
-              : 'bg-[#080e1c]/90 border-2 border-cyan-500/60 text-cyan-400 hover:border-cyan-400 hover:scale-105 active:scale-95 shadow-cyan-950/60'
+            : micBlocked
+              ? 'bg-rose-950/80 border-2 border-rose-500 text-rose-300 hover:scale-105 active:scale-95 shadow-rose-950/60'
+              : recActive
+                ? 'bg-emerald-950/80 border-2 border-emerald-400 text-emerald-300 hover:scale-105 active:scale-95 shadow-emerald-950/60'
+                : 'bg-[#080e1c]/90 border-2 border-cyan-500/60 text-cyan-400 hover:border-cyan-400 hover:scale-105 active:scale-95 shadow-cyan-950/60'
         }`}
       >
         {/* Anel pulsante decorativo */}
@@ -241,11 +263,13 @@ export const NeuralFabButton: React.FC<NeuralFabButtonProps> = ({
       <span className="font-mono text-[9px] tracking-widest text-slate-400 uppercase select-none">
         {isSpeaking
           ? 'interromper'
-          : recActive
-            ? 'ouvindo...'
-            : isThinking
-              ? 'processando'
-              : 'falar'}
+          : micBlocked
+            ? 'bloqueado'
+            : recActive
+              ? 'ouvindo...'
+              : isThinking
+                ? 'processando'
+                : 'falar'}
       </span>
     </div>
   )

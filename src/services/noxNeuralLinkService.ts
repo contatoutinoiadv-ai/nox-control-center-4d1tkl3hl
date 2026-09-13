@@ -112,6 +112,9 @@ export class NoxNeuralLinkService {
     if (token && !prefs.useDevKey) {
       try {
         const baseUrl = pb.baseUrl.replace(/\/$/, '')
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 30000)
+
         const res = await fetch(`${baseUrl}/backend/v1/nox/neural/message`, {
           method: 'POST',
           headers: {
@@ -126,7 +129,10 @@ export class NoxNeuralLinkService {
             })),
             agentTarget,
           }),
+          signal: controller.signal,
         })
+
+        clearTimeout(timeoutId)
 
         if (res.ok) {
           const data = await res.json()
@@ -143,7 +149,11 @@ export class NoxNeuralLinkService {
           backendError = errData.error || `HTTP ${res.status}`
         }
       } catch (err: any) {
-        backendError = err.message || 'Falha de conexão com o backend'
+        if (err.name === 'AbortError') {
+          backendError = 'Tempo limite excedido ao aguardar resposta da inteligência (30s).'
+        } else {
+          backendError = err.message || 'Falha de conexão com o backend'
+        }
       }
     }
 
