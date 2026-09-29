@@ -99,27 +99,37 @@ export const NoxNeuralLinkPage: React.FC = () => {
 
   // Check Web Speech API support
   useEffect(() => {
+    if (typeof window === 'undefined') return
+
     const hasSpeechSynthesis = typeof window !== 'undefined' && 'speechSynthesis' in window
     const hasRecognition =
       typeof window !== 'undefined' &&
       Boolean((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
-    setVoiceAvailable(hasSpeechSynthesis && hasRecognition)
-    setSpeechSupported(hasRecognition)
+    setVoiceAvailable(Boolean(hasSpeechSynthesis && hasRecognition))
+    setSpeechSupported(Boolean(hasRecognition))
 
     if (!hasRecognition) {
       setCustomStatusLabel('RECONHECIMENTO INDISPONÍVEL')
       setStatusTone('warning')
     }
 
-    if (hasSpeechSynthesis) {
+    if (hasSpeechSynthesis && window.speechSynthesis) {
       const loadVoices = () => {
-        const v = window.speechSynthesis.getVoices()
-        if (v && v.length > 0) {
-          setVoices(v)
+        try {
+          const v = window.speechSynthesis.getVoices()
+          if (v && v.length > 0) {
+            setVoices(v)
+          }
+        } catch (vErr) {
+          console.warn('[NoxNeuralLink] Falha ao listar vozes do sintetizador:', vErr)
         }
       }
       loadVoices()
-      window.speechSynthesis.onvoiceschanged = loadVoices
+      try {
+        window.speechSynthesis.onvoiceschanged = loadVoices
+      } catch {
+        /* intentionally ignored */
+      }
     }
 
     setRoutingAvailable(Boolean(pb.authStore?.isValid && pb.authStore.token))
@@ -129,16 +139,22 @@ export const NoxNeuralLinkPage: React.FC = () => {
      Áudio (AudioContext + AnalyserNode)
   ------------------------------------------------------------- */
   const ensureAudioCtx = async () => {
-    if (!actxRef.current) {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
-      if (AudioCtx) {
-        actxRef.current = new AudioCtx()
+    if (typeof window === 'undefined') return null
+    try {
+      if (!actxRef.current) {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+        if (AudioCtx) {
+          actxRef.current = new AudioCtx()
+        }
       }
+      if (actxRef.current && actxRef.current.state === 'suspended') {
+        await actxRef.current.resume()
+      }
+      return actxRef.current
+    } catch (actxErr) {
+      console.warn('[NoxNeuralLink] Falha ao inicializar AudioContext:', actxErr)
+      return null
     }
-    if (actxRef.current && actxRef.current.state === 'suspended') {
-      await actxRef.current.resume()
-    }
-    return actxRef.current
   }
 
   const startMicAudio = async () => {
@@ -446,6 +462,7 @@ export const NoxNeuralLinkPage: React.FC = () => {
   }
 
   const startRec = () => {
+    if (typeof window === 'undefined') return
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SR) {
       setSpeechSupported(false)

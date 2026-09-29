@@ -33,15 +33,33 @@ export const NeuralBrainCanvas: React.FC<NeuralBrainCanvasProps> = ({
     let isDisposed = false
     let animId: number | null = null
 
-    // 1. Setup Renderer
+    // 1. Setup Renderer com checagem defensiva de WebGL
     const width = Math.max(container.clientWidth, 100)
     const height = Math.max(container.clientHeight, 100)
 
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      powerPreference: 'high-performance',
-      alpha: true,
-    })
+    let renderer: THREE.WebGLRenderer
+    try {
+      if (typeof window === 'undefined') return
+      const testCanvas = document.createElement('canvas')
+      const hasWebGL = Boolean(
+        window.WebGLRenderingContext &&
+        (testCanvas.getContext('webgl') || testCanvas.getContext('experimental-webgl')),
+      )
+      if (!hasWebGL) {
+        console.warn('[NeuralBrainCanvas] WebGL não suportado neste ambiente.')
+        return
+      }
+
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: 'high-performance',
+        alpha: true,
+      })
+    } catch (glErr) {
+      console.warn('[NeuralBrainCanvas] Falha ao inicializar WebGLRenderer:', glErr)
+      return
+    }
+
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
     renderer.setSize(width, height)
     renderer.setClearColor(0x020408, 1)

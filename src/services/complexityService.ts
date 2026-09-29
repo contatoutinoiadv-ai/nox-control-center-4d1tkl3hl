@@ -345,5 +345,4 @@ export function getComplexidadeTarefa(task: SentinelaTask): ComplexidadeResultad
   return complexidadeCache.get(task.id)!
 }
 
-// Inicializa no import
-initComplexityAutoClassifier()
+// Execução automática sob demanda via getComplexidadeTarefa ou chamada explícita após login/montagem
