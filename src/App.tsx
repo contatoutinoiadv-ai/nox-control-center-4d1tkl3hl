@@ -31,6 +31,7 @@ const CentralAtendimentoPage = lazy(() => import('./pages/CentralAtendimentoPage
 const NoxNeuralLinkPage = lazy(() => import('./pages/NoxNeuralLinkPage'))
 const IntakePublicPage = lazy(() => import('./pages/IntakePublicPage'))
 const PreparacaoPublicPage = lazy(() => import('./pages/PreparacaoPublicPage'))
+const ConsultaPublicaPage = lazy(() => import('./pages/ConsultaPublicaPage'))
 const DesignSystemShowcasePage = lazy(() =>
   import('./pages/DesignSystemShowcasePage').then((m) => ({ default: m.DesignSystemShowcasePage })),
 )
@@ -163,6 +164,25 @@ const AppRoutes = () => {
             element={
               <ErrorBoundary moduleName="Preparação para Audiência">
                 <PreparacaoPublicPage />
+              </ErrorBoundary>
+            }
+          />
+
+          {/* Rota pública da ferramenta externa de consulta de publicações (DJEN Sentinela NOX).
+              Sem autenticação, sem Layout administrativo e sem verificação de sessão. */}
+          <Route
+            path="/consulta-publica"
+            element={
+              <ErrorBoundary moduleName="Consulta Pública de Publicações">
+                <ConsultaPublicaPage />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/consulta-publica/*"
+            element={
+              <ErrorBoundary moduleName="Consulta Pública de Publicações">
+                <ConsultaPublicaPage />
               </ErrorBoundary>
             }
           />
