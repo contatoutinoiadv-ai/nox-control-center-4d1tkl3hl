@@ -1,5 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Database, EyeOff, Lock, Radar, ScanLine, ShieldCheck } from 'lucide-react'
+import {
+  AlertTriangle,
+  Database,
+  EyeOff,
+  FileDown,
+  Lock,
+  Radar,
+  ScanLine,
+  ShieldCheck,
+} from 'lucide-react'
 import './consultaPublica/consultaPublica.css'
 import { fetchDjenCommunicationsDirect, TRIBUNAIS_BRASIL } from '@/services/djenService'
 import { SentinelaCommunication } from '@/types/sentinela'
@@ -9,6 +18,7 @@ import { PublicationCard, PaginationFooter } from './consultaPublica/ResultsList
 import { TelemetryCard } from './consultaPublica/TelemetryCard'
 import { NoxPulsarBackdrop } from './consultaPublica/NoxPulsarBackdrop'
 import { NoxPulsarMark, NoxPulsarState } from './consultaPublica/NoxPulsarMark'
+import { gerarPdfNoxPulsar } from './consultaPublica/noxPulsarPdfExporter'
 
 /**
  * NOX PULSAR (ferramenta externa de consulta pública)
@@ -86,6 +96,45 @@ export const ConsultaPublicaPage: React.FC = () => {
 
   // Microfeedback: pulso do botão ao acionar a varredura
   const [btnPulse, setBtnPulse] = useState(0)
+
+  // Exportação em PDF: aviso local, sem tocar no estado da varredura
+  const [exportAviso, setExportAviso] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const exportAvisoTimer = useRef<number | null>(null)
+  useEffect(
+    () => () => {
+      if (exportAvisoTimer.current) window.clearTimeout(exportAvisoTimer.current)
+    },
+    [],
+  )
+  const handleExportarPdf = () => {
+    if (exporting) return
+    if (filtradas.length === 0) {
+      setExportAviso('Nenhuma publicação para exportar. Conduza uma varredura com resultados.')
+      if (exportAvisoTimer.current) window.clearTimeout(exportAvisoTimer.current)
+      exportAvisoTimer.current = window.setTimeout(() => setExportAviso(null), 4200)
+      return
+    }
+    try {
+      setExporting(true)
+      gerarPdfNoxPulsar({
+        publicacoes: filtradas,
+        ancora: `OAB/${uf.toUpperCase() || 'MS'} ${oab}`,
+        parte,
+        tribunalSigla: tribunal,
+        dataInicio: dataIni,
+        dataFim,
+        totalCapturado: resultados.length,
+      })
+    } catch (err) {
+      setExportAviso('Não foi possível gerar o PDF agora. Tente novamente em instantes.')
+      if (exportAvisoTimer.current) window.clearTimeout(exportAvisoTimer.current)
+      exportAvisoTimer.current = window.setTimeout(() => setExportAviso(null), 4200)
+      return
+    } finally {
+      setExporting(false)
+    }
+  }
 
   // Estado da logomarca/núcleo do cabeçalho
   const markState: NoxPulsarState =
@@ -750,6 +799,47 @@ export const ConsultaPublicaPage: React.FC = () => {
 
         {/* Lista de resultados (somente leitura) */}
         <div>
+          {/* Barra de exportação: visível quando a varredura já foi conduzida */}
+          {jaBuscou && (
+            <section className="nox-glass relative rounded-xl px-4 py-2.5 mb-3 flex flex-wrap items-center justify-between gap-2">
+              <span className="nox-corner nox-corner-tl" />
+              <span className="nox-corner nox-corner-tr" />
+              <span className="nox-corner nox-corner-bl" />
+              <span className="nox-corner nox-corner-br" />
+              <div className="flex items-center gap-2 min-w-0">
+                <FileDown className="w-4 h-4 text-[#F5B301] shrink-0" />
+                <span className="text-[11px] font-mono text-slate-400 truncate">
+                  Exportar a varredura atual em PDF formatado
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {exportAviso && (
+                  <span
+                    className={`text-[10px] font-mono px-2 py-1 rounded-md border ${
+                      exportAviso.startsWith('Nenhuma')
+                        ? 'border-amber-700/70 text-amber-300 bg-amber-950/30'
+                        : 'border-rose-700/70 text-rose-300 bg-rose-950/30'
+                    }`}
+                  >
+                    {exportAviso}
+                  </span>
+                )}
+                <button
+                  onClick={handleExportarPdf}
+                  disabled={exporting}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border text-[11px] font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                  style={{
+                    borderColor: 'rgba(245,179,1,0.5)',
+                    color: '#F5B301',
+                    background: 'rgba(245,179,1,0.06)',
+                  }}
+                >
+                  <FileDown className="w-3.5 h-3.5" />
+                  {exporting ? 'Gerando PDF' : 'Exportar PDF'}
+                </button>
+              </div>
+            </section>
+          )}
           <section className="space-y-3">
             {paginadas.length === 0 ? (
               <div className="nox-glass relative rounded-2xl p-14 text-center space-y-3">
