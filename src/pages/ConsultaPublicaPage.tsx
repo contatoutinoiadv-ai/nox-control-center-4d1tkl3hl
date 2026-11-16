@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Database, EyeOff, Radar, ScanLine, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, Database, EyeOff, Lock, Radar, ScanLine, ShieldCheck } from 'lucide-react'
 import './consultaPublica/consultaPublica.css'
 import { fetchDjenCommunicationsDirect, TRIBUNAIS_BRASIL } from '@/services/djenService'
 import { SentinelaCommunication } from '@/types/sentinela'
@@ -468,44 +468,54 @@ export const ConsultaPublicaPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="nox-label" htmlFor="cxp-modo">
-                Protocolo de busca
+                Protocolo de busca <span className="nox-fixed-chip">Fixo</span>
               </label>
-              <select
-                id="cxp-modo"
-                value={modo}
-                onChange={(e) => setModo(e.target.value as 'oab' | 'nome' | 'processo')}
-                className="nox-field"
-              >
-                <option value="oab">Âncora OAB</option>
-                <option value="nome">Nome da parte ou advogado</option>
-                <option value="processo">Número do processo</option>
-              </select>
-              <span className="nox-field-line" />
+              <div className="relative">
+                <select
+                  id="cxp-modo"
+                  value={modo}
+                  disabled
+                  aria-readonly="true"
+                  title="Protocolo de busca fixo: não editável"
+                  className="nox-field nox-field-locked cursor-not-allowed select-none"
+                >
+                  <option value="oab">Âncora OAB</option>
+                  <option value="nome">Nome da parte ou advogado</option>
+                  <option value="processo">Número do processo</option>
+                </select>
+                <Lock className="nox-lock-icon" aria-hidden />
+              </div>
             </div>
 
             {modo === 'oab' && (
               <div>
-                <label className="nox-label">Âncora profissional</label>
+                <label className="nox-label">
+                  Âncora profissional <span className="nox-fixed-chip">Fixo</span>
+                </label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <input
                       value={oab}
-                      onChange={(e) => setOab(e.target.value)}
-                      placeholder="15.400"
+                      readOnly
+                      disabled
+                      aria-readonly="true"
+                      title="Âncora fixa: não editável"
                       aria-label="Número da OAB"
-                      className="nox-field font-mono text-[#F5B301]"
+                      className="nox-field nox-field-locked cursor-not-allowed select-none font-mono text-[#F5B301]"
                     />
-                    <span className="nox-field-line" />
+                    <Lock className="nox-lock-icon" aria-hidden />
                   </div>
                   <div className="relative w-20">
                     <input
                       value={uf}
-                      onChange={(e) => setUf(e.target.value.toUpperCase())}
-                      placeholder="MS"
+                      readOnly
+                      disabled
+                      aria-readonly="true"
+                      title="Âncora fixa: não editável"
                       aria-label="UF da OAB"
-                      className="nox-field font-mono uppercase"
+                      className="nox-field nox-field-locked cursor-not-allowed select-none font-mono uppercase"
                     />
-                    <span className="nox-field-line" />
+                    <Lock className="nox-lock-icon nox-lock-icon-compact" aria-hidden />
                   </div>
                 </div>
               </div>
@@ -513,30 +523,38 @@ export const ConsultaPublicaPage: React.FC = () => {
 
             {modo === 'nome' && (
               <div>
-                <label className="nox-label">Âncora profissional</label>
+                <label className="nox-label">
+                  Âncora profissional <span className="nox-fixed-chip">Fixo</span>
+                </label>
                 <div className="relative">
                   <input
                     value={advogado}
-                    onChange={(e) => setAdvogado(e.target.value)}
-                    placeholder="Nome da parte ou advogado"
-                    className="nox-field"
+                    readOnly
+                    disabled
+                    aria-readonly="true"
+                    title="Âncora fixa: não editável"
+                    className="nox-field nox-field-locked cursor-not-allowed select-none"
                   />
-                  <span className="nox-field-line" />
+                  <Lock className="nox-lock-icon" aria-hidden />
                 </div>
               </div>
             )}
 
             {modo === 'processo' && (
               <div>
-                <label className="nox-label">Âncora profissional</label>
+                <label className="nox-label">
+                  Âncora profissional <span className="nox-fixed-chip">Fixo</span>
+                </label>
                 <div className="relative">
                   <input
                     value={processoInput}
-                    onChange={(e) => setProcessoInput(e.target.value)}
-                    placeholder="0000000-00.0000.8.12.0001"
-                    className="nox-field font-mono text-cyan-300"
+                    readOnly
+                    disabled
+                    aria-readonly="true"
+                    title="Âncora fixa: não editável"
+                    className="nox-field nox-field-locked cursor-not-allowed select-none font-mono text-cyan-300"
                   />
-                  <span className="nox-field-line" />
+                  <Lock className="nox-lock-icon" aria-hidden />
                 </div>
               </div>
             )}
