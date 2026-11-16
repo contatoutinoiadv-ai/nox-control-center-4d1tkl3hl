@@ -617,8 +617,145 @@ select.nox-field-locked option {
   color: #f5b301;
 }
 
+/* ---------- Logomarca NOX PULSAR ---------- */
+.nox-mark {
+  display: inline-grid;
+  place-items: center;
+  filter: drop-shadow(0 0 10px rgba(245, 179, 1, 0.25));
+  transition: filter 300ms ease;
+}
+.nox-mark-orbit,
+.nox-mark-orbit-rev,
+.nox-mark-pulse {
+  transform-origin: 32px 32px;
+}
+.nox-mark-orbit {
+  animation: nox-spin 8s linear infinite;
+}
+.nox-mark-orbit-rev {
+  animation: nox-spin-rev 14s linear infinite;
+}
+.nox-mark-pulse {
+  animation: nox-breathe 2.6s ease-in-out infinite;
+}
+.nox-mark-scanning .nox-mark-orbit {
+  animation-duration: 1.6s;
+}
+.nox-mark-scanning .nox-mark-orbit-rev {
+  animation-duration: 3s;
+}
+.nox-mark-scanning .nox-mark-pulse {
+  animation-duration: 0.9s;
+}
+.nox-mark-scanning {
+  filter: drop-shadow(0 0 14px rgba(34, 211, 238, 0.5));
+}
+.nox-mark-done {
+  filter: drop-shadow(0 0 20px rgba(245, 179, 1, 0.75));
+}
+.nox-mark-done .nox-mark-pulse {
+  animation-duration: 1.6s;
+}
+.nox-mark-failed {
+  filter: drop-shadow(0 0 12px rgba(225, 29, 72, 0.55));
+}
+.nox-mark-failed .nox-mark-orbit,
+.nox-mark-failed .nox-mark-orbit-rev,
+.nox-mark-failed .nox-mark-pulse {
+  animation-play-state: paused;
+}
+
+/* ---------- Crédito do autor ---------- */
+.nox-author-credit {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  letter-spacing: 0.14em;
+  color: #94a3b8;
+}
+.nox-author-credit strong {
+  color: #fcd34d;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+}
+.nox-author-credit .nox-credit-sep {
+  color: #f5b301;
+}
+
+/* ---------- Rastro de luz seguindo o cursor nos painéis ---------- */
+.nox-glow-surface {
+  position: relative;
+  overflow: hidden;
+}
+.nox-glow-surface::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    260px circle at var(--glow-x, 50%) var(--glow-y, 50%),
+    rgba(34, 211, 238, 0.08),
+    transparent 65%
+  );
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+.nox-glow-surface:hover::after {
+  opacity: 1;
+}
+
+/* ---------- Microfeedback: hover nos resultados e pulso no botão ---------- */
+.nox-pub-card:hover {
+  border-color: rgba(34, 211, 238, 0.35);
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.08);
+}
+.nox-pub-card:active {
+  transform: translateY(1px);
+}
+.nox-btn-ghost:active {
+  transform: scale(0.97);
+}
+@keyframes nox-btn-pulse {
+  0% {
+    box-shadow:
+      0 0 18px rgba(245, 179, 1, 0.35),
+      inset 0 0 10px rgba(255, 255, 255, 0.18);
+  }
+  40% {
+    box-shadow:
+      0 0 34px rgba(245, 179, 1, 0.7),
+      0 0 8px rgba(34, 211, 238, 0.35),
+      inset 0 0 14px rgba(255, 255, 255, 0.28);
+  }
+  100% {
+    box-shadow:
+      0 0 18px rgba(245, 179, 1, 0.35),
+      inset 0 0 10px rgba(255, 255, 255, 0.18);
+  }
+}
+.nox-btn-scan.nox-btn-pulse:not(:disabled) {
+  animation: nox-btn-pulse 480ms ease-out;
+}
+
+.nox-pub-card .nox-metric-glow {
+  opacity: 0;
+  background: radial-gradient(
+    240px circle at var(--glow-x, 50%) var(--glow-y, 50%),
+    rgba(34, 211, 238, 0.09),
+    transparent 65%
+  );
+}
+.nox-pub-card:hover .nox-metric-glow {
+  opacity: 1;
+}
+
 /* ---------- Redução de movimento global desta página ---------- */
 @media (prefers-reduced-motion: reduce) {
+  .nox-mark-orbit,
+  .nox-mark-orbit-rev,
+  .nox-mark-pulse,
   .nox-orb-ring,
   .nox-orb-ring-2,
   .nox-orb-core,
@@ -641,5 +778,10 @@ select.nox-field-locked option {
   .nox-metric-card,
   .nox-btn-scan {
     transition: none;
+  }
+  .nox-glow-surface::after,
+  .nox-pub-card .nox-metric-glow {
+    opacity: 0 !important;
+    display: none;
   }
 }

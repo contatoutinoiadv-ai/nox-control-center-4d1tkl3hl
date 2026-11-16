@@ -3,22 +3,22 @@ import { AlertTriangle, Database, EyeOff, Lock, Radar, ScanLine, ShieldCheck } f
 import './consultaPublica/consultaPublica.css'
 import { fetchDjenCommunicationsDirect, TRIBUNAIS_BRASIL } from '@/services/djenService'
 import { SentinelaCommunication } from '@/types/sentinela'
-import { AmbientBackdrop, useClock, usePrefersReducedMotion } from './consultaPublica/visualKit'
+import { useClock, usePrefersReducedMotion, useCursorGlow } from './consultaPublica/visualKit'
 import { ScanLogLine, ScanOperationPanel, ScanPhase } from './consultaPublica/ScanOperationPanel'
 import { PublicationCard, PaginationFooter } from './consultaPublica/ResultsList'
 import { TelemetryCard } from './consultaPublica/TelemetryCard'
+import { NoxPulsarBackdrop } from './consultaPublica/NoxPulsarBackdrop'
+import { NoxPulsarMark, NoxPulsarState } from './consultaPublica/NoxPulsarMark'
 
 /**
- * CONSULTA PÚBLICA DJEN SENTINELA NOX (ferramenta externa)
+ * NOX PULSAR (ferramenta externa de consulta pública)
  *
- * Ferramenta externa de consulta instantânea de publicações do DJEN/CNJ.
+ * Uma criação de Higor Utinoi · NOX Intelligence.
  * Totalmente isolada do sistema interno:
  *  - Não exige login, sem menu, sem módulos, sem navegação interna.
  *  - Não usa inteligência NOX (sem análise, sem Oráculo, sem chat).
  *  - Não grava nada em banco ou localStorage: todo o estado vive apenas
  *    na memória desta página (useState) e se perde ao recarregar.
- * A fonte de dados é fetch direto no navegador para
- * https://comunicaapi.pje.jus.br (ComunicaAPI pública do CNJ/PJe).
  *
  * Regras desta tela: nenhum travessão ou meia-risca em texto de interface.
  */
@@ -80,6 +80,22 @@ export const ConsultaPublicaPage: React.FC = () => {
   const [scanLines, setScanLines] = useState<ScanLogLine[]>([])
   const scanOpenRef = useRef(false)
   const scanLinesRef = useRef<ScanLogLine[]>([])
+
+  // Rastro de luz no console de parâmetros (a lista tem glow por card)
+  const paramsGlowRef = useCursorGlow<HTMLDivElement>()
+
+  // Microfeedback: pulso do botão ao acionar a varredura
+  const [btnPulse, setBtnPulse] = useState(0)
+
+  // Estado da logomarca/núcleo do cabeçalho
+  const markState: NoxPulsarState =
+    scanPhase === 'failed'
+      ? 'failed'
+      : scanPhase === 'done'
+        ? 'done'
+        : scanOpen
+          ? 'scanning'
+          : 'idle'
 
   const pushLog = useCallback((line: ScanLogLine) => {
     scanLinesRef.current = [...scanLinesRef.current, line]
@@ -150,7 +166,9 @@ export const ConsultaPublicaPage: React.FC = () => {
           setTotalApi(typeof result.totalCount === 'number' ? result.totalCount : itens.length)
           setPaginaApi(result.currentPage || targetPage)
         } else {
-          setDjenError(result.error || { type: 'UNKNOWN', message: 'Erro ao consultar o DJEN.' })
+          setDjenError(
+            result.error || { type: 'UNKNOWN', message: 'Erro ao conduzir a varredura.' },
+          )
         }
       } catch (err: any) {
         setDjenError({ type: 'NETWORK', message: err?.message || 'Erro inesperado na consulta.' })
@@ -167,12 +185,12 @@ export const ConsultaPublicaPage: React.FC = () => {
     setScanLines([])
     setDjenError(null)
     setScanPhase('channel')
-    pushLog({ marker: 'RUN', text: 'Estabelecendo canal seguro com o CNJ', tone: 'cyan' })
+    pushLog({ marker: 'RUN', text: 'Estabelecendo canal seguro com a malha NOX', tone: 'cyan' })
 
     try {
       pushLog({
         marker: 'OK',
-        text: 'Canal seguro estabelecido com a fonte oficial do CNJ',
+        text: 'Canal seguro estabelecido com a malha NOX',
         tone: 'cyan',
       })
       pushLog({
@@ -203,7 +221,7 @@ export const ConsultaPublicaPage: React.FC = () => {
           if (status.isWaitingRetry && status.secondsRemaining !== undefined) {
             pushLog({
               marker: 'RUN',
-              text: `Limite de requisições atingido. Aguardando ${status.secondsRemaining}s para nova tentativa automática`,
+              text: `Malha congestionada. Aguardando ${status.secondsRemaining}s para nova tentativa automática`,
               tone: 'amber',
             })
           }
@@ -214,8 +232,12 @@ export const ConsultaPublicaPage: React.FC = () => {
 
       if (!result.success) {
         setScanPhase('failed')
-        pushLog({ marker: 'FAIL', text: 'Fonte oficial indisponível no momento', tone: 'crimson' })
-        setDjenError(result.error || { type: 'UNKNOWN', message: 'Erro ao consultar o DJEN.' })
+        pushLog({
+          marker: 'FAIL',
+          text: '[ FALHA ] Malha de varredura indisponível no momento',
+          tone: 'crimson',
+        })
+        setDjenError(result.error || { type: 'UNKNOWN', message: 'Erro ao conduzir a varredura.' })
         setResultados([])
         setTotalApi(null)
         return
@@ -228,8 +250,8 @@ export const ConsultaPublicaPage: React.FC = () => {
         tone: 'cyan',
       })
 
-      // Resposta recebida e validada pelo serviço (result existir = resposta ok)
-      pushLog({ marker: 'OK', text: 'Resposta recebida da ComunicaAPI do CNJ', tone: 'cyan' })
+      // Resposta recebida e validada pelo serviço
+      pushLog({ marker: 'OK', text: 'Fluxo de leitura confirmado pela malha NOX', tone: 'cyan' })
       setScanPhase('response')
 
       // Parsing: itens normalizados pelo serviço (mapDjenItemToCommunication)
@@ -292,14 +314,21 @@ export const ConsultaPublicaPage: React.FC = () => {
       )
     } catch (err: any) {
       setScanPhase('failed')
-      pushLog({ marker: 'FAIL', text: 'Fonte oficial indisponível no momento', tone: 'crimson' })
+      pushLog({
+        marker: 'FAIL',
+        text: '[ FALHA ] Malha de varredura indisponível no momento',
+        tone: 'crimson',
+      })
       setDjenError({ type: 'NETWORK', message: err?.message || 'Erro inesperado na consulta.' })
       setResultados([])
       setTotalApi(null)
     }
   }
 
-  const iniciarVarredura = () => executarBusca(1, false)
+  const iniciarVarredura = () => {
+    setBtnPulse((k) => k + 1)
+    executarBusca(1, false)
+  }
 
   const repetirVarredura = () => {
     setScanOpen(false)
@@ -348,9 +377,31 @@ export const ConsultaPublicaPage: React.FC = () => {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [executarBusca, limparFiltros, scanOpenRef])
+
+  // Rótulos de erro sem citar fonte, endpoint ou provedor
+  const erroTitulo =
+    djenError?.type === 'RATE_LIMIT_429'
+      ? 'Malha congestionada (HTTP 429)'
+      : djenError?.type === 'FORBIDDEN_403'
+        ? 'Malha de varredura bloqueada (HTTP 403)'
+        : djenError?.type === 'CORS'
+          ? 'Restrição de rede ao atingir a malha NOX'
+          : '[ FALHA ] Malha de varredura indisponível no momento'
+
+  // Detalhe de erro redigido pela própria ferramenta: nunca exibe o texto
+  // bruto do serviço (que cita fontes e infraestrutura externas)
+  const erroDetalhe =
+    djenError?.type === 'RATE_LIMIT_429'
+      ? 'O Pulso alcançou o limite de leitura momentânea da malha. Aguarde cerca de 1 minuto e repita a varredura.'
+      : djenError?.type === 'FORBIDDEN_403'
+        ? 'A leitura foi recusada pela malha externa. Verifique a conexão da rede atual e repita a varredura.'
+        : djenError?.type === 'CORS'
+          ? 'A rede local bloqueou a leitura momentânea. Verifique sua conexão com a internet e repita a varredura.'
+          : 'A varredura não pôde ser concluída agora. Verifique a conexão e repita em instantes.'
+
   return (
     <div className="min-h-screen text-slate-200 relative">
-      <AmbientBackdrop />
+      <NoxPulsarBackdrop />
       <div className="relative z-10 max-w-7xl mx-auto px-3 py-5 sm:px-6 sm:py-8 space-y-5">
         {/* Cabeçalho de comando */}
         <header className="nox-glass relative rounded-2xl p-5 sm:p-6">
@@ -361,22 +412,7 @@ export const ConsultaPublicaPage: React.FC = () => {
 
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div
-                className={`nox-orb ${
-                  scanPhase === 'failed'
-                    ? ''
-                    : scanPhase === 'done'
-                      ? 'nox-orb-done'
-                      : scanOpen
-                        ? 'nox-orb-scanning'
-                        : ''
-                }`}
-                aria-hidden
-              >
-                <span className="nox-orb-ring" />
-                <span className="nox-orb-ring nox-orb-ring-2" />
-                <span className="nox-orb-core" />
-              </div>
+              <NoxPulsarMark state={markState} size={52} />
               <div>
                 <h1
                   className="text-xl sm:text-2xl font-bold uppercase text-[#F5B301]"
@@ -385,10 +421,17 @@ export const ConsultaPublicaPage: React.FC = () => {
                     letterSpacing: '0.22em',
                   }}
                 >
-                  Sentinela NOX
+                  NOX Pulsar
                 </h1>
                 <p className="mt-1 text-[11px] sm:text-xs font-mono uppercase tracking-[0.18em] text-slate-400">
                   Varredura do Diário de Justiça Eletrônico Nacional
+                </p>
+                <p className="nox-author-credit mt-1.5">
+                  <span className="nox-credit-sep">◆</span>
+                  <span>
+                    Uma criação de <strong>Higor Utinoi</strong>{' '}
+                    <span className="nox-credit-sep">·</span> NOX Intelligence
+                  </span>
                 </p>
               </div>
             </div>
@@ -434,19 +477,19 @@ export const ConsultaPublicaPage: React.FC = () => {
           <div className="mt-5 pt-4 border-t border-slate-800/60 flex items-center justify-center">
             <div className="nox-assurance-line">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Consulta soberana</span>
+              <span>Varredura soberana</span>
               <span className="text-slate-700">·</span>
               <EyeOff className="w-3.5 h-3.5" />
               <span>Zero armazenamento</span>
               <span className="text-slate-700">·</span>
               <Database className="w-3.5 h-3.5" />
-              <span>Leitura exclusiva da fonte oficial do CNJ</span>
+              <span>Leitura momentânea, nada fica guardado</span>
             </div>
           </div>
         </header>
 
         {/* Console de parâmetros */}
-        <section className="nox-glass relative rounded-2xl p-5 sm:p-6 space-y-4">
+        <section className="nox-glass nox-glow-surface relative rounded-2xl p-5 sm:p-6 space-y-4">
           <span className="nox-corner nox-corner-tl" />
           <span className="nox-corner nox-corner-tr" />
           <span className="nox-corner nox-corner-bl" />
@@ -465,7 +508,7 @@ export const ConsultaPublicaPage: React.FC = () => {
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div ref={paramsGlowRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="nox-label" htmlFor="cxp-modo">
                 Protocolo de busca <span className="nox-fixed-chip">Fixo</span>
@@ -623,7 +666,8 @@ export const ConsultaPublicaPage: React.FC = () => {
             <button
               onClick={iniciarVarredura}
               disabled={scanOpen}
-              className={`nox-btn-scan ${scanOpen ? 'nox-btn-progress' : ''}`}
+              key={`btn-${btnPulse}`}
+              className={`nox-btn-scan ${scanOpen ? 'nox-btn-progress' : 'nox-btn-pulse'}`}
             >
               {scanOpen && <span className="nox-btn-progress-bar" />}
               <span className="relative z-10 inline-flex items-center gap-2">
@@ -657,21 +701,13 @@ export const ConsultaPublicaPage: React.FC = () => {
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 font-bold text-rose-300 font-mono uppercase tracking-wider text-[11px]">
                 <AlertTriangle className="w-4 h-4 text-rose-400" />
-                <span>
-                  {djenError.type === 'RATE_LIMIT_429'
-                    ? 'Limite de requisições atingido (HTTP 429)'
-                    : djenError.type === 'FORBIDDEN_403'
-                      ? 'Acesso bloqueado pelo CNJ (HTTP 403)'
-                      : djenError.type === 'CORS'
-                        ? 'Restrição de CORS ou rede ao conectar com o CNJ'
-                        : 'Falha na conexão com a ComunicaAPI'}
-                </span>
+                <span>{erroTitulo}</span>
               </div>
               <span className="text-[9px] font-mono border border-rose-700 text-rose-300 px-2 py-0.5 rounded-full">
                 {djenError.type}
               </span>
             </div>
-            <p className="text-slate-300 text-[11px] leading-relaxed">{djenError.message}</p>
+            <p className="text-slate-300 text-[11px] leading-relaxed">{erroDetalhe}</p>
             <button
               onClick={iniciarVarredura}
               className="px-3 py-1.5 rounded-md border border-rose-700 text-rose-200 hover:bg-rose-950/60 transition-colors text-[11px] font-semibold"
@@ -713,41 +749,43 @@ export const ConsultaPublicaPage: React.FC = () => {
         </section>
 
         {/* Lista de resultados (somente leitura) */}
-        <section className="space-y-3">
-          {paginadas.length === 0 ? (
-            <div className="nox-glass relative rounded-2xl p-14 text-center space-y-3">
-              <span className="nox-corner nox-corner-tl" />
-              <span className="nox-corner nox-corner-tr" />
-              <span className="nox-corner nox-corner-bl" />
-              <span className="nox-corner nox-corner-br" />
-              <Radar className="w-9 h-9 mx-auto text-slate-600" />
-              <div
-                className="text-sm font-bold uppercase tracking-[0.2em] text-slate-300"
-                style={{ fontFamily: "'Space Grotesk', 'Sora', system-ui, sans-serif" }}
-              >
-                {jaBuscou
-                  ? 'Nenhuma publicação no período. A sentinela segue em vigília.'
-                  : 'A sentinela segue em vigília.'}
+        <div>
+          <section className="space-y-3">
+            {paginadas.length === 0 ? (
+              <div className="nox-glass relative rounded-2xl p-14 text-center space-y-3">
+                <span className="nox-corner nox-corner-tl" />
+                <span className="nox-corner nox-corner-tr" />
+                <span className="nox-corner nox-corner-bl" />
+                <span className="nox-corner nox-corner-br" />
+                <Radar className="w-9 h-9 mx-auto text-slate-600" />
+                <div
+                  className="text-sm font-bold uppercase tracking-[0.2em] text-slate-300"
+                  style={{ fontFamily: "'Space Grotesk', 'Sora', system-ui, sans-serif" }}
+                >
+                  {jaBuscou
+                    ? 'Nenhuma publicação no período. O Pulso segue em vigília.'
+                    : 'O Pulso segue em vigília.'}
+                </div>
+                <p className="text-xs text-slate-500 font-mono">
+                  {jaBuscou
+                    ? 'Ajuste a janela temporal, a malha de tribunais ou a parte monitorada e inicie uma nova varredura.'
+                    : 'Confira o protocolo de busca acima e inicie a varredura para capturar as publicações.'}
+                </p>
               </div>
-              <p className="text-xs text-slate-500 font-mono">
-                {jaBuscou
-                  ? 'Ajuste a janela temporal, a malha de tribunais ou a parte monitorada e inicie uma nova varredura.'
-                  : 'Configure o protocolo de busca acima e inicie a varredura para consultar o DJEN.'}
-              </p>
-            </div>
-          ) : (
-            paginadas.map((comm, idx) => (
-              <PublicationCard
-                key={comm.id}
-                comm={comm}
-                index={idx}
-                expanded={expandidoId === comm.id}
-                reducedMotion={reducedMotion}
-                onToggle={() => setExpandidoId(expandidoId === comm.id ? null : comm.id)}
-              />
-            ))
-          )}
-        </section>
+            ) : (
+              paginadas.map((comm, idx) => (
+                <PublicationCard
+                  key={comm.id}
+                  comm={comm}
+                  index={idx}
+                  expanded={expandidoId === comm.id}
+                  reducedMotion={reducedMotion}
+                  onToggle={() => setExpandidoId(expandidoId === comm.id ? null : comm.id)}
+                />
+              ))
+            )}
+          </section>
+        </div>
 
         {/* Rodapé de paginação */}
         {jaBuscou && (
@@ -768,9 +806,19 @@ export const ConsultaPublicaPage: React.FC = () => {
         )}
 
         {/* Rodapé isolado, sem links para o sistema interno */}
-        <footer className="pt-2 pb-6 text-center text-[10px] font-mono text-slate-600 tracking-wide">
-          Sentinela NOX · Ferramenta de consulta externa · Consulta direta à ComunicaAPI do CNJ/PJe
-          · Nenhum dado é gravado em banco ou no sistema interno
+        <footer className="pt-3 pb-6 flex flex-col items-center gap-2 text-center">
+          <NoxPulsarMark state={markState} size={34} />
+          <p className="nox-author-credit">
+            <span className="nox-credit-sep">◆</span>
+            <span>
+              Desenvolvido por <strong>Higor Utinoi</strong>{' '}
+              <span className="nox-credit-sep">·</span> NOX Intelligence
+            </span>
+          </p>
+          <p className="text-[10px] font-mono text-slate-600 tracking-wide">
+            NOX Pulsar · Ferramenta de consulta externa · Nenhum dado é gravado em banco ou no
+            sistema interno
+          </p>
         </footer>
       </div>
     </div>

@@ -86,6 +86,26 @@ export const useTilt = (max = 4) => {
   return ref
 }
 
+export const useCursorGlow = <T extends HTMLElement>() => {
+  const ref = useRef<T | null>(null)
+  const reduced = usePrefersReducedMotion()
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el || reduced) return
+    const onMove = (e: MouseEvent) => {
+      const r = el.getBoundingClientRect()
+      if (!r.width || !r.height) return
+      el.style.setProperty('--glow-x', `${((e.clientX - r.left) / r.width) * 100}%`)
+      el.style.setProperty('--glow-y', `${((e.clientY - r.top) / r.height) * 100}%`)
+    }
+    el.addEventListener('mousemove', onMove)
+    return () => el.removeEventListener('mousemove', onMove)
+  }, [reduced])
+
+  return ref
+}
+
 export const AmbientBackdrop: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const reduced = usePrefersReducedMotion()

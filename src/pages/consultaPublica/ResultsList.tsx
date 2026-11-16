@@ -1,6 +1,7 @@
 import React from 'react'
 import { CalendarDays, ChevronsLeft, ChevronsRight, RefreshCw, Scale } from 'lucide-react'
 import { SentinelaCommunication } from '@/types/sentinela'
+import { useCursorGlow } from './visualKit'
 
 /* ============================================================
    Camada de apresentação da lista de publicações da Consulta
@@ -34,14 +35,17 @@ export const PublicationCard: React.FC<{
   const tipo = String(comm.tipoComunicacao || 'INTIMACAO')
   const teor = comm.teorCompleto || comm.teorResumido || 'Teor não informado.'
   const teorVisivel = expanded || teor.length <= 320
+  const glowRef = useCursorGlow<HTMLElement>()
 
   return (
     <article
+      ref={glowRef}
       className="nox-pub-card nox-cascade-item p-4 pl-5 space-y-3"
       style={{
         animationDelay: reducedMotion ? undefined : `${Math.min(index * 40, 800)}ms`,
       }}
     >
+      <span className="nox-metric-glow" aria-hidden />
       <span
         className="nox-pub-stripe"
         style={{ background: tone.color, boxShadow: `0 0 8px ${tone.color}66` }}
@@ -156,7 +160,7 @@ export const PaginationFooter: React.FC<{
       </span>
       {totalApi !== null && (
         <span className="text-slate-500">
-          · Total na base do CNJ: <span className="text-cyan-300">{totalApi}</span>
+          · Total na base: <span className="text-cyan-300">{totalApi}</span>
         </span>
       )}
     </div>
@@ -175,7 +179,7 @@ export const PaginationFooter: React.FC<{
           ) : (
             <>
               <RefreshCw className="w-3 h-3" />
-              Carregar mais do DJEN ({total}/{totalApi})
+              Carregar mais ({total}/{totalApi})
             </>
           )}
         </button>
