@@ -1,0 +1,584 @@
+/* ============================================================
+   Consulta Pública DJEN: camada visual HUD
+   (escopada nesta página, nada aqui afeta /sentinela)
+   ============================================================ */
+
+/* ---------- Fundo vivo: grade em perspectiva + vinheta ---------- */
+.nox-public-grid {
+  background-image:
+    linear-gradient(rgba(34, 211, 238, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.05) 1px, transparent 1px);
+  background-size: 56px 56px;
+  transform: perspective(900px) rotateX(58deg) scale(1.6);
+  transform-origin: center bottom;
+  opacity: 0.35;
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.15),
+    rgba(0, 0, 0, 0.85) 55%,
+    rgba(0, 0, 0, 0.3)
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.15),
+    rgba(0, 0, 0, 0.85) 55%,
+    rgba(0, 0, 0, 0.3)
+  );
+}
+
+.nox-public-vignette {
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 0%, rgba(34, 211, 238, 0.06), transparent 60%),
+    radial-gradient(ellipse 70% 50% at 50% 100%, rgba(245, 179, 1, 0.04), transparent 65%);
+}
+
+/* ---------- Vidro escuro + cantoneiras em L ---------- */
+.nox-glass {
+  background: linear-gradient(160deg, rgba(13, 18, 32, 0.82), rgba(7, 11, 20, 0.88));
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  box-shadow:
+    0 0 0 1px rgba(245, 179, 1, 0.02),
+    0 18px 40px rgba(2, 4, 10, 0.55);
+}
+
+.nox-corner {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
+}
+.nox-corner-tl {
+  top: -1px;
+  left: -1px;
+  border-top: 1px solid #f5b301;
+  border-left: 1px solid #f5b301;
+}
+.nox-corner-tr {
+  top: -1px;
+  right: -1px;
+  border-top: 1px solid #f5b301;
+  border-right: 1px solid #f5b301;
+}
+.nox-corner-bl {
+  bottom: -1px;
+  left: -1px;
+  border-bottom: 1px solid #f5b301;
+  border-left: 1px solid #f5b301;
+}
+.nox-corner-br {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 1px solid #f5b301;
+  border-right: 1px solid #f5b301;
+}
+
+/* ---------- Orbe / núcleo do cabeçalho ---------- */
+.nox-orb {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  border-radius: 9999px;
+  border: 1px solid rgba(245, 179, 1, 0.55);
+  display: grid;
+  place-items: center;
+  box-shadow:
+    0 0 18px rgba(245, 179, 1, 0.25),
+    inset 0 0 12px rgba(245, 179, 1, 0.12);
+}
+.nox-orb-ring {
+  position: absolute;
+  inset: -7px;
+  border-radius: 9999px;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  border-top-color: #22d3ee;
+  animation: nox-spin 6s linear infinite;
+}
+.nox-orb-ring-2 {
+  inset: -13px;
+  border-color: rgba(245, 179, 1, 0.18);
+  border-bottom-color: rgba(245, 179, 1, 0.7);
+  animation: nox-spin-rev 11s linear infinite;
+}
+.nox-orb-core {
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: #f5b301;
+  box-shadow: 0 0 12px rgba(245, 179, 1, 0.9);
+  animation: nox-breathe 2.6s ease-in-out infinite;
+}
+.nox-orb-scanning .nox-orb-ring {
+  border-top-color: #22d3ee;
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.4);
+}
+.nox-orb-scanning .nox-orb-core {
+  background: #22d3ee;
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.9);
+  animation-duration: 1.1s;
+}
+.nox-orb-done .nox-orb-core {
+  background: #f5b301;
+  animation: none;
+  box-shadow: 0 0 18px rgba(245, 179, 1, 1);
+}
+
+@keyframes nox-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes nox-spin-rev {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+@keyframes nox-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.75;
+  }
+}
+
+/* ---------- Pílula de status de vigília ---------- */
+.nox-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  border: 1px solid rgba(245, 179, 1, 0.45);
+  background: rgba(245, 179, 1, 0.06);
+  font-size: 11px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fcd34d;
+}
+.nox-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+}
+.nox-status-vigil .nox-status-dot {
+  background: #f5b301;
+  animation: nox-breathe 2.4s ease-in-out infinite;
+  box-shadow: 0 0 10px rgba(245, 179, 1, 0.8);
+}
+.nox-status-scanning {
+  border-color: rgba(34, 211, 238, 0.55);
+  background: rgba(34, 211, 238, 0.07);
+  color: #67e8f9;
+}
+.nox-status-scanning .nox-status-dot {
+  background: #22d3ee;
+  animation: nox-breathe 0.9s ease-in-out infinite;
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.9);
+}
+.nox-status-done {
+  border-color: rgba(245, 179, 1, 0.7);
+  background: rgba(245, 179, 1, 0.1);
+  color: #fcd34d;
+}
+.nox-status-done .nox-status-dot {
+  background: #f5b301;
+  box-shadow: 0 0 12px rgba(245, 179, 1, 1);
+}
+
+/* ---------- Console de parâmetros ---------- */
+.nox-field {
+  position: relative;
+  width: 100%;
+  background: rgba(4, 6, 12, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #e2e8f0;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+  outline: none;
+}
+.nox-field::placeholder {
+  color: #475569;
+}
+.nox-field:focus {
+  border-color: rgba(245, 179, 1, 0.65);
+  box-shadow:
+    0 0 0 1px rgba(245, 179, 1, 0.35),
+    0 0 14px rgba(245, 179, 1, 0.14);
+}
+.nox-field:focus + .nox-field-line {
+  opacity: 1;
+}
+.nox-field-line {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 3px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, #f5b301, transparent);
+  background-size: 200% 100%;
+  opacity: 0;
+  animation: nox-scan-line 1.2s linear infinite;
+  pointer-events: none;
+}
+@keyframes nox-scan-line {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+.nox-field-line-active {
+  opacity: 1;
+}
+select.nox-field option {
+  background: #0b1020;
+  color: #e2e8f0;
+}
+
+.nox-label {
+  display: block;
+  font-size: 10px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+/* ---------- Botão principal: Iniciar Varredura ---------- */
+.nox-btn-scan {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  padding: 10px 22px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #05070d;
+  background: linear-gradient(135deg, #ffc94a, #f5b301 55%, #d99a00);
+  border: 1px solid rgba(245, 179, 1, 0.8);
+  box-shadow:
+    0 0 18px rgba(245, 179, 1, 0.35),
+    inset 0 0 10px rgba(255, 255, 255, 0.18);
+  transition:
+    transform 150ms ease,
+    box-shadow 150ms ease;
+}
+.nox-btn-scan:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 26px rgba(245, 179, 1, 0.55),
+    inset 0 0 12px rgba(255, 255, 255, 0.22);
+}
+.nox-btn-scan::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 45%;
+  left: -60%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+  transform: skewX(-18deg);
+  transition: left 550ms ease;
+}
+.nox-btn-scan:hover:not(:disabled)::before {
+  left: 120%;
+}
+.nox-btn-scan:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+.nox-btn-scan.nox-btn-progress {
+  background: #0b1020;
+  border-color: rgba(34, 211, 238, 0.6);
+  color: #67e8f9;
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.25);
+}
+.nox-btn-progress-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.35), rgba(34, 211, 238, 0.15));
+  animation: nox-indeterminate 1.4s ease-in-out infinite;
+}
+@keyframes nox-indeterminate {
+  0% {
+    left: -35%;
+    right: 100%;
+  }
+  60% {
+    left: 100%;
+    right: -20%;
+  }
+  100% {
+    left: 100%;
+    right: -20%;
+  }
+}
+
+.nox-btn-ghost {
+  border-radius: 10px;
+  padding: 10px 18px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  background: rgba(11, 16, 32, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  transition:
+    color 150ms ease,
+    border-color 150ms ease;
+}
+.nox-btn-ghost:hover {
+  color: #e2e8f0;
+  border-color: rgba(245, 179, 1, 0.5);
+}
+
+/* ---------- Cartões de telemetria ---------- */
+.nox-metric-card {
+  position: relative;
+  cursor: pointer;
+  border-radius: 14px;
+  padding: 14px;
+  background: linear-gradient(160deg, rgba(13, 18, 32, 0.85), rgba(7, 11, 20, 0.92));
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  overflow: hidden;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+  will-change: transform;
+}
+.nox-metric-card:hover {
+  border-color: rgba(148, 163, 184, 0.35);
+}
+.nox-metric-card.nox-metric-active {
+  border-color: rgba(245, 179, 1, 0.75);
+  box-shadow:
+    0 0 0 1px rgba(245, 179, 1, 0.4),
+    0 0 22px rgba(245, 179, 1, 0.18);
+}
+.nox-metric-card.nox-metric-aura {
+  border-color: rgba(225, 29, 72, 0.6);
+  animation: nox-aura 2.2s ease-in-out infinite;
+}
+@keyframes nox-aura {
+  0%,
+  100% {
+    box-shadow:
+      0 0 6px rgba(225, 29, 72, 0.25),
+      inset 0 0 6px rgba(225, 29, 72, 0.08);
+  }
+  50% {
+    box-shadow:
+      0 0 22px rgba(225, 29, 72, 0.55),
+      inset 0 0 12px rgba(225, 29, 72, 0.16);
+  }
+}
+.nox-metric-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    220px circle at var(--glow-x, 50%) var(--glow-y, 50%),
+    rgba(34, 211, 238, 0.1),
+    transparent 65%
+  );
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+.nox-metric-card:hover .nox-metric-glow {
+  opacity: 1;
+}
+
+.nox-metric-bar {
+  flex: 1;
+  border-radius: 2px;
+  transform-origin: bottom;
+  animation: nox-bar-rise 500ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+@keyframes nox-bar-rise {
+  from {
+    transform: scaleY(0);
+    opacity: 0.2;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+/* ---------- Cascata dos resultados ---------- */
+.nox-cascade-item {
+  animation: nox-cascade-in 480ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+@keyframes nox-cascade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nox-cascade-item {
+    animation: none;
+  }
+}
+
+/* ---------- Publicação ---------- */
+.nox-pub-card {
+  position: relative;
+  border-radius: 12px;
+  background: linear-gradient(165deg, rgba(13, 18, 32, 0.88), rgba(7, 11, 20, 0.94));
+  border: 1px solid rgba(148, 163, 184, 0.13);
+  overflow: hidden;
+  transition: border-color 160ms ease;
+}
+.nox-pub-card:hover {
+  border-color: rgba(148, 163, 184, 0.3);
+}
+.nox-pub-stripe {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+}
+
+.nox-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  letter-spacing: 0.08em;
+  border: 1px solid;
+}
+
+/* ---------- Painel de operação: radar e log ---------- */
+.nox-radar {
+  filter: drop-shadow(0 0 10px rgba(34, 211, 238, 0.2));
+}
+.nox-radar-ring {
+  position: absolute;
+  border-radius: 9999px;
+  border: 1px solid rgba(34, 211, 238, 0.25);
+}
+.nox-radar-ring-1 {
+  inset: 0;
+}
+.nox-radar-ring-2 {
+  inset: 16%;
+}
+.nox-radar-ring-3 {
+  inset: 34%;
+  border-style: dashed;
+  border-color: rgba(148, 163, 184, 0.25);
+}
+.nox-radar-cross {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(rgba(148, 163, 184, 0.14), rgba(148, 163, 184, 0.14)) center / 100% 1px
+      no-repeat,
+    linear-gradient(rgba(148, 163, 184, 0.14), rgba(148, 163, 184, 0.14)) center / 1px 100%
+      no-repeat;
+}
+.nox-radar-beam {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: conic-gradient(
+    from 0deg,
+    rgba(34, 211, 238, 0.5),
+    transparent 80deg,
+    transparent 360deg
+  );
+  animation: nox-radar-sweep 2.2s linear infinite;
+  mask-image: radial-gradient(circle, black 99%, transparent 100%);
+  -webkit-mask-image: radial-gradient(circle, black 99%, transparent 100%);
+}
+.nox-radar-beam-fail {
+  animation: none;
+  opacity: 0;
+}
+@keyframes nox-radar-sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.nox-pulse-core {
+  animation: nox-breathe 1.3s ease-in-out infinite;
+}
+.nox-pulse-fail {
+  animation: nox-breathe 0.7s ease-in-out infinite;
+}
+
+.nox-log-line {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.nox-log-text {
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Barra de garantia ---------- */
+.nox-assurance-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  letter-spacing: 0.06em;
+  color: #64748b;
+}
+.nox-assurance-line svg {
+  color: #f5b301;
+}
+
+/* ---------- Redução de movimento global desta página ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .nox-orb-ring,
+  .nox-orb-ring-2,
+  .nox-orb-core,
+  .nox-status-dot,
+  .nox-radar-beam,
+  .nox-pulse-core,
+  .nox-pulse-fail,
+  .nox-field-line,
+  .nox-btn-progress-bar,
+  .nox-metric-card.nox-metric-aura,
+  .nox-metric-bar {
+    animation: none !important;
+  }
+  .nox-field-line {
+    opacity: 0 !important;
+  }
+  .nox-radar-beam {
+    opacity: 0.12;
+  }
+  .nox-metric-card,
+  .nox-btn-scan {
+    transition: none;
+  }
+}
